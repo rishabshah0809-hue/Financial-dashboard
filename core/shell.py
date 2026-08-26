@@ -404,6 +404,35 @@ if(pa)pa.addEventListener('click',()=>{
 """
 
 
+# Self-size the component frame to its actual content. components.html is given a
+# fixed height by Streamlit, which leaves a band of empty shell below short pages
+# (and an inner scrollbar on tall ones). The srcdoc iframe is same-origin, so from
+# inside we can set the frame's own height and collapse the Streamlit container to
+# match — giving every page an exact fit at any width, with no trailing empty space.
+FIT_JS = """
+(function(){
+  function fit(){
+    try{
+      var s=document.getElementById('shell'); if(!s) return;
+      /* #shell sits inside body's 24px top + 34px bottom padding, so the frame
+         needs the shell height plus that 58px to fit exactly with no trailing gap. */
+      var h=Math.ceil(s.getBoundingClientRect().height)+58;
+      var fe=window.frameElement; if(!fe) return;
+      fe.style.height=h+'px'; fe.setAttribute('height',h);
+      var el=fe;
+      for(var i=0;i<4 && el;i++){ el=el.parentElement;
+        if(el && el.getAttribute && el.getAttribute('data-testid')==='stElementContainer'){
+          el.style.height='auto'; break; } }
+    }catch(e){}
+  }
+  window.addEventListener('load',function(){fit();setTimeout(fit,120);setTimeout(fit,450);});
+  if(window.ResizeObserver){var s=document.getElementById('shell');
+    if(s) new ResizeObserver(fit).observe(s);}
+  window.addEventListener('resize',fit);
+})();
+"""
+
+
 def _esc(s) -> str:
     return escape(str(s))
 
@@ -427,6 +456,7 @@ def _doc(body: str, scripts: str = "", extra_css: str = "") -> str:
         f'<div id="toast"></div><div id="fctip"></div>'
         f"<script>{FC_BIND}</script>"
         f"<script>{SHELL_JS}</script>{scripts}"
+        f"<script>{FIT_JS}</script>"
         "</body></html>"
     )
 
