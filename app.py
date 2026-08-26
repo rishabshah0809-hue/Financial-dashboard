@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r9 (auto-fit frames)"
+BUILD_TAG = "2026-08-26 r10 (sidebar redesign + night)"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
@@ -103,35 +103,82 @@ SIDEBAR_DARK = """
 section[data-testid="stSidebar"]{
   background:linear-gradient(180deg,#0d1d16 0%,#0a1610 100%)!important;
   border-right:1px solid rgba(255,255,255,.06)!important}
-.side-mark{border-radius:50%!important;
-  background:linear-gradient(135deg,#37d67a,#1faa5e)!important;color:#06120c!important}
-.side-brand .name{color:#f2f7f4!important}
-.side-brand .tag{color:#aebab3!important}
-.nav-head,.step{color:#aebab3!important}
-.step .n{background:rgba(31,170,94,.22)!important;color:#5fe996!important;
-  border-color:rgba(31,170,94,.42)!important}
-section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{color:#b6bfb9!important}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.35rem!important}
+
+/* brand */
+.side-mark{width:40px!important;height:40px!important;border-radius:50%!important;
+  background:linear-gradient(135deg,#37d67a,#1faa5e)!important;color:#06120c!important;
+  font-weight:800!important;font-size:17px!important}
+.side-brand .name{color:#f2f7f4!important;font-size:18px!important;font-weight:800!important}
+.side-brand .tag{color:#aebab3!important;font-size:9.5px!important;letter-spacing:1.6px!important}
+
+/* section headers + captions */
+.dhd{font-size:10px;letter-spacing:1.6px;color:#aebab3;font-weight:700;
+  font-family:ui-monospace,Menlo,monospace;padding:14px 2px 2px}
+section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{
+  color:#b6bfb9!important;font-size:11.5px!important;line-height:1.5!important}
+
+/* nav buttons + minimize (same .stButton) */
 section[data-testid="stSidebar"] .stButton>button{
   background:transparent!important;border:1px solid transparent!important;
   color:#dde4df!important;justify-content:flex-start!important;text-align:left!important;
-  font-size:14px!important;font-weight:600!important;padding:.55rem .8rem!important}
-/* Streamlit paints the button label in a child markdown <p> with the base
-   theme's dark colour (#15201a), which is invisible on the dark rail. The
-   button-level colour above does NOT cascade to it, so force the light colour
-   onto every descendant — this is what actually makes the nav text legible. */
+  font-size:14px!important;font-weight:600!important;padding:.6rem .8rem!important;
+  border-radius:12px!important}
+/* Streamlit paints the label in a child markdown <p> with the base theme's dark
+   colour; force the light colour onto every descendant so the text is legible. */
 section[data-testid="stSidebar"] .stButton>button *{color:#dde4df!important}
-/* No hover animation on the sidebar (design request): inactive items keep
-   their resting look on hover; the active item keeps its green fill on hover. */
 section[data-testid="stSidebar"] .stButton>button:hover{
-  background:transparent!important;border-color:transparent!important}
+  background:rgba(255,255,255,.04)!important;border-color:transparent!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
   background:rgba(31,170,94,.20)!important;
   border-color:rgba(55,214,122,.45)!important;font-weight:700!important;
   box-shadow:inset 3px 0 0 #37d67a!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"],
-section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{
-  color:#eafff3!important}
-.loaded-chip .txt b{color:#eaf3ee!important}
+section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{color:#eafff3!important}
+
+/* night-mode toggle (HTML button, wired client-side for a smooth invert) */
+.fc-dntoggle{display:flex;align-items:center;gap:10px;width:100%;
+  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);
+  border-radius:12px;padding:.55rem .8rem;color:#dde4df;font-family:inherit;
+  font-size:14px;font-weight:600;cursor:pointer;margin:2px 0}
+.fc-dntoggle:hover{background:rgba(255,255,255,.08)}
+.fc-dntoggle .dnic{font-size:16px;width:20px;text-align:center}
+
+/* upload dropzone -> the reference's dashed drop with a green button */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"]{
+  border:1.5px dashed rgba(255,255,255,.16)!important;border-radius:14px!important;
+  background:rgba(255,255,255,.02)!important;padding:16px!important;
+  flex-direction:column!important;align-items:center!important;gap:10px!important}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"] *{
+  color:#8a948f!important;font-size:11px!important;font-family:ui-monospace,Menlo,monospace!important}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button{
+  background:linear-gradient(135deg,#2a9c62,#177245)!important;border:none!important;
+  border-radius:12px!important;padding:10px 18px!important;font-weight:700!important;
+  font-size:14px!important}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button,
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *{
+  color:#fff!important}
+
+/* demo toggle label legible on the dark rail */
+section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
+section[data-testid="stSidebar"] [data-testid="stCheckbox"] label span{color:#c8d1cb!important}
+
+/* loaded chip */
+.loaded-chip{background:rgba(255,255,255,.04)!important;
+  border:1px solid rgba(255,255,255,.08)!important;border-radius:12px!important;
+  padding:12px 14px!important}
+.loaded-chip .txt b{color:#eaf3ee!important;font-size:13px!important;
+  font-family:ui-monospace,Menlo,monospace!important}
+.loaded-chip .dot{background:#37d67a!important}
+
+/* sector select -> white pill with dark, legible text */
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[role="group"]{
+  background:#fff!important;border-radius:12px!important;border:none!important;
+  padding:2px 4px!important}
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[role="group"] *,
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] input{
+  color:#15201a!important;font-weight:700!important;
+  -webkit-text-fill-color:#15201a!important}
 """
 
 
@@ -150,8 +197,8 @@ section[data-testid="stSidebar"] [data-testid="stCheckbox"],
 section[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
 section[data-testid="stSidebar"] .stSelectbox,
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"],
-section[data-testid="stSidebar"] .step,
-section[data-testid="stSidebar"] .nav-head,
+section[data-testid="stSidebar"] .dhd,
+section[data-testid="stSidebar"] .fc-dntoggle,
 section[data-testid="stSidebar"] .loaded-chip .txt{display:none!important}
 .loaded-chip{justify-content:center;padding:.5rem .2rem!important;
   background:#f2f6f3!important;border-color:#e3ebe5!important}
@@ -177,6 +224,40 @@ section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{
   color:#ffffff!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]::before{
   display:none!important}
+"""
+
+
+# The night-mode control from the reference design. The button is plain HTML in
+# the sidebar; a 0-height component iframe (same-origin) wires its click to a
+# smooth CSS invert of the main content — no Streamlit rerun, so it animates.
+NIGHT_TOGGLE_HTML = (
+    '<button class="fc-dntoggle" type="button">'
+    '<span class="dnic">☾</span><span class="dnlb">Night mode</span></button>'
+)
+
+NIGHT_JS = """
+<script>
+(function(){
+  var doc; try{ doc=window.parent.document; }catch(e){ return; }
+  if(!doc.getElementById('fc-night-style')){
+    var s=doc.createElement('style'); s.id='fc-night-style';
+    s.textContent='[data-testid=\\"stMain\\"]{transition:filter .35s ease}'+
+      'html.fcnight [data-testid=\\"stMain\\"]{filter:invert(1) hue-rotate(180deg)}';
+    doc.head.appendChild(s);
+  }
+  function upd(on){ var b=doc.querySelector('.fc-dntoggle'); if(!b)return;
+    var i=b.querySelector('.dnic'), l=b.querySelector('.dnlb');
+    if(i)i.textContent=on?'\\u2600':'\\u263e';
+    if(l)l.textContent=on?'Day mode':'Night mode'; }
+  function setNight(on){ doc.documentElement.classList.toggle('fcnight',on);
+    try{localStorage.setItem('fc_night',on?'1':'0');}catch(e){} upd(on); }
+  var btn=doc.querySelector('.fc-dntoggle');
+  if(btn && !btn._fcw){ btn._fcw=1; btn.addEventListener('click',function(){
+    setNight(!doc.documentElement.classList.contains('fcnight')); }); }
+  var saved=false; try{ saved=localStorage.getItem('fc_night')==='1'; }catch(e){}
+  setNight(saved);
+})();
+</script>
 """
 
 
@@ -255,11 +336,13 @@ def sidebar() -> tuple[object, str, str]:
                          help=label if collapsed else None):
                 navigate_to = key
 
-        # Day/Night lives in the main-area top bar now (the design puts it there);
-        # only the default is seeded here so the first paint is themed correctly.
+        # ---- night-mode toggle (client-side invert of the main content) ----
+        if not collapsed:
+            st.markdown(NIGHT_TOGGLE_HTML, unsafe_allow_html=True)
+        components.html(NIGHT_JS, height=0)
         st.session_state.setdefault("dark_mode", False)
 
-        step(1, "Your data")
+        st.markdown('<div class="dhd">YOUR DATA</div>', unsafe_allow_html=True)
         upload = st.file_uploader(
             "3-statement model (.xlsx)", type=["xlsx", "xlsm"],
             label_visibility="collapsed", key="upload",
@@ -293,7 +376,7 @@ def sidebar() -> tuple[object, str, str]:
                 unsafe_allow_html=True,
             )
 
-        step(2, "Sector lens")
+        st.markdown('<div class="dhd">SECTOR LENS</div>', unsafe_allow_html=True)
         choices = sector_choices()
         keys = [k for k, _ in choices]
         # Held in a plain state key rather than the widget's own key: Streamlit
