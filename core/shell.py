@@ -41,10 +41,10 @@ MONO = viz.MONO
 SHELL_CSS = """
 *{margin:0;padding:0;box-sizing:border-box}
 body{margin:0;min-height:100vh;padding:24px 20px 34px;
-  background:linear-gradient(180deg,#efefee,#e4e4e3);
+  background:linear-gradient(180deg,#e7ebe7,#d9ded9);
   font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a;
   display:flex;justify-content:center}
-#shell{width:1420px;max-width:100%;background:#fbfbfa;border-radius:30px;
+#shell{width:1420px;max-width:100%;background:#e9ece8;border-radius:30px;
   padding:22px;display:flex;gap:20px;box-shadow:0 30px 80px rgba(0,0,0,.10)}
 main{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
 a{color:#177245;text-decoration:none}
@@ -53,7 +53,7 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .mono{font-family:ui-monospace,Menlo,monospace}
 
 /* ---- top bar ---- */
-.topbar{background:#fff;border-radius:20px;padding:14px 18px;display:flex;
+.topbar{background:#fff;border-radius:20px;padding:14px 18px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);display:flex;
   align-items:center;gap:16px;flex-wrap:wrap}
 .searchpill{flex:1 1 200px;min-width:180px;max-width:330px;display:flex;
   align-items:center;gap:11px;background:#f5f6f5;border-radius:14px;
@@ -79,7 +79,7 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
   font-family:ui-monospace,Menlo,monospace}
 
 /* ---- hero ---- */
-.hero{background:#f4f5f3;border-radius:22px;padding:24px;display:flex;
+.hero{background:#eef2ee;border-radius:22px;padding:24px;display:flex;
   align-items:flex-start;gap:20px;flex-wrap:wrap}
 .hero h1{font-size:38px;font-weight:800;letter-spacing:-1.2px;color:#15201a;
   line-height:1.1}
@@ -106,7 +106,7 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 /* ---- KPI grid ---- */
 .kpigrid{display:grid;grid-template-columns:repeat(auto-fit,
   minmax(min(220px,100%),1fr));gap:14px}
-.kpi{border-radius:18px;padding:20px 22px;background:#fff}
+.kpi{border-radius:18px;padding:20px 22px;background:#fff;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
 .kpi .hd{display:flex;align-items:center;justify-content:space-between}
 .kpi .name{font-size:15px;font-weight:600;color:#15201a}
 .kpi .circ{width:30px;height:30px;border-radius:50%;border:1.5px solid #dcdfdc;
@@ -130,7 +130,7 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .kpi.score .chip{background:rgba(255,255,255,.18);color:#fff}
 
 /* ---- verdict card ---- */
-.verdict{background:#fff;border-radius:18px;padding:24px 26px;
+.verdict{background:#fff;border-radius:18px;padding:24px 26px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
   border-left:4px solid var(--rail,#d9a441);display:grid;
   grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));
   gap:28px;align-items:center}
@@ -162,7 +162,7 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .srhead .cnt{width:28px;height:28px;border-radius:50%;color:#fff;font-size:12.5px;
   font-weight:700;display:flex;align-items:center;justify-content:center}
 .srlist{display:flex;flex-direction:column;gap:10px}
-.sritem{background:#fff;border-radius:13px;padding:14px 16px}
+.sritem{background:#fff;border-radius:13px;padding:14px 16px;border:1px solid #e9ede9;box-shadow:0 1px 2px rgba(21,32,26,.035)}
 .sritem .it{font-size:14.5px;font-weight:700;color:#15201a}
 .sritem .id2{font-size:12.5px;color:#7d847f;line-height:1.5;padding-top:4px}
 .seeall{cursor:pointer;grid-column:1/-1;background:#fff;border:1px solid #e6e9e7;
@@ -170,7 +170,7 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
   font-weight:700;color:#15201a;font-family:inherit}
 
 /* ---- panel cards & grids ---- */
-.card{background:#fff;border-radius:18px;padding:22px 24px}
+.card{background:#fff;border-radius:18px;padding:22px 24px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
 .grid-auto{display:grid;grid-template-columns:repeat(auto-fit,
   minmax(min(280px,100%),1fr));gap:14px;align-items:start}
 .grid-300{display:grid;grid-template-columns:repeat(auto-fit,
@@ -210,7 +210,7 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .leftstack{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:14px}
 .rightstack{flex:2 1 380px;min-width:0;display:flex;flex-direction:column;gap:14px}
 .rowwrap{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
-.strip{background:#fff;border-radius:18px;padding:16px 20px}
+.strip{background:#fff;border-radius:18px;padding:16px 20px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
 .strip .slabel{font-family:ui-monospace,Menlo,monospace;font-size:10px;
   font-weight:700;letter-spacing:1.4px;color:#8b918e;padding-bottom:8px}
 .dialcard-hd{text-align:center}
@@ -299,6 +299,13 @@ tr.head .val{font-weight:800}
 #fctip .v{margin-left:auto;padding-left:12px;color:#fff;font-weight:700;
   font-family:ui-monospace,Menlo,monospace}
 .hit{cursor:crosshair}
+
+/* --- refined "soft card" polish (imitates the provided design file) --- */
+.kpi.score{border:none;box-shadow:0 8px 22px rgba(15,74,44,.20)}
+.herostat{box-shadow:0 1px 2px rgba(21,32,26,.05),0 4px 12px rgba(21,32,26,.05)}
+main [style*="background:#fff"][style*="border-radius:18px"],
+main [style*="background:#fff"][style*="border-radius:20px"]{
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
 """
 
 FC_DEFS = """
@@ -540,26 +547,12 @@ def _valuation(model) -> str:
     if mcap and sales_v and net_v:
         segs = [("Market Cap", mcap, "#9aa09d"), ("Revenue", sales_v, "#177245"),
                 ("Net income", net_v, "#5fd0a0")]
-    multiples = []
-    for label, metric in (("Price to earnings (P/E)", "PE Ratio"),
-                          ("Price to sales (P/S)", "Price to Sales")):
-        s = S.ser(model, metric)
-        s = s[(s > 0) & (s < 1000)]
-        if not s.empty:
-            multiples.append((label, f"{float(s.iloc[-1]):.2f}x"))
-    donut = ""
-    if segs:
-        centre = S.cr(mcap)
-        donut, _ = viz.donut(segs, centre.replace("\u20b9", "\u20b9"), "crore mcap")
-    mult_rows = "".join(
-        f'<div style="display:flex;align-items:center;justify-content:space-between;'
-        f'gap:10px"><span style="font-size:12.5px;color:{BODY}">{k}</span>'
-        f'<b style="font-size:14px;color:{INK};flex:none">{v}</b></div>'
-        for k, v in multiples)
-    if not donut and not mult_rows:
-        return '<p class="csub">Multiples not present in this workbook.</p>'
-    return (donut + (f'<div style="display:flex;flex-direction:column;gap:10px;'
-            f'padding-top:10px">{mult_rows}</div>' if mult_rows else ""))
+    # The P/E and P/S multiples rows were removed at the user's request; the
+    # valuation card now shows the composition donut alone.
+    if not segs:
+        return '<p class="csub">Valuation inputs not present in this workbook.</p>'
+    donut, _ = viz.donut(segs, S.cr(mcap), "crore mcap")
+    return donut
 
 
 def _key_ratios(model) -> str:
