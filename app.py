@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 · r5 FORCE DEPLOY — strip fix + 2-col grid"
+BUILD_TAG = "2026-08-26 r6 LIVE CHECK"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
