@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r6 LIVE CHECK"
+BUILD_TAG = "2026-08-26 r7 (nav text fix)"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
@@ -115,16 +115,22 @@ section[data-testid="stSidebar"] .stButton>button{
   background:transparent!important;border:1px solid transparent!important;
   color:#dde4df!important;justify-content:flex-start!important;text-align:left!important;
   font-size:14px!important;font-weight:600!important;padding:.55rem .8rem!important}
+/* Streamlit paints the button label in a child markdown <p> with the base
+   theme's dark colour (#15201a), which is invisible on the dark rail. The
+   button-level colour above does NOT cascade to it, so force the light colour
+   onto every descendant — this is what actually makes the nav text legible. */
+section[data-testid="stSidebar"] .stButton>button *{color:#dde4df!important}
 /* No hover animation on the sidebar (design request): inactive items keep
    their resting look on hover; the active item keeps its green fill on hover. */
 section[data-testid="stSidebar"] .stButton>button:hover{
-  background:transparent!important;color:#dde4df!important;
-  border-color:transparent!important}
-section[data-testid="stSidebar"] .stButton>button[kind="primary"],
-section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{
-  background:rgba(31,170,94,.20)!important;color:#eafff3!important;
+  background:transparent!important;border-color:transparent!important}
+section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
+  background:rgba(31,170,94,.20)!important;
   border-color:rgba(55,214,122,.45)!important;font-weight:700!important;
   box-shadow:inset 3px 0 0 #37d67a!important}
+section[data-testid="stSidebar"] .stButton>button[kind="primary"],
+section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{
+  color:#eafff3!important}
 .loaded-chip .txt b{color:#eaf3ee!important}
 """
 
@@ -158,12 +164,17 @@ section[data-testid="stSidebar"] .stButton>button{
   border-radius:14px!important;font-size:19px!important;
   display:flex!important;align-items:center;justify-content:center;text-align:center}
 section[data-testid="stSidebar"] .stButton>button p{width:auto!important;margin:0!important}
+/* colour the label descendants directly (see note in SIDEBAR_DARK) */
+section[data-testid="stSidebar"] .stButton>button,
+section[data-testid="stSidebar"] .stButton>button *{color:#5b625e!important}
 /* no hover animation on the minimized rail either */
 section[data-testid="stSidebar"] .stButton>button:hover{
-  background:transparent!important;color:#5b625e!important}
+  background:transparent!important}
+section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
+  background:#15201a!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"],
-section[data-testid="stSidebar"] .stButton>button[kind="primary"]:hover{
-  background:#15201a!important;color:#ffffff!important}
+section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{
+  color:#ffffff!important}
 section[data-testid="stSidebar"] .stButton>button[kind="primary"]::before{
   display:none!important}
 """
