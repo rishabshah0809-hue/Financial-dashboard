@@ -288,7 +288,7 @@ tr.head .val{font-weight:800}
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
   background:#0f2a1e;color:#fff;font-size:12.5px;padding:9px 16px;
   border-radius:10px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
-#fctip{position:fixed;display:none;pointer-events:none;background:#0f2a1e;
+#fctip{position:absolute;display:none;pointer-events:none;background:#0f2a1e;
   opacity:.97;border-radius:8px;padding:8px 10px;z-index:60;min-width:96px;
   font-size:10.5px;line-height:15px;color:#cfe0d7;white-space:nowrap;
   box-shadow:0 6px 18px rgba(0,0,0,.25)}
@@ -310,11 +310,16 @@ main [style*="background:#fff"][style*="border-radius:20px"]{
 
 FC_DEFS = """
 const tip=document.getElementById('fctip');
+// x,y are viewport (client) coords; #fctip is position:absolute, so add the
+// scroll offset to get page coords. This keeps the tooltip glued to the cursor
+// even when the frame is auto-fit to full height and the parent page scrolls
+// (where position:fixed would place it off-screen).
 function fcShow(x,y,html){tip.innerHTML=html;tip.style.display='block';
+  var sx=window.scrollX||0, sy=window.scrollY||0;
   let px=x+14;if(px+tip.offsetWidth>window.innerWidth-8)px=x-tip.offsetWidth-14;
-  tip.style.left=Math.max(4,px)+'px';
-  tip.style.top=Math.max(4,Math.min(y-tip.offsetHeight/2,
-    window.innerHeight-tip.offsetHeight-4))+'px';}
+  let py=Math.max(4,Math.min(y-tip.offsetHeight/2,window.innerHeight-tip.offsetHeight-4));
+  tip.style.left=(Math.max(4,px)+sx)+'px';
+  tip.style.top=(py+sy)+'px';}
 function fcHide(){tip.style.display='none';}
 function fcBindTips(){
   document.querySelectorAll('[data-tt]').forEach(el=>{
@@ -417,12 +422,17 @@ FIT_JS = """
       /* #shell sits inside body's 24px top + 34px bottom padding, so the frame
          needs the shell height plus that 58px to fit exactly with no trailing gap. */
       var h=Math.ceil(s.getBoundingClientRect().height)+58;
-      var fe=window.frameElement; if(!fe) return;
-      fe.style.height=h+'px'; fe.setAttribute('height',h);
-      var el=fe;
-      for(var i=0;i<4 && el;i++){ el=el.parentElement;
-        if(el && el.getAttribute && el.getAttribute('data-testid')==='stElementContainer'){
-          el.style.height='auto'; break; } }
+      /* Official Streamlit resize channel — works even when the component iframe
+         is served cross-origin (where window.frameElement below is blocked). */
+      try{ window.parent.postMessage(
+        {isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*'); }catch(e){}
+      /* Same-origin fallback: size the frame and collapse its Streamlit container. */
+      try{ var fe=window.frameElement;
+        if(fe){ fe.style.height=h+'px'; fe.setAttribute('height',h);
+          var el=fe; for(var i=0;i<4 && el;i++){ el=el.parentElement;
+            if(el && el.getAttribute && el.getAttribute('data-testid')==='stElementContainer'){
+              el.style.height='auto'; break; } } }
+      }catch(e){}
     }catch(e){}
   }
   window.addEventListener('load',function(){fit();setTimeout(fit,120);setTimeout(fit,450);});

@@ -332,8 +332,10 @@ def income_sankey(model):
         bar(x3, t_top, S(tax), "#b4483c", "Tax", r(tax), rate, "start"),
     ])
     svg = (
-        f'<svg viewBox="0 0 {w} {hh}" width="100%" style="max-width:640px;height:auto" '
-        f'role="img" aria-label="Income statement flow">{flows}{bars}</svg>'
+        f'<div style="display:flex;justify-content:center">'
+        f'<svg viewBox="0 0 {w} {hh}" width="100%" '
+        f'style="max-width:760px;height:auto;display:block;margin:0 auto" '
+        f'role="img" aria-label="Income statement flow">{flows}{bars}</svg></div>'
     )
     return (title, svg)
 

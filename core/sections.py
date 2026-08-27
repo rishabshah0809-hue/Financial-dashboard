@@ -446,9 +446,79 @@ def _fmt_n(v: float) -> str:
     return f"{v:.1f}"
 
 
-def stmt_source(model, tab: str) -> list[tuple[str, list[float | None], bool]]:
+# Ratio Analysis is shown grouped by the kind of ratio. First keyword match wins,
+# so the order matters (e.g. "interest coverage" lands in solvency before the bare
+# "% sales" expense bucket).
+_RATIO_CATS = [
+    ("Growth", ("growth",)),
+    ("Profitability & margins", ("margin", "opm", "gross profit")),
+    ("Return ratios", ("return on", "roce", "roe", "roa")),
+    # Efficiency is tested before solvency so "Debtor Turnover/Days" is not
+    # swallowed by the "debt" keyword below.
+    ("Efficiency & turnover", ("turnover", "days", "cycle", "conversion", "debtor",
+                               "creditor", "inventory", "receivable", "payable",
+                               "working capital")),
+    ("Solvency & leverage", ("debt", "interest coverage", "interest cover",
+                             "gearing", "d/e", "interest % sales", "interest%")),
+    ("Cash flow", ("cfo", "cash from", "cash flow", "fcf", "free cash")),
+    ("Valuation", ("p/e", "pe ratio", "peg", "price to", "p/b", "p/s", "ev/",
+                   "yield", "market cap", "price/")),
+    ("Payout & expense", ("payout", "dividend", "retained earnings",
+                          "% sales", "%sales")),
+]
+_RATIO_ORDER = [c[0] for c in _RATIO_CATS] + ["Other ratios"]
+
+# Common Size mixes income-statement and balance-sheet lines; split into three
+# clear sections. Asset keywords are tested before liability ones.
+_CS_ASSET = ("asset", "block", "capital work", "cwip", "investment", "receivable",
+             "inventor", "goodwill", "loans & advances", "cash &", "current asset")
+_CS_LIAB = ("equity", "reserve", "borrow", "liabilit", "payable", "provision",
+            "share capital", "net worth", "networth")
+_CS_ORDER = ["Income statement (% of sales)",
+             "Liabilities & equity (% of total)", "Assets (% of total)"]
+
+
+def _ratio_cat(name: str) -> str:
+    n = name.lower()
+    for label, kws in _RATIO_CATS:
+        if any(k in n for k in kws):
+            return label
+    return "Other ratios"
+
+
+def _cs_group(name: str) -> str:
+    n = name.lower()
+    if any(k in n for k in _CS_ASSET):
+        return "Assets (% of total)"
+    if any(k in n for k in _CS_LIAB):
+        return "Liabilities & equity (% of total)"
+    return "Income statement (% of sales)"
+
+
+def _grouped(frame, model, classify, order):
+    """Rows for a workbook frame, split into sections with header rows.
+
+    A section header is emitted as ``(label, [], "section")`` before its rows;
+    empty sections are skipped and the section order follows ``order``.
+    """
+    buckets: dict[str, list] = {}
+    for name in frame.index:
+        s = pd.to_numeric(frame.loc[name], errors="coerce").reindex(list(model.years))
+        vals = [float(v) if pd.notna(v) else None for v in s]
+        if not any(v is not None for v in vals):
+            continue
+        buckets.setdefault(classify(str(name)), []).append((str(name), vals, False))
+    rows: list[tuple[str, list, object]] = []
+    for label in order + [k for k in buckets if k not in order]:
+        if buckets.get(label):
+            rows.append((label, [], "section"))
+            rows.extend(buckets[label])
+    return rows
+
+
+def stmt_source(model, tab: str) -> list[tuple[str, list[float | None], object]]:
     years = full_years(model)
-    rows: list[tuple[str, list[float | None], bool]] = []
+    rows: list[tuple[str, list[float | None], object]] = []
 
     def pull(name, aliases, head):
         for a in aliases:
@@ -464,19 +534,9 @@ def stmt_source(model, tab: str) -> list[tuple[str, list[float | None], bool]]:
         for name, aliases in STMT_ORDER:
             pull(name, aliases, name in STMT_HEADS)
     elif tab == "Ratio Analysis":
-        for name in model.ratios.index:
-            s = pd.to_numeric(model.ratios.loc[name], errors="coerce") \
-                .reindex([y for y in model.years])
-            vals = [float(v) if pd.notna(v) else None for v in s]
-            if any(v is not None for v in vals):
-                rows.append((str(name), vals, False))
+        rows = _grouped(model.ratios, model, _ratio_cat, _RATIO_ORDER)
     else:  # Common size
-        for name in model.common_size.index:
-            s = pd.to_numeric(model.common_size.loc[name], errors="coerce") \
-                .reindex([y for y in model.years])
-            vals = [float(v) if pd.notna(v) else None for v in s]
-            if any(v is not None for v in vals):
-                rows.append((str(name), vals, False))
+        rows = _grouped(model.common_size, model, _cs_group, _CS_ORDER)
     return rows
 
 
@@ -499,6 +559,13 @@ def statements_html(model, tab: str, show_pct: bool, query: str) -> str:
                             f'letter-spacing:0;color:{INK}">{y}</th>' for y in years))
     body = ""
     for name, vals, head_row in rows:
+        if head_row == "section":
+            body += (f'<tr class="secrow"><td colspan="{len(years) + 1}" '
+                     f'style="padding:15px 14px 7px;font-size:11px;font-weight:800;'
+                     f'letter-spacing:1.1px;color:#177245;background:#eef4f0;'
+                     f'text-transform:uppercase;font-family:{MONO};'
+                     f'border-bottom:1px solid #dce7e0">{name}</td></tr>')
+            continue
         bg = "#f5f9f7" if head_row else "#fff"
         tds = ""
         prev = None

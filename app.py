@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r10 (sidebar redesign + night)"
+BUILD_TAG = "2026-08-26 r11 (statements groups + fixes)"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
@@ -143,6 +143,9 @@ section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{color:#eafff
   font-size:14px;font-weight:600;cursor:pointer;margin:2px 0}
 .fc-dntoggle:hover{background:rgba(255,255,255,.08)}
 .fc-dntoggle .dnic{font-size:16px;width:20px;text-align:center}
+/* the label spans are plain markdown HTML; force the light colour so the
+   "Night mode" / "Day mode" text is legible on the dark rail. */
+.fc-dntoggle,.fc-dntoggle *{color:#dde4df!important}
 
 /* upload dropzone -> the reference's dashed drop with a green button */
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"]{
