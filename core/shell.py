@@ -40,10 +40,14 @@ MONO = viz.MONO
 # ==========================================================================
 SHELL_CSS = """
 *{margin:0;padding:0;box-sizing:border-box}
-body{margin:0;min-height:100vh;padding:24px 20px 34px;
+/* html fills any frame overshoot below the (now content-height) body with the
+   page's end colour, so a frame taller than its content shows plain page space
+   rather than a giant stretched card. */
+html{background:#d9ded9}
+body{margin:0;padding:24px 20px 34px;
   background:linear-gradient(180deg,#e7ebe7,#d9ded9);
   font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a;
-  display:flex;justify-content:center}
+  display:flex;justify-content:center;align-items:flex-start}
 #shell{width:1420px;max-width:100%;background:#e9ece8;border-radius:30px;
   padding:22px;display:flex;gap:20px;box-shadow:0 30px 80px rgba(0,0,0,.10)}
 main{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
@@ -435,7 +439,8 @@ FIT_JS = """
       }catch(e){}
     }catch(e){}
   }
-  window.addEventListener('load',function(){fit();setTimeout(fit,120);setTimeout(fit,450);});
+  function schedule(){fit();for(var k=1;k<=12;k++)setTimeout(fit,k*250);}
+  window.addEventListener('load',schedule); schedule();
   if(window.ResizeObserver){var s=document.getElementById('shell');
     if(s) new ResizeObserver(fit).observe(s);}
   window.addEventListener('resize',fit);
