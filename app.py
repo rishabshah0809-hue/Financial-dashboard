@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r12 (shell no-stretch empty-space fix)"
+BUILD_TAG = "2026-08-26 r13 (force light chrome around cards)"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
@@ -94,6 +94,13 @@ def inject_css(mode: str = "dark", minimized: bool = False) -> None:
         css += "\n" + SIDEBAR_DARK
     if minimized:
         css += "\n" + MIN_CSS
+    # Force the main chrome to the light page colour with !important so a viewer
+    # whose browser/OS is in dark mode cannot leave a dark band around the
+    # content cards. The dark sidebar keeps its own (more specific) background.
+    css += ("\n:root{color-scheme:light!important}"
+            "\n[data-testid=\"stApp\"],[data-testid=\"stAppViewContainer\"],"
+            "[data-testid=\"stHeader\"],[data-testid=\"stMain\"]"
+            "{background:#e7ebe7!important}")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 

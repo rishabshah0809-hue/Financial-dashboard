@@ -42,8 +42,9 @@ SHELL_CSS = """
 *{margin:0;padding:0;box-sizing:border-box}
 /* html fills any frame overshoot below the (now content-height) body with the
    page's end colour, so a frame taller than its content shows plain page space
-   rather than a giant stretched card. */
-html{background:#d9ded9}
+   rather than a giant stretched card. color-scheme:light stops a viewer whose
+   browser is in dark mode from getting a dark UA canvas behind the page. */
+html{background:#d9ded9;color-scheme:light}
 body{margin:0;padding:24px 20px 34px;
   background:linear-gradient(180deg,#e7ebe7,#d9ded9);
   font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a;
