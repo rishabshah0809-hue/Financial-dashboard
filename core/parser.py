@@ -35,10 +35,17 @@ warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 # between workbooks do not break the import.
 SHEET_ALIASES: dict[str, tuple[str, ...]] = {
     "historical": ("historicalfs", "historical", "financials", "3smodel", "model"),
-    "ratios": ("ratioanalysis", "ratios", "ratio"),
-    "common_size": ("commonsizestatement", "commonsize"),
+    "ratios": ("ratioanalysis", "ratios", "ratio", "keyratios"),
+    "common_size": ("commonsizestatement", "commonsize", "commonsizeanalysis"),
     "data": ("datasheet", "data", "raw"),
 }
+
+# When a workbook has no single combined statements sheet, it usually splits the
+# statements across separate tabs. These are parsed and stacked into one frame.
+STATEMENT_SHEET_ALIASES: tuple[str, ...] = (
+    "incomestatement", "profitloss", "profitandloss", "pandl", "pl",
+    "balancesheet", "cashflow", "cashflowstatement", "cashflowstatment",
+)
 
 
 class ParseError(Exception):
@@ -107,6 +114,25 @@ def _is_period(label: str) -> bool:
     return _norm(label) not in AGGREGATE_COLUMNS
 
 
+def _looks_period(value: Any) -> bool:
+    """
+    True if a *cell* reads as a reporting period: a real date (2017-03-31), a
+    year (2017), FY24, or TTM/LTM. Used to locate the header row of a sheet
+    without relying on a literal "Year" label, so differently-laid-out workbooks
+    still parse.
+    """
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return False
+    if isinstance(value, pd.Timestamp) or hasattr(value, "year"):
+        return True
+    text = str(value).strip()
+    if re.match(r"(?i)^fy\s?['’]?\d{2,4}$", text):
+        return True
+    if re.match(r"^(19|20)\d{2}(-\d{2})?", text):
+        return True
+    return _norm(text) in ("ttm", "ltm")
+
+
 def _year_label(value: Any) -> str:
     """Turn a date cell (or anything else) into a short year label like FY25."""
     if isinstance(value, pd.Timestamp) or hasattr(value, "year"):
@@ -114,6 +140,8 @@ def _year_label(value: Any) -> str:
         # Indian financial years end in March, so a 2025-03-31 column is FY25.
         return f"FY{str(year)[-2:]}"
     text = str(value).strip()
+    if _norm(text) in ("ttm", "ltm", "trailing"):
+        return "TTM"
     match = re.search(r"(19|20)\d{2}", text)
     if match:
         return f"FY{match.group(0)[-2:]}"
@@ -135,12 +163,42 @@ def _to_float(value: Any) -> float | None:
 
 
 def _find_sheet(book: dict[str, pd.DataFrame], key: str) -> pd.DataFrame | None:
+    sheets = _find_sheets(book, key)
+    return sheets[0][1] if sheets else None
+
+
+def _find_sheets(book: dict[str, pd.DataFrame], key: str) -> list[tuple[str, pd.DataFrame]]:
+    """
+    Every sheet matching a key, best match first. An exact name match beats a
+    prefix match beats a substring match, and within each, an earlier alias wins.
+    Returning all candidates lets the caller skip a decoy (e.g. a 'Financials>'
+    cover tab) and use the first sheet that actually parses.
+    """
     wanted = SHEET_ALIASES[key]
+    scored: list[tuple[int, int, str, pd.DataFrame]] = []
     for name, frame in book.items():
-        normalised = _norm(name)
-        if any(normalised.startswith(alias) or alias in normalised for alias in wanted):
-            return frame
-    return None
+        n = _norm(name)
+        for rank, alias in enumerate(wanted):
+            if n == alias:
+                scored.append((0, rank, name, frame)); break
+            if n.startswith(alias):
+                scored.append((1, rank, name, frame)); break
+            if alias in n:
+                scored.append((2, rank, name, frame)); break
+    scored.sort(key=lambda x: (x[0], x[1]))
+    return [(name, frame) for _, _, name, frame in scored]
+
+
+def _first_parsable(candidates: list[tuple[str, pd.DataFrame]]):
+    """First candidate sheet that parses to a non-empty frame; else empties."""
+    for _name, raw in candidates:
+        try:
+            frame, sections, title = _parse_statement_sheet(raw)
+        except ParseError:
+            continue
+        if not frame.empty:
+            return frame, sections, title
+    return pd.DataFrame(), {}, ""
 
 
 # --------------------------------------------------------------------------
@@ -157,34 +215,43 @@ def _parse_statement_sheet(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, s
     year_labels: list[str] = []
     first_value_col = None
 
-    for row_idx in range(min(len(raw), 15)):
-        row = raw.iloc[row_idx]
-        for col_idx, cell in enumerate(row):
+    # Grab a title-ish line (used only for the company name) from the top rows.
+    for row_idx in range(min(len(raw), 6)):
+        for cell in raw.iloc[row_idx]:
             if cell is None or (isinstance(cell, float) and pd.isna(cell)):
                 continue
             text = str(cell).strip()
-            if not title and len(text) > 12 and "-" in text:
-                title = text
-            if _norm(text) == "year":
-                header_row = row_idx
-                first_value_col = col_idx + 1
-                for value in row.iloc[first_value_col:]:
-                    if value is None or (isinstance(value, float) and pd.isna(value)):
-                        year_labels.append("")
-                    else:
-                        year_labels.append(_year_label(value))
-                break
-        if header_row is not None:
+            if len(text) > 12 and "-" in text and not _looks_period(text):
+                title = title or text
+            break
+
+    # Find the header row by the *data*, not by a literal "Year" label: the first
+    # row that holds three or more reporting-period cells (dates like 2017-03-31,
+    # or FY24 / TTM). Its first period cell marks the first value column, and the
+    # column immediately to its left holds the metric labels. This locates the
+    # grid wherever it sits and whatever the header cell is called ("Year",
+    # "Years", "Report Date", or nothing at all).
+    for row_idx in range(min(len(raw), 25)):
+        row = raw.iloc[row_idx]
+        period_cols = [c for c in range(len(row)) if _looks_period(row.iloc[c])]
+        if len(period_cols) >= 3:
+            header_row = row_idx
+            first_value_col = period_cols[0]
+            for value in row.iloc[first_value_col:]:
+                if value is None or (isinstance(value, float) and pd.isna(value)):
+                    year_labels.append("")
+                else:
+                    year_labels.append(_year_label(value))
             break
 
     if header_row is None:
-        raise ParseError("Could not find a row labelled 'Year' on this sheet.")
+        raise ParseError("Could not find a row of reporting periods on this sheet.")
 
     # Drop trailing empty year columns.
     while year_labels and year_labels[-1] == "":
         year_labels.pop()
     n_years = len(year_labels)
-    label_col = first_value_col - 1
+    label_col = max(0, first_value_col - 1)
 
     records: dict[str, list[float | None]] = {}
     sections: dict[str, str] = {}
@@ -226,6 +293,49 @@ def _parse_statement_sheet(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, s
     # holds no values. Drop anything completely empty.
     frame = frame.dropna(axis=1, how="all")
     return frame, sections, title
+
+
+def _year_sort_key(col: str):
+    if _norm(col) in ("ttm", "ltm"):
+        return (9999,)
+    match = re.search(r"\d+", str(col))
+    return (int(match.group()) if match else 0,)
+
+
+def _combine_statement_sheets(book: dict[str, pd.DataFrame]):
+    """
+    Build one historical frame from separate statement tabs (Income Statement,
+    Profit & Loss, Balance Sheet, Cash Flow) when a workbook has no single
+    combined sheet. Rows are stacked; duplicate labels keep the first seen.
+    Returns (frame, metric->section map, title).
+    """
+    frames: list[pd.DataFrame] = []
+    sections: dict[str, str] = {}
+    title = ""
+    for name, raw in book.items():
+        nm = _norm(name)
+        if "quarter" in nm:                       # quarterly tabs are not FY periods
+            continue
+        if not any(nm.startswith(a) or a in nm for a in STATEMENT_SHEET_ALIASES):
+            continue
+        try:
+            frame, secs, sheet_title = _parse_statement_sheet(raw)
+        except ParseError:
+            continue
+        if frame.empty:
+            continue
+        frames.append(frame)
+        sections.update(secs)
+        title = title or sheet_title
+    if not frames:
+        return pd.DataFrame(), {}, ""
+    combined = pd.concat(frames)
+    combined = combined[~combined.index.duplicated(keep="first")]
+    combined = combined.loc[:, ~combined.columns.duplicated()]
+    combined = combined.reindex(
+        sorted(combined.columns, key=_year_sort_key), axis=1
+    ).dropna(axis=1, how="all")
+    return combined, sections, title
 
 
 def _parse_data_sheet(raw: pd.DataFrame) -> dict[str, Any]:
@@ -399,49 +509,59 @@ def load_model(source: Any) -> FinancialModel:
     model = FinancialModel()
     title = ""
 
-    hist_sheet = _find_sheet(book, "historical")
-    if hist_sheet is None:
-        raise ParseError(
-            "No historical financials sheet found. Expected a sheet named "
-            "something like 'HistoricalFS'."
-        )
-    model.historical, sections, title = _parse_statement_sheet(hist_sheet)
+    # Try every sheet that could be the combined statements, best match first,
+    # and use the first that actually parses (skips decoys like a 'Financials>'
+    # cover tab). If none do, stitch separate statement tabs together.
+    model.historical, sections, title = _first_parsable(_find_sheets(book, "historical"))
+    if model.historical.empty:
+        model.historical, sections, title = _combine_statement_sheets(book)
     model.sections.update(sections)
     model.years = list(model.historical.columns)
 
-    ratio_sheet = _find_sheet(book, "ratios")
-    if ratio_sheet is not None:
-        try:
-            model.ratios, ratio_sections, ratio_title = _parse_statement_sheet(ratio_sheet)
-            model.sections.update(ratio_sections)
-            title = title or ratio_title
-        except ParseError:
-            pass
+    ratios, ratio_sections, ratio_title = _first_parsable(_find_sheets(book, "ratios"))
+    if not ratios.empty:
+        model.ratios = ratios
+        model.sections.update(ratio_sections)
+        title = title or ratio_title
 
-    cs_sheet = _find_sheet(book, "common_size")
-    if cs_sheet is not None:
-        try:
-            model.common_size, cs_sections, _ = _parse_statement_sheet(cs_sheet)
-            for label, section in cs_sections.items():
-                model.sections.setdefault(label, section)
-        except ParseError:
-            pass
+    common_size, cs_sections, _cs_title = _first_parsable(_find_sheets(book, "common_size"))
+    if not common_size.empty:
+        model.common_size = common_size
+        for label, section in cs_sections.items():
+            model.sections.setdefault(label, section)
 
     data_sheet = _find_sheet(book, "data")
     if data_sheet is not None:
         model.meta = _parse_data_sheet(data_sheet)
 
-        # A workbook whose formula sheets carry no cached values parses to
-        # almost nothing. The Data Sheet holds the raw numbers, so rebuild from
-        # it rather than failing the upload.
-        if len(model.historical) < 8:
-            rebuilt = _parse_data_sheet_statements(data_sheet)
-            if not rebuilt.empty:
+        # The Data Sheet holds the raw numbers. Use it two ways: if the formula
+        # sheets parsed to almost nothing, rebuild wholesale; otherwise just fill
+        # in any lines the statement sheets were missing (e.g. a workbook with a
+        # Balance Sheet tab but no Profit & Loss tab still gets Sales / Net Profit).
+        rebuilt = _parse_data_sheet_statements(data_sheet)
+        if not rebuilt.empty:
+            if len(model.historical) < 8:
                 model.historical = rebuilt
                 model.years = list(rebuilt.columns)
                 model.rebuilt_from_data_sheet = True
                 for label in rebuilt.index:
                     model.sections.setdefault(label, "REBUILT FROM DATA SHEET")
+            else:
+                missing = [l for l in rebuilt.index if l not in model.historical.index]
+                if missing:
+                    extra = rebuilt.loc[missing].reindex(columns=model.historical.columns)
+                    extra = extra.dropna(how="all")
+                    model.historical = pd.concat([model.historical, extra])
+                    for label in extra.index:
+                        model.sections.setdefault(label, "REBUILT FROM DATA SHEET")
+
+    if model.historical.empty:
+        raise ParseError(
+            "Could not read any financial statements from this workbook. It needs "
+            "either a combined statements sheet (like 'HistoricalFS') or separate "
+            "Income Statement / Balance Sheet / Cash Flow tabs, each with a row of "
+            "yearly dates."
+        )
 
     model.company = model.meta.get("company") or _company_from_title(title)
     return model
