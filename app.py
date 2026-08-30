@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r17 (aggressive fit + sidebar gap)"
+BUILD_TAG = "2026-08-26 r18 (parent-side frame fit)"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
@@ -189,6 +189,11 @@ section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[role="group"] *
 section[data-testid="stSidebar"] [data-testid="stSelectbox"] input{
   color:#15201a!important;font-weight:700!important;
   -webkit-text-fill-color:#15201a!important}
+/* The collapsed 'Sector' label was overlapping the SECTOR LENS header above it;
+   remove it entirely and give the dropdown clear top spacing. */
+section[data-testid="stSidebar"] [data-testid="stSelectbox"] label[data-testid="stWidgetLabel"]{
+  display:none!important}
+section[data-testid="stSidebar"] [data-testid="stSelectbox"]{margin-top:4px!important}
 """
 
 
@@ -266,6 +271,47 @@ NIGHT_JS = """
     setNight(!doc.documentElement.classList.contains('fcnight')); }); }
   var saved=false; try{ saved=localStorage.getItem('fc_night')==='1'; }catch(e){}
   setNight(saved);
+})();
+</script>
+"""
+
+
+# Parent-side frame fit. The in-frame fit relies on window.frameElement, which
+# can be blocked in some deployed setups; this helper runs in the app document
+# (via window.parent, the same mechanism the night toggle uses successfully) and
+# resizes every content frame to its #shell height, collapsing the Streamlit
+# wrappers so the page ends exactly at the content — no empty band, no scrollbar.
+RESIZER_JS = """
+<script>
+(function(){
+  var doc; try{ doc=window.parent.document; }catch(e){ return; }
+  function fitAll(){
+    try{
+      var frames=doc.querySelectorAll('iframe');
+      frames.forEach(function(fr){
+        var d; try{ d=fr.contentDocument; }catch(e){ return; }
+        if(!d) return;
+        var sh=d.getElementById('shell'); if(!sh) return;
+        var h=Math.ceil(sh.getBoundingClientRect().height)+58;
+        if(h<120) return;
+        if(Math.abs((parseInt(fr.style.height)||0)-h)>1){
+          fr.style.setProperty('height',h+'px','important'); fr.setAttribute('height',h); }
+        var el=fr.parentElement;
+        for(var i=0;i<6 && el;i++){
+          var t=el.getAttribute && el.getAttribute('data-testid');
+          if(t==='stElementContainer'||t==='stVerticalBlock'||t==='stVerticalBlockBorderWrapper'){
+            el.style.height='auto'; el.style.minHeight='0px'; }
+          if(t==='stMain'||t==='stAppViewContainer') break;
+          el=el.parentElement; }
+      });
+    }catch(e){}
+  }
+  fitAll();
+  for(var k=1;k<=12;k++) setTimeout(fitAll, k*250);
+  setInterval(fitAll, 700);
+  try{ var vv=(doc.defaultView||window).visualViewport;
+    if(vv){ vv.addEventListener('resize',fitAll); vv.addEventListener('scroll',fitAll); } }catch(e){}
+  window.addEventListener('resize',fitAll);
 })();
 </script>
 """
@@ -478,6 +524,8 @@ def _render_shell(html: str, height: int) -> None:
     tuned heights keep the empty overshoot minimal.
     """
     components.html(html, height=height, scrolling=True)
+    # Parent-side fit runs right after the frame exists, shrinking it to content.
+    components.html(RESIZER_JS, height=0)
 
 
 def _page_header(title: str, subtitle: str) -> None:
