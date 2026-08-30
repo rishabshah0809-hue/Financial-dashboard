@@ -431,14 +431,22 @@ FIT_JS = """
          is served cross-origin (where window.frameElement below is blocked). */
       try{ window.parent.postMessage(
         {isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*'); }catch(e){}
-      /* Same-origin fallback: size the frame and collapse its Streamlit container.
-         Only write when the height actually changed, so re-fitting can't churn. */
+      /* Same-origin fallback: size the frame and collapse every Streamlit wrapper
+         above it so the page ends exactly at the content. Only write on a real
+         change so re-fitting can't churn. */
       try{ var fe=window.frameElement;
         if(fe){ var cur=parseInt(fe.style.height)||0;
-          if(Math.abs(cur-h)>1){ fe.style.height=h+'px'; fe.setAttribute('height',h); }
-          var el=fe; for(var i=0;i<4 && el;i++){ el=el.parentElement;
-            if(el && el.getAttribute && el.getAttribute('data-testid')==='stElementContainer'){
-              if(el.style.height!=='auto') el.style.height='auto'; break; } } }
+          if(Math.abs(cur-h)>1){
+            fe.style.setProperty('height', h+'px', 'important');
+            fe.setAttribute('height', h); }
+          var el=fe.parentElement;
+          for(var i=0;i<5 && el;i++){
+            var tid=el.getAttribute && el.getAttribute('data-testid');
+            if(tid==='stElementContainer'||tid==='stVerticalBlock'||tid==='stVerticalBlockBorderWrapper'){
+              if(el.style.height!=='auto') el.style.height='auto';
+              el.style.minHeight='0px'; }
+            if(tid==='stMain'||tid==='stAppViewContainer') break;
+            el=el.parentElement; } }
       }catch(e){}
     }catch(e){}
   }

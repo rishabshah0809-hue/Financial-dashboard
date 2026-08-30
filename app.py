@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r16 (zoom-fit via VisualViewport)"
+BUILD_TAG = "2026-08-26 r17 (aggressive fit + sidebar gap)"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
@@ -347,9 +347,11 @@ def sidebar() -> tuple[object, str, str]:
                 navigate_to = key
 
         # ---- night-mode toggle (client-side invert of the main content) ----
+        # Only the button lives here; its wiring script is a 0-height component
+        # rendered in the main area (see main()), so it adds no stray element or
+        # gap inside the sidebar.
         if not collapsed:
             st.markdown(NIGHT_TOGGLE_HTML, unsafe_allow_html=True)
-        components.html(NIGHT_JS, height=0)
         st.session_state.setdefault("dark_mode", False)
 
         st.markdown('<div class="dhd">YOUR DATA</div>', unsafe_allow_html=True)
@@ -546,6 +548,10 @@ def main() -> None:
     mode = "dark" if st.session_state.get("dark_mode", False) else "light"
     inject_css(mode, minimized=bool(st.session_state.get("nav_min", False)))
     source, sector_key, source_label = sidebar()
+    # Night-mode wiring: a 0-height helper in the main area (not the sidebar) that
+    # reaches the sidebar button through the parent document and toggles the
+    # invert. Kept out of the sidebar so it adds no gap/overlap there.
+    components.html(NIGHT_JS, height=0)
     # Keys live in the deployment's secret store, never in the UI or the repo.
     config = analyst_config()
 
