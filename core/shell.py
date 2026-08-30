@@ -454,8 +454,13 @@ FIT_JS = """
     if(document.body) ro.observe(document.body);
   }
   window.addEventListener('resize',fit);
-  /* Browser zoom does not reliably fire 'resize'; poll for a while as a net. */
-  var _n=0, _iv=setInterval(function(){fit(); if(++_n>60) clearInterval(_iv);}, 500);
+  /* The VisualViewport API fires on browser zoom, which plain 'resize' and the
+     max-width-capped #shell observer miss — this is what makes the frame re-fit
+     (shrink) when the user zooms out instead of leaving empty space. */
+  if(window.visualViewport){ window.visualViewport.addEventListener('resize',fit);
+    window.visualViewport.addEventListener('scroll',fit); }
+  /* Low-frequency safety net for anything the events miss (kept lightweight). */
+  setInterval(fit, 1000);
 })();
 """
 
@@ -682,7 +687,11 @@ def _statements_tables(model, query: str) -> str:
 # ==========================================================================
 # public builders - one per Streamlit page
 # ==========================================================================
-HEIGHTS = {"dashboard": 3150, "ratios": 3050, "sector": 2500, "statements": 1100}
+# Initial frame heights are deliberately modest floors, not generous ones: the
+# in-frame fit tightens them to the exact content, and scrolling=True absorbs any
+# underestimate on a narrow window. A generous floor is what leaves empty space
+# when the fit lags, so keep these close to the real content height.
+HEIGHTS = {"dashboard": 1600, "ratios": 1800, "sector": 1400, "statements": 900}
 
 
 def _topbar(current: str) -> str:
@@ -808,7 +817,10 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
     # gets the room it needs. scrolling=True is the safety net if content wraps
     # taller than estimated on a narrow window. Calibrated to the demo model,
     # whose wide-screen content lands at ~3150px with the Sankey present.
-    height = 2780 + (380 if sankey_svg else 0) + max(0, len(peers)) * 58
+    # A modest initial height; the in-frame fit expands/shrinks it to the exact
+    # content and scrolling=True covers any shortfall. Keeping it small means a
+    # lagging fit shows a little inner scroll, never a tall empty band.
+    height = 1500 + (200 if sankey_svg else 0) + max(0, len(peers)) * 58
     return _doc(body, ""), height
 
 
