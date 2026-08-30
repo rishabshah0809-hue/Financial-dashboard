@@ -431,20 +431,31 @@ FIT_JS = """
          is served cross-origin (where window.frameElement below is blocked). */
       try{ window.parent.postMessage(
         {isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*'); }catch(e){}
-      /* Same-origin fallback: size the frame and collapse its Streamlit container. */
+      /* Same-origin fallback: size the frame and collapse its Streamlit container.
+         Only write when the height actually changed, so re-fitting can't churn. */
       try{ var fe=window.frameElement;
-        if(fe){ fe.style.height=h+'px'; fe.setAttribute('height',h);
+        if(fe){ var cur=parseInt(fe.style.height)||0;
+          if(Math.abs(cur-h)>1){ fe.style.height=h+'px'; fe.setAttribute('height',h); }
           var el=fe; for(var i=0;i<4 && el;i++){ el=el.parentElement;
             if(el && el.getAttribute && el.getAttribute('data-testid')==='stElementContainer'){
-              el.style.height='auto'; break; } } }
+              if(el.style.height!=='auto') el.style.height='auto'; break; } } }
       }catch(e){}
     }catch(e){}
   }
   function schedule(){fit();for(var k=1;k<=12;k++)setTimeout(fit,k*250);}
   window.addEventListener('load',schedule); schedule();
-  if(window.ResizeObserver){var s=document.getElementById('shell');
-    if(s) new ResizeObserver(fit).observe(s);}
+  if(window.ResizeObserver){
+    var ro=new ResizeObserver(fit);
+    var s=document.getElementById('shell'); if(s) ro.observe(s);
+    /* Zooming out reflows the cards shorter but does not resize #shell (it is
+       max-width capped); observing the root catches the zoom/width change so the
+       frame re-fits to the new, shorter content instead of scrolling past it. */
+    ro.observe(document.documentElement);
+    if(document.body) ro.observe(document.body);
+  }
   window.addEventListener('resize',fit);
+  /* Browser zoom does not reliably fire 'resize'; poll for a while as a net. */
+  var _n=0, _iv=setInterval(function(){fit(); if(++_n>60) clearInterval(_iv);}, 500);
 })();
 """
 
