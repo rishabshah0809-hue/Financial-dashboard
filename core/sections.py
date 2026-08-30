@@ -298,10 +298,10 @@ def deepdive_charts(model) -> dict[str, tuple[str, int]]:
     liab_layers = _bs_layers(model, False)
     if len(asset_layers) >= 2:
         charts["assets"] = viz.area_chart("fcAssets", years[-len(asset_layers[0][2]):],
-                                          asset_layers, hover=False)
+                                          asset_layers, hover=True)
     if len(liab_layers) >= 2:
         charts["liab"] = viz.area_chart("fcLiab", years[-len(liab_layers[0][2]):],
-                                        liab_layers, hover=False)
+                                        liab_layers, hover=True)
     return charts
 
 

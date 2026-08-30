@@ -56,7 +56,7 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r18 (parent-side frame fit)"
+BUILD_TAG = "2026-08-26 r19 (bs hover, sidebar spacing, trim padding)"
 
 # (key, label, icon) — the icon is a monochrome glyph that inherits the button's
 # text colour, so it reads light on the dark expanded panel and dark on the white
@@ -100,7 +100,11 @@ def inject_css(mode: str = "dark", minimized: bool = False) -> None:
     css += ("\n:root{color-scheme:light!important}"
             "\n[data-testid=\"stApp\"],[data-testid=\"stAppViewContainer\"],"
             "[data-testid=\"stHeader\"],[data-testid=\"stMain\"]"
-            "{background:#e7ebe7!important}")
+            "{background:#e7ebe7!important}"
+            # Streamlit's tall bottom padding and 100vh minimum leave grey space
+            # below the content; trim them so the page ends near the last card.
+            "\n[data-testid=\"stMainBlockContainer\"]{padding-bottom:1.2rem!important}"
+            "\n[data-testid=\"stMain\"]{min-height:auto!important}")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
@@ -110,7 +114,7 @@ SIDEBAR_DARK = """
 section[data-testid="stSidebar"]{
   background:linear-gradient(180deg,#0d1d16 0%,#0a1610 100%)!important;
   border-right:1px solid rgba(255,255,255,.06)!important}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.35rem!important}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.6rem!important}
 
 /* brand */
 .side-mark{width:40px!important;height:40px!important;border-radius:50%!important;
@@ -121,7 +125,8 @@ section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.35rem!impo
 
 /* section headers + captions */
 .dhd{font-size:10px;letter-spacing:1.6px;color:#aebab3;font-weight:700;
-  font-family:ui-monospace,Menlo,monospace;padding:14px 2px 2px}
+  font-family:ui-monospace,Menlo,monospace;padding:18px 2px 8px;
+  display:block;margin-top:4px}
 section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{
   color:#b6bfb9!important;font-size:11.5px!important;line-height:1.5!important}
 
