@@ -45,12 +45,12 @@ SHELL_CSS = """
    rather than a giant stretched card. color-scheme:light stops a viewer whose
    browser is in dark mode from getting a dark UA canvas behind the page. */
 html{background:#d9ded9;color-scheme:light}
-body{margin:0;padding:12px 22px 22px;
+body{margin:0;padding:6px 20px 14px;
   background:linear-gradient(180deg,#e7ebe7,#d9ded9);
   font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a;
   display:flex;justify-content:center;align-items:flex-start}
-#shell{width:1320px;max-width:100%;background:#e9ece8;border-radius:26px;
-  padding:20px;display:flex;gap:20px;box-shadow:0 16px 44px rgba(21,32,26,.08)}
+#shell{width:1240px;max-width:100%;background:#e9ece8;border-radius:24px;
+  padding:18px;display:flex;gap:20px;box-shadow:0 10px 30px rgba(21,32,26,.06)}
 main{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
 a{color:#177245;text-decoration:none}
 svg{display:block;width:100%;height:auto;overflow:visible}
@@ -127,9 +127,13 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 
 /* ---- KPI grid ---- */
 .kpigrid{display:grid;grid-template-columns:repeat(auto-fit,
-  minmax(min(220px,100%),1fr));gap:14px}
-.kpi{border-radius:18px;padding:20px 22px;background:#fff;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+  minmax(min(220px,100%),1fr));gap:14px;align-items:stretch}
+/* flex column + ft margin-top:auto keeps the big numbers and footers aligned
+   across all four cards so the row reads as one even set of boxes. */
+.kpi{border-radius:18px;padding:20px 22px;background:#fff;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+  display:flex;flex-direction:column;min-height:172px}
 .kpi .hd{display:flex;align-items:center;justify-content:space-between}
+.kpi .ft{margin-top:auto}
 .kpi .name{font-size:15px;font-weight:600;color:#15201a}
 .kpi .circ{width:30px;height:30px;border-radius:50%;border:1.5px solid #dcdfdc;
   display:flex;align-items:center;justify-content:center;font-size:13px;
@@ -233,14 +237,34 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .ftile .frow small{font-size:10px;color:#9aa09d;font-weight:600;padding-top:2px;
   font-family:ui-monospace,Menlo,monospace}
 .ftile .frow>i{width:1px;height:26px;background:#e6e9e6;flex:none}
+
+/* Funda Score explainer (top of ratio deep dive) */
+.scoreexp{margin-bottom:14px}
+.scoreflex{display:flex;align-items:center;gap:22px;padding:10px 0 4px;flex-wrap:wrap}
+.scorebadge{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;
+  background:radial-gradient(130% 130% at 85% 15%,#2a9c62,#0f4a2c);
+  border-radius:16px;padding:16px 22px;box-shadow:0 8px 22px rgba(15,74,44,.20)}
+.scorebadge .sbig{font-size:34px;font-weight:800;letter-spacing:-1px;color:#fff;line-height:1}
+.scorebadge .sbig small{font-size:15px;color:rgba(255,255,255,.8);font-weight:700}
+.scorebadge .sverdict{font-size:10.5px;font-weight:800;letter-spacing:1px;color:#eafff3;
+  background:rgba(255,255,255,.2);border-radius:20px;padding:3px 12px}
+.scorenar{flex:1;min-width:260px;font-size:13.5px;line-height:1.65;color:#3f4744}
+.scorenar b{color:#15201a;font-weight:700}
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));
+  gap:10px 26px;padding-top:14px;margin-top:6px;border-top:1px solid #eef1ee}
+.prow{display:flex;align-items:center;gap:10px}
+.prow .pl{font-size:12.5px;color:#5f6663;min-width:96px;font-weight:600}
+.prow .ptrack{flex:1;height:7px;background:#eef1ee;border-radius:6px;overflow:hidden}
+.prow .pfill{height:100%;border-radius:6px}
+.prow b{font-size:13px;font-family:ui-monospace,Menlo,monospace;min-width:22px;text-align:right}
 .pilltag{font-size:12px;font-weight:700;color:#177245;border:1.5px solid #cfe2d7;
   border-radius:20px;padding:6px 12px}
 
 /* revenue trend pill bars (reference design) */
 .pill-head{display:flex;align-items:baseline;justify-content:space-between}
 .pill-note{font-size:12.5px;color:#9aa09d}
-.pill-row{display:flex;align-items:flex-end;gap:10px;height:184px;
-  padding:46px 2px 0;min-width:0}
+.pill-row{display:flex;align-items:flex-end;gap:10px;height:176px;
+  padding:52px 2px 0;min-width:0}
 .pill-col{flex:1;min-width:0;display:flex;flex-direction:column;
   align-items:center;gap:9px}
 .pill-col span{font-size:13px;color:#8b918e}
@@ -390,6 +414,10 @@ function fcBindInfo(){
     el.addEventListener('click',function(e){e.stopPropagation();
       fcInfo(e.clientX,e.clientY,el.getAttribute('data-info'));});});
   document.addEventListener('click',function(){fcHide();});}
+// Jump to another page by clicking its sidebar nav button in the parent app.
+function fcGoto(pg){try{var d=window.parent.document;
+  var b=d.querySelector('[class*="st-key-nav-'+pg+'"] button');
+  if(b){b.click();}}catch(e){}}
 function fcBindTips(){
   document.querySelectorAll('[data-tt]').forEach(el=>{
     el.addEventListener('mousemove',e=>{
@@ -639,9 +667,14 @@ def _kpi_cards(model, result) -> list[str]:
     else:
         de_ft = "Above the sector comfort zone"
 
+    # The score card's arrow jumps to Ratio deep dive, where the score breakdown
+    # is explained. cursor:pointer + title tell the reader it is clickable.
+    score_circ = ('<div class="circ scorelink" onclick="fcGoto(\'ratios\')" '
+                  'title="See how this score is built" '
+                  'style="cursor:pointer">&#8599;</div>')
     score_card = (
         f'<div class="kpi score"><div class="hd"><span class="name">Funda Score</span>'
-        f"{circ}</div>"
+        f"{score_circ}</div>"
         f'<div class="big">{result.total_score:.0f}<small>/100</small></div>'
         f'<div class="ft"><span class="chip">{result.verdict}</span>sector adjusted'
         f"</div></div>")
@@ -651,6 +684,39 @@ def _kpi_cards(model, result) -> list[str]:
     return [score_card, mk("P/E Ratio", pe_big, pe_ft),
             mk("Return on Equity", roe_big, roe_ft),
             mk("Debt / Equity", de_big, de_ft)]
+
+
+def _score_rationale(result) -> str:
+    """Top-of-ratios explainer: what the Funda Score is and what drove it."""
+    pillars = result.pillar_scores or {}
+    bars = "".join(
+        f'<div class="prow"><span class="pl">{_esc(p)}</span>'
+        f'<div class="ptrack"><div class="pfill" style="width:{max(3, s):.0f}%;'
+        f'background:{viz.band(s)}"></div></div>'
+        f'<b style="color:{viz.band(s)}">{s:.0f}</b></div>'
+        for p, s in sorted(pillars.items(), key=lambda kv: -kv[1]))
+    ranked = sorted(result.metrics, key=lambda m: m.score, reverse=True)
+    ups = ", ".join(S.short_name(m.metric) for m in ranked[:2]) or "—"
+    downs = ", ".join(S.short_name(m.metric) for m in reversed(ranked[-2:])) or "—"
+    info = ("A 0–100 health rating, weighted for this sector. It blends the "
+            "area sub-scores below into one number. (higher is better)")
+    narrative = (
+        f"The Funda Score is a 0–100 health rating, tuned to the "
+        f"<b>{_esc(result.sector.name)}</b> sector. {_esc(result.company.title())} "
+        f"scores <b>{result.total_score:.0f}/100</b>, which lands in the "
+        f"<b>{result.verdict.lower()}</b> band. It is lifted most by "
+        f"<b>{_esc(ups)}</b> and held back by <b>{_esc(downs)}</b>. Each bar is one "
+        "area's 0–100 sub-score; the total is their weighted average.")
+    return (
+        '<div class="card scoreexp"><div class="ct-row">'
+        f'<span class="ct">How the Funda Score is built</span>'
+        f'<span class="info" data-info="{_esc(info)}">i</span></div>'
+        '<div class="scoreflex">'
+        f'<div class="scorebadge"><div class="sbig">{result.total_score:.0f}'
+        '<small>/100</small></div>'
+        f'<span class="sverdict">{result.verdict}</span></div>'
+        f'<div class="scorenar">{narrative}</div></div>'
+        f'<div class="pillars">{bars}</div></div>')
 
 
 def _drivers_html(result) -> str:
@@ -881,7 +947,7 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
 
     rev_html = D.revenue_trend(model)
     sankey_title, sankey_svg = D.income_sankey(model)
-    flows_html = S.flows_card(model)
+    cost_html, _cost_h = S.cost_card(model)
 
     body = "".join([
         _hero(model, result),
@@ -903,9 +969,9 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
         "</div>",
         '<div class="grid-300">'
         '<div class="card"><div class="ct-row">'
-        + _ct("Year-on-year growth") + "</div>"
-        '<div class="csub">How sales, costs and profit moved, in ₹ crore</div>'
-        + flows_html + "</div>",
+        + _ct("Where each ₹100 of sales goes") + "</div>"
+        '<div class="csub">Latest-year cost structure, ₹ per ₹100 of sales</div>'
+        + cost_html + "</div>",
         '<div class="card" style="display:flex;flex-direction:column;align-items:'
         'center"><div style="align-self:flex-start">' + _ct("Financial Health")
         + "</div>" + viz.gauge(float(result.total_score),
@@ -939,7 +1005,7 @@ def _gauge_inline_legend() -> str:
 
 
 def ratios_shell(model, result) -> tuple[str, int]:
-    cost_html, cost_h = S.cost_card(model)
+    flows_html = S.flows_card(model)
     rows = [(S.short_name(m.metric), m.display(m.latest), float(m.score))
             for m in result.metrics]
     sc_html, sc_h = viz.scorecard_chart(rows)
@@ -965,13 +1031,14 @@ def ratios_shell(model, result) -> tuple[str, int]:
         '<div class="pghead"><span class="pt">Ratio deep dive</span>'
         '<span class="ps">All nine categories from the Ratio Analysis sheet.</span>'
         "</div>",
+        _score_rationale(result),
         '<div class="rowwrap">',
         f'<div style="flex:0 1 350px;min-width:280px">'
         f"{S.roce_card(model, result)}</div>",
         f'<div class="card" style="flex:1;min-width:300px">'
-        f'<div class="ct-row">{_ct("Where each \u20b9100 of sales goes")}</div>'
-        f'<div class="csub">Latest-year cost structure, \u20b9 per \u20b9100 of sales</div>'
-        f"{cost_html}</div>",
+        f'<div class="ct-row">{_ct("Year-on-year growth")}</div>'
+        f'<div class="csub">How sales, costs and profit moved, in \u20b9 crore</div>'
+        f"{flows_html}</div>",
         "</div>",
         f'<div class="strip"><div class="slabel">RATIO SCORECARD \u2014 SCORED '
         f'AGAINST SECTOR BANDS</div>{sc_html}</div>',

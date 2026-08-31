@@ -104,7 +104,7 @@ def inject_css(mode: str = "dark", minimized: bool = False) -> None:
             # Streamlit's tall top/bottom padding and 100vh minimum leave grey
             # space around the content; trim them so the page hugs the cards.
             "\n[data-testid=\"stMainBlockContainer\"]"
-            "{padding-top:1.4rem!important;padding-bottom:1rem!important}"
+            "{padding-top:0.5rem!important;padding-bottom:0.6rem!important}"
             "\n[data-testid=\"stMain\"]{min-height:auto!important}"
             # Streamlit reserves the component's *estimated* height as a plain
             # (non-!important) inline style on the element container, which leaves
@@ -307,7 +307,7 @@ RESIZER_JS = """
         var sh=d.getElementById('shell'); if(!sh) return;
         // +buffer covers the body's own top+bottom padding so the frame shows the
         // full shell (incl. its rounded bottom corners) with no inner scroll.
-        var h=Math.ceil(sh.getBoundingClientRect().height)+42;
+        var h=Math.ceil(sh.getBoundingClientRect().height)+28;
         if(h<120) return;
         if(Math.abs((parseInt(fr.style.height)||0)-h)>1){
           fr.style.setProperty('height',h+'px','important'); fr.setAttribute('height',h); }

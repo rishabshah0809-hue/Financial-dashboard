@@ -51,7 +51,7 @@ def revenue_trend(model, years: int = 6) -> str:
     tallest = sales.idxmax()
     bars = []
     for index, (period, value) in enumerate(sales.items()):
-        height = max(18, round(float(value) / peak * 150))
+        height = max(16, round(float(value) / peak * 120))
         colour = RAMP[min(index, len(RAMP) - 1)]
         if period == tallest:
             colour = GREEN_DARK
