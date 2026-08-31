@@ -65,16 +65,25 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 """
 
 _BASE_JS = """
-const tip=document.getElementById('fctip'), wrap=document.getElementById('wrap');
-function fcShow(x,y,html){tip.innerHTML=html;tip.style.display='block';
+// This engine script is emitted BEFORE #wrap / #fctip exist, so look them up
+// lazily -- capturing them now would leave both null and every tooltip would
+// throw. The [data-tt] binding is likewise deferred until the body is parsed.
+function _fctip(){var t=document.getElementById('fctip');
+  if(!t){t=document.createElement('div');t.id='fctip';
+    (document.getElementById('wrap')||document.body).appendChild(t);}return t;}
+function fcShow(x,y,html){var tip=_fctip(),wrap=document.getElementById('wrap')||document.body;
+  tip.innerHTML=html;tip.style.display='block';
   let px=x+14;if(px+tip.offsetWidth>wrap.clientWidth-6)px=x-tip.offsetWidth-14;
   tip.style.left=Math.max(2,px)+'px';
   tip.style.top=Math.max(2,Math.min(y-tip.offsetHeight/2,wrap.clientHeight-tip.offsetHeight-2))+'px';}
-function fcHide(){tip.style.display='none';}
-document.querySelectorAll('[data-tt]').forEach(el=>{
-  el.addEventListener('mousemove',e=>{const r=wrap.getBoundingClientRect();
-    fcShow(e.clientX-r.left,e.clientY-r.top,el.getAttribute('data-tt'));});
-  el.addEventListener('mouseleave',fcHide);});
+function fcHide(){var tip=document.getElementById('fctip');if(tip)tip.style.display='none';}
+function fcBindTips(){var wrap=document.getElementById('wrap')||document.body;
+  document.querySelectorAll('[data-tt]').forEach(el=>{
+    el.addEventListener('mousemove',e=>{const r=wrap.getBoundingClientRect();
+      fcShow(e.clientX-r.left,e.clientY-r.top,el.getAttribute('data-tt'));});
+    el.addEventListener('mouseleave',fcHide);});}
+if(document.readyState!=='loading')fcBindTips();
+else document.addEventListener('DOMContentLoaded',fcBindTips);
 function fcColumns(cid,Y,L,fmt){
   const svg=document.getElementById(cid);
   const cols=svg.querySelectorAll('.hit');

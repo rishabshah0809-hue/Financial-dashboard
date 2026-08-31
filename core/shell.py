@@ -331,18 +331,23 @@ main [style*="background:#fff"][style*="border-radius:20px"]{
 """
 
 FC_DEFS = """
-const tip=document.getElementById('fctip');
+// Resolve #fctip lazily: this script runs before the #fctip element exists in the
+// document, so capturing it at load time would leave `tip` null and every
+// fcShow() would throw, silently killing all chart/diagram hover tooltips.
+function _fctip(){var t=document.getElementById('fctip');
+  if(!t){t=document.createElement('div');t.id='fctip';document.body.appendChild(t);}
+  return t;}
 // x,y are viewport (client) coords; #fctip is position:absolute, so add the
 // scroll offset to get page coords. This keeps the tooltip glued to the cursor
 // even when the frame is auto-fit to full height and the parent page scrolls
 // (where position:fixed would place it off-screen).
-function fcShow(x,y,html){tip.innerHTML=html;tip.style.display='block';
+function fcShow(x,y,html){var tip=_fctip();tip.innerHTML=html;tip.style.display='block';
   var sx=window.scrollX||0, sy=window.scrollY||0;
   let px=x+14;if(px+tip.offsetWidth>window.innerWidth-8)px=x-tip.offsetWidth-14;
   let py=Math.max(4,Math.min(y-tip.offsetHeight/2,window.innerHeight-tip.offsetHeight-4));
   tip.style.left=(Math.max(4,px)+sx)+'px';
   tip.style.top=(py+sy)+'px';}
-function fcHide(){tip.style.display='none';}
+function fcHide(){var tip=document.getElementById('fctip');if(tip)tip.style.display='none';}
 function fcBindTips(){
   document.querySelectorAll('[data-tt]').forEach(el=>{
     el.addEventListener('mousemove',e=>{
