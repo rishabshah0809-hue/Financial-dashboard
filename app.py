@@ -101,10 +101,19 @@ def inject_css(mode: str = "dark", minimized: bool = False) -> None:
             "\n[data-testid=\"stApp\"],[data-testid=\"stAppViewContainer\"],"
             "[data-testid=\"stHeader\"],[data-testid=\"stMain\"]"
             "{background:#e7ebe7!important}"
-            # Streamlit's tall bottom padding and 100vh minimum leave grey space
-            # below the content; trim them so the page ends near the last card.
-            "\n[data-testid=\"stMainBlockContainer\"]{padding-bottom:1.2rem!important}"
-            "\n[data-testid=\"stMain\"]{min-height:auto!important}")
+            # Streamlit's tall top/bottom padding and 100vh minimum leave grey
+            # space around the content; trim them so the page hugs the cards.
+            "\n[data-testid=\"stMainBlockContainer\"]"
+            "{padding-top:1.4rem!important;padding-bottom:1rem!important}"
+            "\n[data-testid=\"stMain\"]{min-height:auto!important}"
+            # Streamlit reserves the component's *estimated* height as a plain
+            # (non-!important) inline style on the element container, which leaves
+            # a tall empty band once the resizer shrinks the iframe to its content.
+            # A stylesheet !important beats React's inline style, so the container
+            # hugs the fitted iframe and both the trailing gap and the extra
+            # scroll disappear. Covers the 0-height night/resizer helpers too.
+            "\n[data-testid=\"stMain\"] [data-testid=\"stElementContainer\"]"
+            ":has(> iframe.stIFrame){height:auto!important;min-height:0!important}")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
@@ -115,10 +124,11 @@ SIDEBAR_DARK = """
 section[data-testid="stSidebar"]{
   background:linear-gradient(180deg,#0d1d16 0%,#0a1610 100%)!important;
   border-right:1px solid rgba(255,255,255,.06)!important}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.45rem!important}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.6rem!important}
+section[data-testid="stSidebar"]{padding-top:.4rem!important}
 
 /* brand: rounded-square mark + FUNDAMENTAL WORKSPACE */
-.side-brand{display:flex;align-items:center;gap:12px;padding:.2rem 2px .4rem}
+.side-brand{display:flex;align-items:center;gap:12px;padding:.4rem 2px .7rem}
 .side-mark{width:40px!important;height:40px!important;border-radius:12px!important;
   display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,#37d67a,#1faa5e)!important;color:#06120c!important;
@@ -139,11 +149,14 @@ section[data-testid="stSidebar"] [class*="st-key-side-min"] button:hover{
 section[data-testid="stSidebar"] [class*="st-key-ds-card"]{
   background:rgba(255,255,255,.03)!important;border:1px solid rgba(255,255,255,.09)!important;
   border-radius:16px!important;padding:16px 16px 14px!important;margin-bottom:6px!important}
-.ds-title{color:#eaf3ee;font-size:15px;font-weight:800;padding-bottom:10px}
-.ds-file{display:flex;align-items:flex-start;gap:9px;color:#c8d1cb;font-size:13px;
-  line-height:1.4;font-weight:600}
-.ds-file .ds-ic{color:#8a948f;font-size:15px;flex:none}
-.ds-status{display:flex;align-items:center;gap:8px;padding:9px 0 12px}
+.ds-title{color:#eaf3ee;font-size:15px;font-weight:800;padding-bottom:12px}
+/* Streamlit's theme forces markdown spans to dark ink, which is invisible on the
+   dark rail; pin the filename text light with !important. */
+.ds-file{display:flex;align-items:flex-start;gap:9px;font-size:13px;
+  line-height:1.45;font-weight:600}
+.ds-file,.ds-file span{color:#c8d1cb!important}
+.ds-file .ds-ic{color:#8a948f!important;font-size:15px;flex:none}
+.ds-status{display:flex;align-items:center;gap:8px;padding:10px 0 14px}
 .ds-dot{width:8px;height:8px;border-radius:50%;background:#4a5551;flex:none}
 .ds-dot.ok{background:#37d67a;box-shadow:0 0 0 3px rgba(55,214,122,.18)}
 .ds-ready{color:#37d67a;font-size:12.5px;font-weight:700}
@@ -182,13 +195,14 @@ section[data-testid="stSidebar"] [class*="st-key-src-action"] button:hover{
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button{
   background:transparent!important;border:none!important;
   color:#c3ccc6!important;justify-content:flex-start!important;text-align:left!important;
-  font-size:14px!important;font-weight:600!important;padding:.62rem .8rem!important;
-  border-radius:12px!important;gap:12px!important}
+  font-size:14px!important;font-weight:600!important;padding:.7rem .85rem!important;
+  border-radius:12px!important;gap:13px!important;
+  transition:background .16s ease,transform .16s ease!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button *{color:#c3ccc6!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button [data-testid="stIconMaterial"]{
   font-size:20px!important;color:#9aa8a1!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button:hover{
-  background:rgba(255,255,255,.04)!important}
+  background:rgba(255,255,255,.06)!important;transform:translateX(2px)!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"]{
   background:rgba(31,170,94,.16)!important;font-weight:700!important;
   box-shadow:inset 3px 0 0 #37d67a!important}
@@ -212,8 +226,8 @@ section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"] [
 MIN_CSS = """
 /* ---- collapsed: a narrow DARK icon rail (reference mockup) ---- */
 section[data-testid="stSidebar"]{
-  min-width:84px!important;max-width:84px!important}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.3rem!important}
+  min-width:88px!important;max-width:88px!important;padding-top:.6rem!important}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.5rem!important}
 
 /* hide everything but the expand control and the icon nav */
 .side-brand .txtwrap,
@@ -230,9 +244,9 @@ section[data-testid="stSidebar"] [class*="st-key-side-min"] button{
 
 /* nav: icon-only tiles; active = green tint + left rail */
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button{
-  width:46px!important;height:46px!important;min-height:46px!important;
-  padding:0!important;margin:.1rem auto!important;justify-content:center!important;
-  border-radius:14px!important;gap:0!important}
+  width:48px!important;height:48px!important;min-height:48px!important;
+  padding:0!important;margin:.28rem auto!important;justify-content:center!important;
+  border-radius:14px!important;gap:0!important;transform:none!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button [data-testid="stMarkdownContainer"]{
   display:none!important}
 """
@@ -295,8 +309,16 @@ RESIZER_JS = """
         var el=fr.parentElement;
         for(var i=0;i<6 && el;i++){
           var t=el.getAttribute && el.getAttribute('data-testid');
-          if(t==='stElementContainer'||t==='stVerticalBlock'||t==='stVerticalBlockBorderWrapper'){
-            el.style.height='auto'; el.style.minHeight='0px'; }
+          // Streamlit reserves the *initial estimated* height on the element
+          // container with !important, so plain height:auto cannot shrink it and
+          // a tall empty band trails the frame. Pin the container to the frame's
+          // real height (also !important) and let the vertical blocks be auto.
+          if(t==='stElementContainer'){
+            el.style.setProperty('height',h+'px','important');
+            el.style.setProperty('min-height','0px','important'); }
+          else if(t==='stVerticalBlock'||t==='stVerticalBlockBorderWrapper'){
+            el.style.setProperty('height','auto','important');
+            el.style.setProperty('min-height','0px','important'); }
           if(t==='stMain'||t==='stAppViewContainer') break;
           el=el.parentElement; }
       });

@@ -57,6 +57,23 @@ svg{display:block;width:100%;height:auto;overflow:visible}
 text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .mono{font-family:ui-monospace,Menlo,monospace}
 
+/* ---- hover animation: cards lift with a deeper shadow ---- */
+.card,.kpi,.verdict,.strip,.herostat{
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.card:hover,.strip:hover{transform:translateY(-3px);
+  box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 34px rgba(21,32,26,.12);
+  border-color:#d7e0d9}
+.kpi:hover{transform:translateY(-3px);
+  box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 30px rgba(21,32,26,.13)}
+.kpi.score:hover{box-shadow:0 14px 34px rgba(15,74,44,.30)}
+.verdict:hover{transform:translateY(-2px);
+  box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 30px rgba(21,32,26,.11)}
+.exportbtn{transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+.exportbtn:hover{transform:translateY(-1px);
+  box-shadow:0 6px 16px rgba(21,32,26,.14)}
+.aibtn{transition:transform .16s ease,box-shadow .16s ease}
+.aibtn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(13,74,44,.28)}
+
 /* ---- top bar ---- */
 .topbar{background:#fff;border-radius:20px;padding:14px 18px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);display:flex;
   align-items:center;gap:16px;flex-wrap:wrap}
@@ -878,8 +895,13 @@ def ratios_shell(model, result) -> tuple[str, int]:
         f'AGAINST SECTOR BANDS</div>{sc_html}</div>',
         f'<div class="grid-440">{chart_cards}</div>',
     ])
-    est = 1250 + sum(charts[k][1] + 90 for k in charts) // 2 + 300
-    return _doc(body, ""), max(HEIGHTS["ratios"], est)
+    # Deliberately a mild UNDER-estimate. Streamlit reserves the declared height
+    # on the frame's container; over-reserving leaves a tall empty band below the
+    # content that the parent-side resizer cannot reclaim. Under-reserving has no
+    # such cost — the resizer grows the frame to the real content and scrolling is
+    # the safety net — so keep this just under a typical rendered page.
+    est = 1100 + 120 * len(charts)
+    return _doc(body, ""), min(2050, max(1400, est))
 
 
 def sector_shell(model, result) -> tuple[str, int]:
@@ -919,13 +941,16 @@ def sector_shell(model, result) -> tuple[str, int]:
         f"</div><div class=\"csub\">{_esc(result.sector.name)}</div>"
         f"{S.bench_table(result)}</div></div>",
     ])
-    return _doc(body, ""), max(HEIGHTS["sector"], 900 + hm_h + bars_h)
+    # Mild under-estimate (see ratios_shell): the resizer grows the frame to the
+    # real content, and under-reserving avoids the trailing empty band.
+    return _doc(body, ""), min(1800, max(1200, 800 + hm_h + bars_h))
 
 
 def statements_shell(model, query: str = "") -> tuple[str, int]:
     n_rows = len(S.stmt_source(model, "Income Statement", ))
     tables = _statements_tables(model, query)
-    height = 320 + min(max(n_rows, 6), 40) * 46
+    # Mild under-estimate (see ratios_shell): the resizer grows to real content.
+    height = min(1700, 300 + min(max(n_rows, 6), 40) * 42)
     body = "".join([
         '<div class="card"><div class="stmttabs">'
         '<button class="stmttab on" data-tab="is">Income Statement</button>'
