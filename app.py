@@ -178,6 +178,8 @@ section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *
   font-size:0!important;color:#fff!important}
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button::after{
   content:"\\2191  Upload new file";font-size:14px!important;color:#fff!important}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button>div{
+  justify-content:center!important;width:100%!important}
 /* drop the little uploaded-file preview strip Streamlit shows under the button */
 section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"]{display:none!important}
 
@@ -189,8 +191,10 @@ section[data-testid="stSidebar"] [class*="st-key-src-action"] button{
   padding:.55rem .8rem!important;margin-top:8px!important;justify-content:center!important;
   text-align:center!important}
 section[data-testid="stSidebar"] [class*="st-key-src-action"] button *{color:#dde4df!important}
-section[data-testid="stSidebar"] [class*="st-key-src-action"] button [data-testid="stMarkdownContainer"]{
-  width:100%!important;text-align:center!important}
+/* Streamlit wraps the label in a flex <div justify-content:flex-start> that pins
+   it left no matter what the button's own alignment is; centre that inner div. */
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button>div{
+  justify-content:center!important;width:100%!important;text-align:center!important}
 section[data-testid="stSidebar"] [class*="st-key-src-action"] button:hover{
   background:rgba(255,255,255,.05)!important;border-color:rgba(255,255,255,.24)!important}
 
