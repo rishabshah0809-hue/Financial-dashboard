@@ -446,6 +446,67 @@ def _fmt_n(v: float) -> str:
     return f"{v:.1f}"
 
 
+# Ratio Analysis / Common Size values carry an implied unit that the source
+# workbook stores in the cell number-format ("0.00%", "#,##0.0\x", "0.0 days",
+# plain). The parser flattens that away, so re-derive it from the row name and
+# tab and render each value the way the Excel sheet would.
+def _value_kind(tab: str, name: str) -> str:
+    if tab == "Income Statement":
+        return "currency"
+    if tab == "Common Size":
+        return "percent"                       # every line is a % of sales/total
+    n = name.lower()
+    if "days" in n or "conversion cycle" in n:
+        return "days"
+    if ("turnover" in n or "interest coverage" in n or "interest cover" in n
+            or "pe ratio" in n or "p/e" in n or "price to" in n
+            or "cfo / pat" in n or "cfo/pat" in n):
+        return "times"
+    if ("margin" in n or "growth" in n or "return on" in n or "roce" in n
+            or "roe" in n or "roa" in n or "roic" in n or "% sales" in n
+            or "%sales" in n or "payout" in n or "retained earnings" in n
+            or "cfo / sales" in n or "cfo/sales" in n or "cfo / total" in n
+            or "cfo/total" in n or "self sustained" in n or "yield" in n
+            or n.rstrip().endswith("%")):
+        return "percent"
+    return "value"                             # d/e, d/a, peg -> plain multiple
+
+
+def _fmt_stmt_value(kind: str, v: float) -> str:
+    if kind == "currency":
+        return _fmt_n(v)
+    if kind == "percent":
+        return f"{v * 100:.1f}%"
+    if kind == "times":
+        return f"{v:,.2f}x"
+    if kind == "days":
+        return f"{v:,.1f} days"
+    return f"{v:,.2f}"
+
+
+def _delta_text(kind: str, v, prev) -> tuple[str, str] | None:
+    """(text, colour) for the year-on-year sub-line, or None when undefined.
+
+    Income-statement lines keep the signed % growth in green/red; ratio and
+    common-size lines show a neutral-grey delta in their own unit (percentage
+    points for %, days, or x), matching the reference statements table.
+    """
+    if v is None or prev is None:
+        return None
+    if kind == "currency":
+        if not prev:
+            return None
+        ch = (v - prev) / abs(prev) * 100
+        return (f"{ch:+.1f} %", "#2f9e63" if ch >= 0 else "#d0554a")
+    if kind == "percent":
+        return (f"{(v - prev) * 100:+.1f} pp", "#9aa09d")
+    if kind == "days":
+        return (f"{v - prev:+.1f} d", "#9aa09d")
+    if kind == "times":
+        return (f"{v - prev:+.2f}x", "#9aa09d")
+    return (f"{v - prev:+.2f}", "#9aa09d")
+
+
 # Ratio Analysis is shown grouped by the kind of ratio. First keyword match wins,
 # so the order matters (e.g. "interest coverage" lands in solvency before the bare
 # "% sales" expense bucket).
@@ -567,22 +628,23 @@ def statements_html(model, tab: str, show_pct: bool, query: str) -> str:
                      f'border-bottom:1px solid #dce7e0">{name}</td></tr>')
             continue
         bg = "#f5f9f7" if head_row else "#fff"
+        kind = _value_kind(tab, name)
         tds = ""
         prev = None
         for v in vals:
             pct_html = ""
             if show_pct:
-                if prev not in (None,) and v is not None and prev:
-                    ch = (v - prev) / abs(prev) * 100
-                    colour = "#2f9e63" if ch >= 0 else "#d0554a"
+                delta = _delta_text(kind, v, prev)
+                if delta is not None:
+                    txt, colour = delta
                     pct_html = (f'<div class="pctsub" style="font-size:13px;'
                                 f'padding-top:3px;font-weight:600;color:{colour};'
-                                f'font-family:{MONO}">{ch:+.1f} %</div>')
+                                f'font-family:{MONO}">{txt}</div>')
                 else:
                     pct_html = ('<div class="pctsub" style="font-size:13px;'
                                 'padding-top:3px;font-weight:600;color:#c8ccc9;'
                                 f'font-family:{MONO}">—</div>')
-            val_txt = _fmt_n(v) if v is not None else "—"
+            val_txt = _fmt_stmt_value(kind, v) if v is not None else "—"
             tds += (f'<td style="padding:10px 14px;text-align:right;'
                     f'border-bottom:1px solid #f1f3f1;white-space:nowrap">'
                     f'<div style="font-size:17px;font-weight:{800 if head_row else 600};'

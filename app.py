@@ -58,15 +58,15 @@ SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 # live — the quickest way to tell a fresh deploy from a stale cached view.
 BUILD_TAG = "2026-08-26 r19 (bs hover, sidebar spacing, trim padding)"
 
-# (key, label, icon) — the icon is a monochrome glyph that inherits the button's
-# text colour, so it reads light on the dark expanded panel and dark on the white
-# minimized rail. When minimized only the icon is shown.
+# (key, label, material-icon) — outline Material Symbols matching the reference
+# sidebar mockup. Passed to st.button(icon=":material/<name>:") so the glyph reads
+# as a clean line icon on the dark rail; collapsed mode shows only the icon.
 NAV_PAGES = [
-    ("overview", "Dashboard", "▦"),        # ▦ grid
-    ("ratios", "Ratio deep dive", "◎"),    # ◎ target
-    ("lens", "Sector lens", "◈"),          # ◈ lens
-    ("statements", "Statements", "▤"),     # ▤ rows
-    ("qa", "Ask the analyst", "✦"),        # ✦ spark
+    ("overview", "Dashboard", "grid_view"),
+    ("ratios", "Ratio deep dive", "bar_chart"),
+    ("lens", "Sector lens", "pie_chart"),
+    ("statements", "Statements", "description"),
+    ("qa", "Ask the analyst", "chat_bubble"),
 ]
 
 st.set_page_config(
@@ -108,141 +108,132 @@ def inject_css(mode: str = "dark", minimized: bool = False) -> None:
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
-# The dark expanded rail: forces the dark look over whatever the content theme
-# set, a circular brand mark, and icon+label nav rows.
+# The dark expanded rail (reference sidebar mockup): a rounded-square brand mark,
+# a "Data source" card, outline Material-icon nav with a green active state, a
+# "Collapse sidebar" control, and the night/day toggle at the foot.
 SIDEBAR_DARK = """
 section[data-testid="stSidebar"]{
   background:linear-gradient(180deg,#0d1d16 0%,#0a1610 100%)!important;
   border-right:1px solid rgba(255,255,255,.06)!important}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.6rem!important}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.45rem!important}
 
-/* brand */
-.side-mark{width:40px!important;height:40px!important;border-radius:50%!important;
+/* brand: rounded-square mark + FUNDAMENTAL WORKSPACE */
+.side-brand{display:flex;align-items:center;gap:12px;padding:.2rem 2px .4rem}
+.side-mark{width:40px!important;height:40px!important;border-radius:12px!important;
+  display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,#37d67a,#1faa5e)!important;color:#06120c!important;
-  font-weight:800!important;font-size:17px!important}
+  font-weight:800!important;font-size:18px!important}
 .side-brand .name{color:#f2f7f4!important;font-size:18px!important;font-weight:800!important}
-.side-brand .tag{color:#aebab3!important;font-size:9.5px!important;letter-spacing:1.6px!important}
+.side-brand .tag{color:#8a948f!important;font-size:9.5px!important;letter-spacing:1.6px!important}
 
-/* section headers + captions */
-.dhd{font-size:10px;letter-spacing:1.6px;color:#aebab3;font-weight:700;
-  font-family:ui-monospace,Menlo,monospace;padding:18px 2px 8px;
-  display:block;margin-top:4px}
-section[data-testid="stSidebar"] [data-testid="stCaptionContainer"]{
-  color:#b6bfb9!important;font-size:11.5px!important;line-height:1.5!important}
+/* collapse control */
+section[data-testid="stSidebar"] [class*="st-key-side-min"] button{
+  background:transparent!important;border:none!important;color:#aebab3!important;
+  justify-content:flex-start!important;font-size:13px!important;font-weight:600!important;
+  padding:.35rem .5rem!important}
+section[data-testid="stSidebar"] [class*="st-key-side-min"] button *{color:#aebab3!important}
+section[data-testid="stSidebar"] [class*="st-key-side-min"] button:hover{
+  background:rgba(255,255,255,.04)!important}
 
-/* nav buttons + minimize (same .stButton) */
-section[data-testid="stSidebar"] .stButton>button{
-  background:transparent!important;border:1px solid transparent!important;
-  color:#dde4df!important;justify-content:flex-start!important;text-align:left!important;
-  font-size:14px!important;font-weight:600!important;padding:.6rem .8rem!important;
-  border-radius:12px!important}
-/* Streamlit paints the label in a child markdown <p> with the base theme's dark
-   colour; force the light colour onto every descendant so the text is legible. */
-section[data-testid="stSidebar"] .stButton>button *{color:#dde4df!important}
-section[data-testid="stSidebar"] .stButton>button:hover{
-  background:rgba(255,255,255,.04)!important;border-color:transparent!important}
-section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-  background:rgba(31,170,94,.20)!important;
-  border-color:rgba(55,214,122,.45)!important;font-weight:700!important;
+/* ---- Data source card (keyed container) ---- */
+section[data-testid="stSidebar"] [class*="st-key-ds-card"]{
+  background:rgba(255,255,255,.03)!important;border:1px solid rgba(255,255,255,.09)!important;
+  border-radius:16px!important;padding:16px 16px 14px!important;margin-bottom:6px!important}
+.ds-title{color:#eaf3ee;font-size:15px;font-weight:800;padding-bottom:10px}
+.ds-file{display:flex;align-items:flex-start;gap:9px;color:#c8d1cb;font-size:13px;
+  line-height:1.4;font-weight:600}
+.ds-file .ds-ic{color:#8a948f;font-size:15px;flex:none}
+.ds-status{display:flex;align-items:center;gap:8px;padding:9px 0 12px}
+.ds-dot{width:8px;height:8px;border-radius:50%;background:#4a5551;flex:none}
+.ds-dot.ok{background:#37d67a;box-shadow:0 0 0 3px rgba(55,214,122,.18)}
+.ds-ready{color:#37d67a;font-size:12.5px;font-weight:700}
+.ds-ready.muted{color:#8a948f}
+
+/* upload dropzone -> a single green "Upload new file" button */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"]{
+  border:none!important;border-radius:12px!important;padding:0!important;
+  background:transparent!important;min-height:0!important}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"]{
+  display:none!important}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button{
+  width:100%!important;background:linear-gradient(135deg,#2a9c62,#177245)!important;
+  border:none!important;border-radius:12px!important;padding:11px 18px!important;
+  font-weight:700!important;justify-content:center!important}
+/* hide Streamlit's native "Browse files" label/icon, show our own via ::after */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button,
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *{
+  font-size:0!important;color:#fff!important}
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button::after{
+  content:"\\2191  Upload new file";font-size:14px!important;color:#fff!important}
+/* drop the little uploaded-file preview strip Streamlit shows under the button */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"]{display:none!important}
+
+/* "Change file" / "Load demo model" -> outline button */
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button{
+  width:100%!important;background:transparent!important;
+  border:1px solid rgba(255,255,255,.16)!important;border-radius:12px!important;
+  color:#dde4df!important;font-size:13.5px!important;font-weight:600!important;
+  padding:.55rem .8rem!important;margin-top:8px!important;justify-content:center!important}
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button *{color:#dde4df!important}
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button:hover{
+  background:rgba(255,255,255,.05)!important;border-color:rgba(255,255,255,.24)!important}
+
+/* ---- nav rows (outline Material icon + label) ---- */
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button{
+  background:transparent!important;border:none!important;
+  color:#c3ccc6!important;justify-content:flex-start!important;text-align:left!important;
+  font-size:14px!important;font-weight:600!important;padding:.62rem .8rem!important;
+  border-radius:12px!important;gap:12px!important}
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button *{color:#c3ccc6!important}
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button [data-testid="stIconMaterial"]{
+  font-size:20px!important;color:#9aa8a1!important}
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button:hover{
+  background:rgba(255,255,255,.04)!important}
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"]{
+  background:rgba(31,170,94,.16)!important;font-weight:700!important;
   box-shadow:inset 3px 0 0 #37d67a!important}
-section[data-testid="stSidebar"] .stButton>button[kind="primary"],
-section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{color:#eafff3!important}
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"],
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"] *{
+  color:#7fe3a6!important}
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"] [data-testid="stIconMaterial"]{
+  color:#37d67a!important}
 
 /* night-mode toggle (HTML button, wired client-side for a smooth invert) */
 .fc-dntoggle{display:flex;align-items:center;gap:10px;width:100%;
   background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);
   border-radius:12px;padding:.55rem .8rem;color:#dde4df;font-family:inherit;
-  font-size:14px;font-weight:600;cursor:pointer;margin:2px 0}
+  font-size:14px;font-weight:600;cursor:pointer;margin:6px 0 2px}
 .fc-dntoggle:hover{background:rgba(255,255,255,.08)}
 .fc-dntoggle .dnic{font-size:16px;width:20px;text-align:center}
-/* the label spans are plain markdown HTML; force the light colour so the
-   "Night mode" / "Day mode" text is legible on the dark rail. */
 .fc-dntoggle,.fc-dntoggle *{color:#dde4df!important}
-
-/* upload dropzone -> the reference's dashed drop with a green button */
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"]{
-  border:1.5px dashed rgba(255,255,255,.16)!important;border-radius:14px!important;
-  background:rgba(255,255,255,.02)!important;padding:16px!important;
-  flex-direction:column!important;align-items:center!important;gap:10px!important}
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstructions"] *{
-  color:#8a948f!important;font-size:11px!important;font-family:ui-monospace,Menlo,monospace!important}
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button{
-  background:linear-gradient(135deg,#2a9c62,#177245)!important;border:none!important;
-  border-radius:12px!important;padding:10px 18px!important;font-weight:700!important;
-  font-size:14px!important}
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button,
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *{
-  color:#fff!important}
-
-/* demo toggle label legible on the dark rail */
-section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p,
-section[data-testid="stSidebar"] [data-testid="stCheckbox"] label span{color:#c8d1cb!important}
-
-/* loaded chip */
-.loaded-chip{background:rgba(255,255,255,.04)!important;
-  border:1px solid rgba(255,255,255,.08)!important;border-radius:12px!important;
-  padding:12px 14px!important}
-.loaded-chip .txt b{color:#eaf3ee!important;font-size:13px!important;
-  font-family:ui-monospace,Menlo,monospace!important}
-.loaded-chip .dot{background:#37d67a!important}
-
-/* sector select -> white pill with dark, legible text */
-section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[role="group"]{
-  background:#fff!important;border-radius:12px!important;border:none!important;
-  padding:2px 4px!important}
-section[data-testid="stSidebar"] [data-testid="stSelectbox"] div[role="group"] *,
-section[data-testid="stSidebar"] [data-testid="stSelectbox"] input{
-  color:#15201a!important;font-weight:700!important;
-  -webkit-text-fill-color:#15201a!important}
-/* The collapsed 'Sector' label was overlapping the SECTOR LENS header above it;
-   remove it entirely and give the dropdown clear top spacing. */
-section[data-testid="stSidebar"] [data-testid="stSelectbox"] label[data-testid="stWidgetLabel"]{
-  display:none!important}
-section[data-testid="stSidebar"] [data-testid="stSelectbox"]{margin-top:4px!important}
 """
 
 
 MIN_CSS = """
-/* ---- minimized: a white icon-rail (design spec) ---- */
+/* ---- collapsed: a narrow DARK icon rail (reference mockup) ---- */
 section[data-testid="stSidebar"]{
-  min-width:92px!important;max-width:92px!important;
-  background:#ffffff!important;border-right:1px solid #eceeec!important}
-section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.35rem!important}
+  min-width:84px!important;max-width:84px!important}
+section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]{gap:.3rem!important}
 
-/* brand: keep only the round mark, centered */
-.side-brand{justify-content:center;padding:.2rem 0 .5rem}
+/* hide everything but the expand control and the icon nav */
 .side-brand .txtwrap,
-section[data-testid="stSidebar"] [data-testid="stWidgetLabel"],
-section[data-testid="stSidebar"] [data-testid="stCheckbox"],
-section[data-testid="stSidebar"] [data-testid="stCaptionContainer"],
-section[data-testid="stSidebar"] .stSelectbox,
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"],
+section[data-testid="stSidebar"] [class*="st-key-ds-card"],
 section[data-testid="stSidebar"] .dhd,
-section[data-testid="stSidebar"] .fc-dntoggle,
-section[data-testid="stSidebar"] .loaded-chip .txt{display:none!important}
-.loaded-chip{justify-content:center;padding:.5rem .2rem!important;
-  background:#f2f6f3!important;border-color:#e3ebe5!important}
+section[data-testid="stSidebar"] .fc-dntoggle{display:none!important}
+.side-brand{justify-content:center;padding:.2rem 0 .4rem}
 
-/* nav: dark icon-only tiles on white; active = filled dark square */
-section[data-testid="stSidebar"] .stButton>button{
-  color:#5b625e!important;background:transparent!important;border:none!important;
-  padding:0!important;margin:.05rem auto!important;
+/* expand control: a rounded outlined tile */
+section[data-testid="stSidebar"] [class*="st-key-side-min"] button{
+  width:44px!important;height:44px!important;min-height:44px!important;
+  margin:.1rem auto!important;padding:0!important;justify-content:center!important;
+  border:1px solid rgba(255,255,255,.12)!important;border-radius:12px!important}
+
+/* nav: icon-only tiles; active = green tint + left rail */
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button{
   width:46px!important;height:46px!important;min-height:46px!important;
-  border-radius:14px!important;font-size:19px!important;
-  display:flex!important;align-items:center;justify-content:center;text-align:center}
-section[data-testid="stSidebar"] .stButton>button p{width:auto!important;margin:0!important}
-/* colour the label descendants directly (see note in SIDEBAR_DARK) */
-section[data-testid="stSidebar"] .stButton>button,
-section[data-testid="stSidebar"] .stButton>button *{color:#5b625e!important}
-/* no hover animation on the minimized rail either */
-section[data-testid="stSidebar"] .stButton>button:hover{
-  background:transparent!important}
-section[data-testid="stSidebar"] .stButton>button[kind="primary"]{
-  background:#15201a!important}
-section[data-testid="stSidebar"] .stButton>button[kind="primary"],
-section[data-testid="stSidebar"] .stButton>button[kind="primary"] *{
-  color:#ffffff!important}
-section[data-testid="stSidebar"] .stButton>button[kind="primary"]::before{
+  padding:0!important;margin:.1rem auto!important;justify-content:center!important;
+  border-radius:14px!important;gap:0!important}
+section[data-testid="stSidebar"] [class*="st-key-nav-"] button [data-testid="stMarkdownContainer"]{
   display:none!important}
 """
 
@@ -363,111 +354,109 @@ def step(number: int, label: str) -> None:
 
 
 def sidebar() -> tuple[object, str, str]:
+    collapsed = bool(st.session_state.get("nav_min", False))
+    # The uploader is reset by bumping this nonce into its widget key: "Change
+    # file" increments it so Streamlit forgets the previously chosen file.
+    nonce = st.session_state.setdefault("upload_nonce", 0)
+    st.session_state.setdefault("dark_mode", False)
+
     with st.sidebar:
         st.markdown(
             '<div class="side-brand"><div class="side-mark">F</div>'
             '<div class="txtwrap"><div class="name">FundaCheck</div>'
-            '<div class="tag">FUNDAMENTAL TERMINAL</div></div></div>',
+            '<div class="tag">FUNDAMENTAL WORKSPACE</div></div></div>',
             unsafe_allow_html=True,
         )
 
-        # ---- minimize / expand (the design's sidebar toggle) ----
+        # ---- collapse / expand ----
         # The click is recorded but the rerun is deferred to the very end of the
-        # sidebar (same pattern as navigation below). Rerunning here \u2014 before the
-        # uploader and demo toggle are instantiated \u2014 makes Streamlit discard
-        # their state, which is exactly how minimizing used to throw away the
-        # loaded file / demo model and fall back to the empty landing page.
-        collapsed = bool(st.session_state.get("nav_min", False))
-        toggle_min = st.button("\u00bb" if collapsed else "\u00ab  Minimize",
-                               key="side-min", use_container_width=True)
-
-        # ---- navigation ----
-        current = st.session_state.setdefault("page", "overview")
-        # The click is recorded here but acted on at the very end of the
-        # sidebar. Rerunning from inside this loop would abort the script before
-        # the widgets below (the uploader above all) are instantiated, and
-        # Streamlit discards the state of any widget a run did not render — which
-        # is how navigating between pages used to throw the uploaded file away.
-        navigate_to = None
-        for key, label, icon in NAV_PAGES:
-            shown = icon if collapsed else f"{icon} {label}"
-            active = key == current
-            if st.button(shown, key=f"nav-{key}", use_container_width=True,
-                         type="primary" if active else "secondary",
-                         help=label if collapsed else None):
-                navigate_to = key
-
-        # ---- night-mode toggle (client-side invert of the main content) ----
-        # Only the button lives here; its wiring script is a 0-height component
-        # rendered in the main area (see main()), so it adds no stray element or
-        # gap inside the sidebar.
-        if not collapsed:
-            st.markdown(NIGHT_TOGGLE_HTML, unsafe_allow_html=True)
-        st.session_state.setdefault("dark_mode", False)
-
-        st.markdown('<div class="dhd">YOUR DATA</div>', unsafe_allow_html=True)
-        upload = st.file_uploader(
-            "3-statement model (.xlsx)", type=["xlsx", "xlsm"],
-            label_visibility="collapsed", key="upload",
-            help="Any Screener.in-style workbook.",
-        )
-        # The uploader is the single source of truth for "is a file loaded".
-        # That only holds because every st.rerun() in this app now happens after
-        # the sidebar has fully rendered — a rerun fired before this widget is
-        # instantiated would make Streamlit discard its state, which is exactly
-        # how navigating between pages used to lose the file. Keep it that way.
-        if upload is not None:
-            st.session_state.demo_on = False
-
-        use_sample = st.toggle(
-            "Load the demo model", key="demo_on", disabled=upload is not None,
-            help="A real 3-statement model, if you want to try FundaCheck "
-                 "before uploading your own.",
+        # sidebar. Rerunning here, before the uploader is instantiated, makes
+        # Streamlit discard its state and throw away the loaded file.
+        toggle_min = st.button(
+            "" if collapsed else "Collapse sidebar", key="side-min",
+            use_container_width=True,
+            icon=":material/chevron_right:" if collapsed
+            else ":material/chevron_left:",
+            help="Expand sidebar" if collapsed else None,
         )
 
-        if upload is not None:
-            source, source_label = upload.getvalue(), upload.name
-        elif use_sample:
-            source, source_label = SAMPLE, "Demo model"
-        else:
-            source, source_label = None, ""
+        # ---- Data source card (upload / demo / change) ----
+        with st.container(border=True, key="ds-card"):
+            head = st.empty()                       # header filled once source known
+            upload = st.file_uploader(
+                "3-statement model (.xlsx)", type=["xlsx", "xlsm"],
+                label_visibility="collapsed", key=f"upload_{nonce}",
+                help="Any Screener.in-style workbook.",
+            )
+            if upload is not None:
+                st.session_state.demo_on = False
 
-        if source is not None:
-            st.markdown(
-                f'<div class="loaded-chip"><span class="dot"></span>'
-                f'<span class="txt"><b>{source_label}</b></span></div>',
+            if upload is not None:
+                source, source_label = upload.getvalue(), upload.name
+            elif st.session_state.get("demo_on"):
+                source, source_label = SAMPLE, "Demo model - 3S_model_sample.xlsx"
+            else:
+                source, source_label = None, ""
+
+            loaded = source is not None
+            src_action = st.button(
+                "Change file" if loaded else "Load demo model",
+                key="src-action", use_container_width=True,
+            )
+
+            # Fill the header now that we know what is loaded.
+            if loaded:
+                status = ('<span class="ds-dot ok"></span>'
+                          '<span class="ds-ready">Data ready</span>')
+                fname = source_label
+            else:
+                status = ('<span class="ds-dot"></span>'
+                          '<span class="ds-ready muted">No data</span>')
+                fname = "Upload a model to begin"
+            head.markdown(
+                '<div class="ds-title">Data source</div>'
+                f'<div class="ds-file"><span class="ds-ic">&#9636;</span>'
+                f'<span>{fname}</span></div>'
+                f'<div class="ds-status">{status}</div>',
                 unsafe_allow_html=True,
             )
 
-        st.markdown('<div class="dhd">SECTOR LENS</div>', unsafe_allow_html=True)
-        choices = sector_choices()
-        keys = [k for k, _ in choices]
-        # Held in a plain state key rather than the widget's own key: Streamlit
-        # forbids writing to a widget key once the widget exists, and detection
-        # (in main(), after the workbook loads) has to be able to set it.
-        preferred = st.session_state.setdefault("sector_pref", "generic")
-        sector_key = st.selectbox(
-            "Sector", options=keys, format_func=lambda k: dict(choices)[k],
-            index=keys.index(preferred) if preferred in keys else 0,
-            label_visibility="collapsed",
-            help="Benchmarks and pillar weights change with the sector.",
-        )
-        st.session_state.sector_pref = sector_key
-        st.caption(get_sector(sector_key).notes)
+        # ---- navigation ----
+        current = st.session_state.setdefault("page", "overview")
+        # Clicks are recorded here and acted on at the very end of the sidebar so
+        # the uploader's state is never discarded mid-run (see deferred reruns).
+        navigate_to = None
+        for key, label, icon in NAV_PAGES:
+            active = key == current
+            if st.button(label, key=f"nav-{key}", use_container_width=True,
+                         type="primary" if active else "secondary",
+                         icon=f":material/{icon}:",
+                         help=label if collapsed else None):
+                navigate_to = key
 
-        # Visible build stamp: lets you confirm at a glance whether the browser is
-        # showing the freshly deployed code or a stale cached view.
-        st.markdown(
-            f'<div style="margin-top:14px;font-family:ui-monospace,Menlo,monospace;'
-            f'font-size:10px;letter-spacing:.6px;color:#6f7a74">'
-            f'BUILD {BUILD_TAG}</div>',
-            unsafe_allow_html=True,
-        )
+        # ---- night / day toggle (client-side invert of the main content) ----
+        # Only the button lives here; its wiring script is a 0-height component
+        # rendered in the main area (see main()).
+        if not collapsed:
+            st.markdown(NIGHT_TOGGLE_HTML, unsafe_allow_html=True)
 
-    # Both reruns are deferred to here, after every sidebar widget (uploader,
-    # demo toggle, sector) has been instantiated, so their state survives.
+    # Sector is auto-detected (in main, after the workbook loads) and held in
+    # this plain state key -- the manual dropdown was removed from the sidebar.
+    sector_key = st.session_state.setdefault("sector_pref", "generic")
+
+    # Reruns are deferred to here, after every sidebar widget has been
+    # instantiated, so their state survives.
     if toggle_min:
         st.session_state.nav_min = not collapsed
+        st.rerun()
+    if src_action:
+        # From an empty card or the demo, the secondary button toggles the demo;
+        # with a real upload loaded it drops that file (bump the uploader nonce).
+        if upload is not None:
+            st.session_state.upload_nonce = nonce + 1
+            st.session_state.demo_on = False
+        else:
+            st.session_state.demo_on = not st.session_state.get("demo_on", False)
         st.rerun()
     if navigate_to and navigate_to != current:
         st.session_state.page = navigate_to

@@ -786,7 +786,6 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
     sankey_title, sankey_svg = D.income_sankey(model)
 
     body = "".join([
-        _topbar("dashboard"),
         _hero(model, result),
         f'<div class="kpigrid">{"".join(_kpi_cards(model, result))}</div>',
         (f'<div class="verdict" style="--rail:{rail}">'
@@ -865,7 +864,6 @@ def ratios_shell(model, result) -> tuple[str, int]:
         for html, _h in [charts[key]])
 
     body = "".join([
-        _topbar("ratios"),
         '<div class="pghead"><span class="pt">Ratio deep dive</span>'
         '<span class="ps">All nine categories from the Ratio Analysis sheet.</span>'
         "</div>",
@@ -901,7 +899,6 @@ def sector_shell(model, result) -> tuple[str, int]:
         for c, t in legend_rows)
 
     body = "".join([
-        _topbar("sector"),
         '<div class="pghead"><span class="pt">Sector lens</span>'
         '<span class="ps">One set of numbers, nine rule books.</span></div>',
         S.why_card(),
@@ -930,7 +927,6 @@ def statements_shell(model, query: str = "") -> tuple[str, int]:
     tables = _statements_tables(model, query)
     height = 320 + min(max(n_rows, 6), 40) * 46
     body = "".join([
-        _topbar("statements"),
         '<div class="card"><div class="stmttabs">'
         '<button class="stmttab on" data-tab="is">Income Statement</button>'
         '<button class="stmttab" data-tab="ra">Ratio Analysis</button>'
