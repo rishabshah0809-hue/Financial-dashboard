@@ -24,6 +24,7 @@ from core import design_blocks as D
 from core import report as REP
 from core import sections as S
 from core import shell as SH
+from core import trendlyne as TL
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
 from core.derive import fill_missing_ratios
@@ -576,8 +577,12 @@ def statements_tab(model) -> None:
     _render_shell(html, height)
 
 def sector_lens_tab(model, result) -> None:
-    """Sector lens - the reference section, one shell."""
-    html, height = SH.sector_shell(model, result)
+    """Sector lens - live sector benchmarks from Trendlyne + company comparison."""
+    sec = result.sector
+    with st.spinner("Fetching sector data from Trendlyne…"):
+        snap = TL.get_sector_snapshot(
+            sec.name, sec.trendlyne_id, sec.trendlyne_slug, sec.trendlyne_name)
+    html, height = SH.sector_shell(model, result, snap)
     _render_shell(html, height)
 
 def qa_tab(result, config: LLMConfig) -> None:
