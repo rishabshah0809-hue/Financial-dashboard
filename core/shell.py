@@ -1053,46 +1053,268 @@ def ratios_shell(model, result) -> tuple[str, int]:
     return _doc(body, ""), min(2050, max(1400, est))
 
 
-def sector_shell(model, result) -> tuple[str, int]:
-    sectors, hot_name = S.sector_scores(model, result)
-    bars_html, bars_h = viz.sector_bars(sectors, hot_name)
-    gauge_html, _gh = viz.gauge(float(result.total_score),
-                                f"{result.total_score:.0f}%")
-    hm_html, hm_h = S.heatmap_block(model)
-    legend_rows = [
-        (viz.MID, "Strong \u2014 margins, cash cycle, profit growth"),
-        (GREEN_DARK, "Stable \u2014 leverage within sector norms"),
-        ("repeating-linear-gradient(-45deg,#d9dcd9 0 3px,#f2f3f1 3px 6px)",
-         "Risk \u2014 interest cover, ROCE, cash conversion"),
-    ]
-    legend = "".join(
-        f'<div class="legrow"><i style="background:{c}"></i><span>{t}</span></div>'
-        for c, t in legend_rows)
+# --------------------------------------------------------------------------
+# Sector lens \u2014 live sector benchmarks from Trendlyne (see core/trendlyne.py)
+# --------------------------------------------------------------------------
+_TL_GOOD = "#177245"      # cheaper / higher return than the sector
+_TL_BAD = "#a4483f"       # pricier / lower return than the sector
+
+
+def _company_vr(model) -> dict[str, float | None]:
+    """Company's own valuation & return ratios from the uploaded workbook.
+
+    Returns None for anything the workbook does not contain \u2014 never estimated.
+    P/E and P/B are valuation ratios the scoring engine does not use, so they are
+    resolved here with broad aliases and shown as an em dash when absent.
+    """
+    def raw(*names):
+        s = S.ser(model, *names)
+        return float(s.iloc[-1]) if not s.empty else None
+
+    def pctv(*names):
+        s = S.ser(model, *names)
+        return float(S.pct_series(s).iloc[-1]) if not s.empty else None
+
+    pe = raw("PE Ratio", "Price to Earning", "Price to Earnings",
+             "Price to Earning Ratio", "P/E", "PE")
+    if pe is not None and not (0 < pe < 1000):
+        pe = None
+    pb = raw("Price to Book Ratio", "Price to Book Value", "Price to Book",
+             "PB Ratio", "P/B", "PB")
+    if pb is not None and not (0 < pb < 200):
+        pb = None
+    return {
+        "pe": pe,
+        "pb": pb,
+        "roe": pctv("Return on Equity (ROE) %", "ROE", "Return on Equity"),
+        "roce": pctv("Return on Capital Employed (ROCE) %", "ROCE",
+                     "Return on Capital Employed"),
+        "roa": pctv("Return on Assets (ROA) %", "ROA", "Return on Assets"),
+    }
+
+
+def _fx(v, kind) -> str:
+    """Format one value, or an em dash when it is missing (never invented)."""
+    if v is None:
+        return "\u2014"
+    if kind == "x":
+        return f"{v:.2f}x"
+    if kind == "pct":
+        return f"{v:.2f}%"
+    if kind == "int":
+        return f"{int(v):,}"
+    if kind == "mcap":
+        return f"\u20b9{v:,.0f} Cr"
+    if kind == "score":
+        return f"{v:.1f}"
+    return _esc(v)
+
+
+def _tile(label: str, value: str, sub: str = "") -> str:
+    sub_html = (f'<div style="font-size:11.5px;color:#9aa09d;padding-top:3px">{sub}</div>'
+                if sub else "")
+    return (
+        '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #eef0ed;'
+        'border-radius:16px;padding:16px 18px">'
+        f'<div style="font-size:11.5px;color:#8b918e;font-weight:600;'
+        f'letter-spacing:.3px;text-transform:uppercase">{label}</div>'
+        f'<div style="font-size:30px;font-weight:800;letter-spacing:-1px;'
+        f'color:#15201a;padding-top:6px">{value}</div>{sub_html}</div>')
+
+
+def _cmp_row(label: str, comp, sect, kind: str) -> str:
+    """One Company-vs-Sector table row, with a truthful difference cell.
+
+    ``kind`` drives both formatting and the difference reading: "x" (valuation,
+    where below the sector is cheaper) vs "pct" (returns, a percentage-point gap).
+    """
+    diff = '<span style="color:#b8bdb9">\u2014</span>'
+    if comp is not None and sect is not None:
+        if kind == "x":                     # valuation: relative discount/premium
+            pct = (comp - sect) / sect * 100 if sect else 0.0
+            cheaper = comp < sect
+            colour = _TL_GOOD if cheaper else _TL_BAD
+            arrow = "\u25bc" if cheaper else "\u25b2"
+            word = "cheaper" if cheaper else "pricier"
+            diff = (f'<span style="color:{colour};font-weight:700">{arrow} '
+                    f'{abs(pct):.1f}% {word}</span>')
+        else:                                # returns: percentage-point gap
+            pp = comp - sect
+            better = pp >= 0
+            colour = _TL_GOOD if better else _TL_BAD
+            arrow = "\u25b2" if better else "\u25bc"
+            diff = (f'<span style="color:{colour};font-weight:700">{arrow} '
+                    f'{pp:+.2f} pp</span>')
+    td = ('padding:11px 14px;font-size:13.5px;border-top:1px solid #f1f3f1')
+    return (
+        f'<tr><td style="{td};color:#5c635f;font-weight:600">{label}</td>'
+        f'<td style="{td};color:#15201a;font-weight:700;text-align:right;'
+        f'font-family:ui-monospace,Menlo,monospace">{_fx(comp, kind)}</td>'
+        f'<td style="{td};color:#15201a;font-weight:700;text-align:right;'
+        f'font-family:ui-monospace,Menlo,monospace">{_fx(sect, kind)}</td>'
+        f'<td style="{td};text-align:right">{diff}</td></tr>')
+
+
+def _direction(comp, sect, higher_better: bool) -> str | None:
+    """'higher'/'lower'/'in line' for a company-vs-sector pair, or None."""
+    if comp is None or sect is None:
+        return None
+    if abs(comp - sect) < 1e-9:
+        return "in line with"
+    ahead = comp > sect
+    if not higher_better:                    # valuation: below sector = good
+        ahead = comp < sect
+    return "below" if (not higher_better and ahead) else \
+           "above" if (not higher_better and not ahead) else \
+           "higher" if ahead else "lower"
+
+
+def _join_names(names: list[str]) -> str:
+    """['ROE','ROCE','ROA'] -> 'ROE, ROCE and ROA'."""
+    if len(names) <= 1:
+        return names[0] if names else ""
+    return ", ".join(names[:-1]) + " and " + names[-1]
+
+
+def _interpretation(comp: dict, snap: dict) -> str | None:
+    """A short, plain-English reading built only from available comparisons."""
+    if not snap.get("ok"):
+        return None
+    parts: list[str] = []
+
+    # Valuation: P/E and P/B (below the sector reads as cheaper).
+    val_bits = []
+    for key, name in (("pe", "P/E"), ("pb", "P/B")):
+        d = _direction(comp.get(key), snap.get(key), higher_better=False)
+        if d in ("below", "above"):
+            val_bits.append((name, d))
+    if val_bits:
+        if len({d for _, d in val_bits}) == 1:
+            d = val_bits[0][1]
+            names = _join_names([n for n, _ in val_bits])
+            parts.append(f"trades {d} the sector on {names}")
+        else:
+            parts.append("shows a mixed valuation versus the sector ("
+                         + ", ".join(f"{n} {d}" for n, d in val_bits) + ")")
+
+    # Returns: ROE / ROCE / ROA (higher than the sector is good).
+    ret_bits = []
+    for key, name in (("roe", "ROE"), ("roce", "ROCE"), ("roa", "ROA")):
+        d = _direction(comp.get(key), snap.get(key), higher_better=True)
+        if d in ("higher", "lower"):
+            ret_bits.append((name, d))
+    if ret_bits:
+        if len({d for _, d in ret_bits}) == 1:
+            d = ret_bits[0][1]
+            names = _join_names([n for n, _ in ret_bits])
+            clause = f"generating {d} {names} than the sector"
+        else:
+            clause = ("returns are mixed versus the sector ("
+                      + ", ".join(f"{n} {d}" for n, d in ret_bits) + ")")
+        parts.append(clause)
+
+    if not parts:
+        return None
+    return "The company " + ", while ".join(parts) + "."
+
+
+def _source_line(snap: dict) -> str:
+    url = snap.get("url") or "https://trendlyne.com/equity/sector-industry-analysis/sector/day/"
+    when = snap.get("fetched_at_display")
+    stamp = f" \u00b7 updated {_esc(when)}" if when else ""
+    return (f'<a href="{_esc(url)}" target="_blank" rel="noopener" '
+            f'style="font-size:12px;color:#177245;font-weight:600">Source: '
+            f'Trendlyne</a><span style="font-size:12px;color:#9aa09d">{stamp}</span>')
+
+
+def sector_shell(model, result, snap: dict) -> tuple[str, int]:
+    """
+    Sector lens \u2014 the selected sector's live Trendlyne benchmarks and a
+    Company-vs-Sector comparison. ``snap`` comes from ``core.trendlyne`` and is
+    always a dict (with ``ok=False`` when Trendlyne could not be reached).
+    """
+    comp = _company_vr(model)
+    ok = bool(snap.get("ok"))
+    sector_name = result.sector.name
+    tl_name = snap.get("trendlyne_name") or sector_name
+
+    # ---- Sector pulse (or an unavailable notice) ----
+    if ok:
+        pulse = (
+            '<div style="display:flex;gap:14px;flex-wrap:wrap">'
+            + _tile("Sector Score", f'{_fx(snap.get("sector_score"), "score")}'
+                    '<span style="font-size:15px;font-weight:600;color:#9aa09d"> /100</span>')
+            + _tile("No. of Companies", _fx(snap.get("companies"), "int"))
+            + _tile("Avg Market Cap", _fx(snap.get("avg_market_cap"), "mcap"))
+            + "</div>")
+    else:
+        pulse = (
+            '<div style="background:#fbf7ec;border:1px solid #ecdfbf;border-radius:14px;'
+            'padding:16px 18px;color:#7a6a3c;font-size:13.5px;line-height:1.55">'
+            '<b style="color:#5f5326">Sector data temporarily unavailable.</b><br>'
+            f'{_esc(snap.get("error_text", "Could not fetch sector data."))} '
+            'The company figures below are read from your uploaded model; the sector '
+            'column will fill in once Trendlyne can be reached again.</div>')
+
+    # ---- Company vs Sector table ----
+    rows = "".join([
+        '<tr><td colspan="4" style="padding:10px 14px 4px;font-size:10.5px;'
+        'font-weight:700;letter-spacing:.6px;color:#9aa09d;'
+        'font-family:ui-monospace,Menlo,monospace">VALUATION</td></tr>',
+        _cmp_row("P/E", comp["pe"], snap.get("pe"), "x"),
+        _cmp_row("P/B", comp["pb"], snap.get("pb"), "x"),
+        '<tr><td colspan="4" style="padding:14px 14px 4px;font-size:10.5px;'
+        'font-weight:700;letter-spacing:.6px;color:#9aa09d;'
+        'font-family:ui-monospace,Menlo,monospace">RETURNS</td></tr>',
+        _cmp_row("ROE", comp["roe"], snap.get("roe"), "pct"),
+        _cmp_row("ROCE", comp["roce"], snap.get("roce"), "pct"),
+        _cmp_row("ROA", comp["roa"], snap.get("roa"), "pct"),
+    ])
+    th = ('padding:8px 14px;font-size:10.5px;font-weight:700;letter-spacing:.5px;'
+          'color:#9aa09d;text-transform:uppercase;text-align:right')
+    table = (
+        '<table style="width:100%;border-collapse:collapse">'
+        f'<tr><td style="{th};text-align:left">Metric</td>'
+        f'<td style="{th}">Company</td><td style="{th}">Sector</td>'
+        f'<td style="{th}">Difference</td></tr>{rows}</table>')
+
+    # ---- interpretation + missing-metric note ----
+    reading = _interpretation(comp, snap)
+    reading_card = ""
+    if reading:
+        reading_card = (
+            '<div class="card" style="background:#f4f8f5;border-color:#dcebe1">'
+            '<div class="ct">Reading</div>'
+            f'<div style="font-size:14px;line-height:1.6;color:#26332c;'
+            f'padding-top:6px">{_esc(reading)}</div></div>')
+
+    missing_note = ""
+    if ok and snap.get("missing"):
+        missing_note = (
+            '<div style="font-size:12px;color:#9aa09d;padding:2px 4px">'
+            'Not published for this sector on Trendlyne (shown as \u2014): '
+            f'{_esc(", ".join(snap["missing"]))}.</div>')
 
     body = "".join([
         '<div class="pghead"><span class="pt">Sector lens</span>'
-        '<span class="ps">One set of numbers, nine rule books.</span></div>',
-        S.why_card(),
-        f'<div class="card"><div class="slabel" style="padding-bottom:14px">'
-        f'SAME NUMBERS, EVERY SECTOR RULE BOOK</div>{bars_html}</div>',
-        '<div class="grid-300"><div style="display:flex;flex-direction:column;gap:14px;'
-        'min-width:0">',
-        '<div class="card healthrow"><div class="htxt">'
-        '<div class="t">Financial health</div><div class="s">Composite index under '
-        "this lens</div></div>"
-        f'<div style="position:relative;width:190px;height:118px;flex:none">'
-        f"{gauge_html}</div>"
-        f'<div class="legendcol">{legend}</div></div>',
-        f'<div class="card"><div class="ct">How the ratios move together</div>'
-        f'<div class="csub">Pairwise correlation across history</div>{hm_html}</div>'
-        "</div>",
-        '<div class="card" style="min-width:0"><div class="ct">Applied benchmarks'
-        f"</div><div class=\"csub\">{_esc(result.sector.name)}</div>"
-        f"{S.bench_table(result)}</div></div>",
+        '<span class="ps">Live sector benchmarks from Trendlyne.</span></div>',
+        # pulse card
+        '<div class="card">'
+        '<div style="display:flex;align-items:baseline;justify-content:space-between;'
+        'gap:12px;flex-wrap:wrap;padding-bottom:12px">'
+        f'<div><div class="ct">{_esc(sector_name)}</div>'
+        f'<div class="csub" style="padding-bottom:0">Trendlyne sector: '
+        f'{_esc(tl_name)}</div></div>'
+        f'<div>{_source_line(snap)}</div></div>'
+        f'{pulse}</div>',
+        # comparison card
+        f'<div class="card"><div class="ct">Company vs Sector</div>'
+        f'<div class="csub">{_esc(model.company.title())} against the '
+        f'{_esc(tl_name)} sector aggregate</div>{table}</div>',
+        reading_card,
+        missing_note,
     ])
-    # Mild under-estimate (see ratios_shell): the resizer grows the frame to the
-    # real content, and under-reserving avoids the trailing empty band.
-    return _doc(body, ""), min(1800, max(1200, 800 + hm_h + bars_h))
+    return _doc(body, ""), 1000
 
 
 def statements_shell(model, query: str = "") -> tuple[str, int]:
