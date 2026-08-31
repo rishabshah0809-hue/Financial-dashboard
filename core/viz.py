@@ -523,7 +523,10 @@ def dials_row(items: list[tuple[str, float, float, str, tuple[str, str]]]) -> tu
 
 # --- donuts -------------------------------------------------------------------------------
 def donut(segs: list[tuple[str, float, str]], centre_big: str, centre_small: str,
-          size: int = 140, sw: int = 17) -> tuple[str, int]:
+          size: int = 140, sw: int = 17, fmt=None) -> tuple[str, int]:
+    """fmt(v) renders each segment's value in the legend and tooltip; defaults to
+    the crore-aware _human formatter."""
+    fmt = fmt or _human
     r = 54 if size >= 140 else 52
     total = sum(v for _, v, _ in segs) or 1
     circ = 2 * 3.141592653589793 * r
@@ -531,7 +534,7 @@ def donut(segs: list[tuple[str, float, str]], centre_big: str, centre_small: str
     rings = ""
     for nm, v, c in segs:
         dash = v / total * circ
-        rings += (f'<circle{_tt(f"{nm}: {_human(v)}")} cx="{size/2}" cy="{size/2}" r="{r}" '
+        rings += (f'<circle{_tt(f"{nm}: {fmt(v)}")} cx="{size/2}" cy="{size/2}" r="{r}" '
                   f'fill="none" stroke="{c}" stroke-width="{sw}" '
                   f'stroke-dasharray="{dash:.2f} {circ - dash:.2f}" '
                   f'transform="rotate({-90 + acc / total * 360:.2f} {size/2} {size/2})" '
@@ -550,7 +553,7 @@ def donut(segs: list[tuple[str, float, str]], centre_big: str, centre_small: str
     legend = "".join(
         f'<div style="display:flex;align-items:center;justify-content:space-between;'
         f'gap:10px"><span style="font-size:12.5px;color:{BODY}">{nm}</span>'
-        f'<b style="font-size:13px;color:{INK};font-family:{MONO}">{_human(v)}</b></div>'
+        f'<b style="font-size:13px;color:{INK};font-family:{MONO}">{fmt(v)}</b></div>'
         for nm, v, _ in segs)
     html = ('<div style="display:flex;align-items:center;gap:20px;padding:14px 0 6px;'
             'flex-wrap:wrap">'

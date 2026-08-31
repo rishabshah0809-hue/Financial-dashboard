@@ -171,7 +171,7 @@ section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstruction
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button{
   width:100%!important;background:linear-gradient(135deg,#2a9c62,#177245)!important;
   border:none!important;border-radius:12px!important;padding:11px 18px!important;
-  font-weight:700!important;justify-content:center!important}
+  font-weight:700!important;justify-content:center!important;text-align:center!important}
 /* hide Streamlit's native "Browse files" label/icon, show our own via ::after */
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button,
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *{
@@ -186,8 +186,11 @@ section[data-testid="stSidebar"] [class*="st-key-src-action"] button{
   width:100%!important;background:transparent!important;
   border:1px solid rgba(255,255,255,.16)!important;border-radius:12px!important;
   color:#dde4df!important;font-size:13.5px!important;font-weight:600!important;
-  padding:.55rem .8rem!important;margin-top:8px!important;justify-content:center!important}
+  padding:.55rem .8rem!important;margin-top:8px!important;justify-content:center!important;
+  text-align:center!important}
 section[data-testid="stSidebar"] [class*="st-key-src-action"] button *{color:#dde4df!important}
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button [data-testid="stMarkdownContainer"]{
+  width:100%!important;text-align:center!important}
 section[data-testid="stSidebar"] [class*="st-key-src-action"] button:hover{
   background:rgba(255,255,255,.05)!important;border-color:rgba(255,255,255,.24)!important}
 
@@ -302,7 +305,9 @@ RESIZER_JS = """
         var d; try{ d=fr.contentDocument; }catch(e){ return; }
         if(!d) return;
         var sh=d.getElementById('shell'); if(!sh) return;
-        var h=Math.ceil(sh.getBoundingClientRect().height)+58;
+        // +buffer covers the body's own top+bottom padding so the frame shows the
+        // full shell (incl. its rounded bottom corners) with no inner scroll.
+        var h=Math.ceil(sh.getBoundingClientRect().height)+42;
         if(h<120) return;
         if(Math.abs((parseInt(fr.style.height)||0)-h)>1){
           fr.style.setProperty('height',h+'px','important'); fr.setAttribute('height',h); }
@@ -535,12 +540,12 @@ def _render_shell(html: str, height: int) -> None:
     """
     One design-exact page, top to bottom, in a single frame.
 
-    scrolling=True is the safety net: if a workbook renders taller than the
-    estimated height, the frame scrolls instead of clipping content, while the
-    tuned heights keep the empty overshoot minimal.
+    scrolling=False keeps the frame free of an inner scrollbar; the shells now
+    pass a mild under-estimate and the parent-side fit grows the frame to the full
+    content height, so nothing is clipped.
     """
-    components.html(html, height=height, scrolling=True)
-    # Parent-side fit runs right after the frame exists, shrinking it to content.
+    components.html(html, height=height, scrolling=False)
+    # Parent-side fit runs right after the frame exists, growing it to content.
     components.html(RESIZER_JS, height=0)
 
 

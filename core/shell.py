@@ -45,12 +45,12 @@ SHELL_CSS = """
    rather than a giant stretched card. color-scheme:light stops a viewer whose
    browser is in dark mode from getting a dark UA canvas behind the page. */
 html{background:#d9ded9;color-scheme:light}
-body{margin:0;padding:24px 20px 34px;
+body{margin:0;padding:12px 22px 22px;
   background:linear-gradient(180deg,#e7ebe7,#d9ded9);
   font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a;
   display:flex;justify-content:center;align-items:flex-start}
-#shell{width:1420px;max-width:100%;background:#e9ece8;border-radius:30px;
-  padding:22px;display:flex;gap:20px;box-shadow:0 30px 80px rgba(0,0,0,.10)}
+#shell{width:1320px;max-width:100%;background:#e9ece8;border-radius:26px;
+  padding:20px;display:flex;gap:20px;box-shadow:0 16px 44px rgba(21,32,26,.08)}
 main{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
 a{color:#177245;text-decoration:none}
 svg{display:block;width:100%;height:auto;overflow:visible}
@@ -193,15 +193,46 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 
 /* ---- panel cards & grids ---- */
 .card{background:#fff;border-radius:18px;padding:22px 24px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+/* align-items:stretch makes every card in a row take the tallest card's height,
+   so Revenue / Valuation / Key Ratios line up evenly instead of ragged. */
 .grid-auto{display:grid;grid-template-columns:repeat(auto-fit,
-  minmax(min(280px,100%),1fr));gap:14px;align-items:start}
+  minmax(min(280px,100%),1fr));gap:14px;align-items:stretch}
 .grid-300{display:grid;grid-template-columns:repeat(auto-fit,
-  minmax(min(300px,100%),1fr));gap:14px;align-items:start}
+  minmax(min(300px,100%),1fr));gap:14px;align-items:stretch}
 .grid-440{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;
   align-items:start}
 .ct{font-size:17px;font-weight:700;color:#15201a;white-space:nowrap}
 .ct-row{display:flex;align-items:baseline;justify-content:space-between}
 .csub{font-size:12.5px;color:#9aa09d;padding:4px 0 8px}
+
+/* clickable ⓘ info icon next to a title + the wide explanation popover */
+.info{display:inline-flex;align-items:center;justify-content:center;width:16px;
+  height:16px;border-radius:50%;border:1.4px solid #b6c0ba;color:#8b918e;
+  font-size:10px;font-weight:700;font-style:italic;font-family:Georgia,'Times New Roman',serif;
+  cursor:pointer;margin-left:7px;vertical-align:middle;flex:none;user-select:none;
+  transition:background .15s,border-color .15s,color .15s}
+.info:hover{border-color:#177245;color:#177245;background:#eef4f0}
+#fctip.wide{white-space:normal;max-width:250px;line-height:1.55;font-size:12px;
+  color:#e8efe9;padding:11px 13px}
+
+/* year-on-year growth tiles (dashboard) */
+.ftiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px}
+.ftile{background:#fbfcfb;border:1px solid #eef1ee;border-radius:14px;padding:14px 15px}
+.ftile .fg{display:flex;align-items:center;gap:7px;font-size:22px;font-weight:800;
+  letter-spacing:-.6px;color:#15201a}
+.ftile .farr{font-size:13px}
+.ftile .flbl{font-size:12.5px;color:#8b918e;padding-top:2px}
+.ftile .flbl2{font-size:12px;color:#8b918e}
+.ftile .fbig{font-size:22px;font-weight:800;letter-spacing:-.6px;color:#15201a;padding-top:4px}
+.ftile .fnote{font-size:11.5px;color:#d9a441;font-weight:600;padding-top:10px;
+  margin-top:10px;border-top:1px solid #eef1ee}
+.ftile .frow{display:flex;align-items:center;gap:12px;margin-top:11px;padding-top:11px;
+  border-top:1px solid #eef1ee}
+.ftile .frow>span{display:flex;flex-direction:column;font-size:14px;font-weight:700;
+  color:#15201a;font-family:ui-monospace,Menlo,monospace}
+.ftile .frow small{font-size:10px;color:#9aa09d;font-weight:600;padding-top:2px;
+  font-family:ui-monospace,Menlo,monospace}
+.ftile .frow>i{width:1px;height:26px;background:#e6e9e6;flex:none}
 .pilltag{font-size:12px;font-weight:700;color:#177245;border:1.5px solid #cfe2d7;
   border-radius:20px;padding:6px 12px}
 
@@ -341,13 +372,24 @@ function _fctip(){var t=document.getElementById('fctip');
 // scroll offset to get page coords. This keeps the tooltip glued to the cursor
 // even when the frame is auto-fit to full height and the parent page scrolls
 // (where position:fixed would place it off-screen).
-function fcShow(x,y,html){var tip=_fctip();tip.innerHTML=html;tip.style.display='block';
+function fcShow(x,y,html){var tip=_fctip();tip.className='';tip.innerHTML=html;tip.style.display='block';
   var sx=window.scrollX||0, sy=window.scrollY||0;
   let px=x+14;if(px+tip.offsetWidth>window.innerWidth-8)px=x-tip.offsetWidth-14;
   let py=Math.max(4,Math.min(y-tip.offsetHeight/2,window.innerHeight-tip.offsetHeight-4));
   tip.style.left=(Math.max(4,px)+sx)+'px';
   tip.style.top=(py+sy)+'px';}
 function fcHide(){var tip=document.getElementById('fctip');if(tip)tip.style.display='none';}
+// click a ⓘ icon -> show its plain-language explanation; click anywhere hides it.
+function fcInfo(x,y,html){var tip=_fctip();tip.className='wide';tip.innerHTML=html;
+  tip.style.display='block';var sx=window.scrollX||0,sy=window.scrollY||0;
+  let px=x+12;if(px+tip.offsetWidth>window.innerWidth-8)px=x-tip.offsetWidth-12;
+  let py=Math.min(y+16,window.innerHeight-tip.offsetHeight-4);
+  tip.style.left=(Math.max(4,px)+sx)+'px';tip.style.top=(Math.max(4,py)+sy)+'px';}
+function fcBindInfo(){
+  document.querySelectorAll('.info').forEach(el=>{
+    el.addEventListener('click',function(e){e.stopPropagation();
+      fcInfo(e.clientX,e.clientY,el.getAttribute('data-info'));});});
+  document.addEventListener('click',function(){fcHide();});}
 function fcBindTips(){
   document.querySelectorAll('[data-tt]').forEach(el=>{
     el.addEventListener('mousemove',e=>{
@@ -372,6 +414,7 @@ function toast(msg){const t=document.getElementById('toast');
 
 FC_BIND = """
 fcBindTips();
+fcBindInfo();
 """
 
 SHELL_JS = """
@@ -497,6 +540,38 @@ FIT_JS = """
 
 def _esc(s) -> str:
     return escape(str(s))
+
+
+# Plain-language, one-line explanation for each chart/diagram, with whether a
+# higher or lower reading is better. Shown when the reader clicks the ⓘ next to a
+# title. Written for someone with no finance background.
+CHART_INFO = {
+    "Revenue Trend": "Total sales the company made each year — its top line. (higher is better)",
+    "Valuation": "What the market is paying for the company versus what it earns and owns. (cheaper for the same earnings is better)",
+    "Key Ratios": "A quick snapshot of the most important health checks in one place. (mostly higher is better)",
+    "Year-on-year growth": "How much sales, costs and profit changed versus last year. (rising sales and profit are good; slower cost growth is good)",
+    "Financial Health": "An overall score blending profit, safety and cash strength into one number. (higher is better)",
+    "Where each ₹100 of sales goes": "For every ₹100 of sales, how much is spent on each cost and how much is kept as profit. (keeping more is better)",
+    "Margin ladder": "The share of each sale left as profit after each layer of cost. (higher is better)",
+    "Returns": "How much profit the company makes on the money invested in it. (higher is better)",
+    "Leverage & solvency": "How much debt the company carries and how easily its profit covers the interest. (less debt and higher cover are better)",
+    "Working capital cycle": "How many days cash is stuck in stock and unpaid customer bills before it returns. (fewer days is better)",
+    "Cash flow mix": "Where cash comes from and goes — running the business, investing, and financing. (strong cash from operations is best)",
+    "Turnover & efficiency": "How many times a year the company turns its assets into sales. (higher is better)",
+    "Total assets, by component": "What the company owns, split into types, over time.",
+    "Total liabilities & equity": "How the company is funded — borrowed money versus owners' money.",
+    "Return on capital employed": "How efficiently the company turns its total capital into profit. (higher is better)",
+    "Applied benchmarks": "The sector-specific pass marks each ratio is judged against.",
+    "How the ratios move together": "Which ratios tend to rise and fall together across history.",
+    "Financial health": "An overall score blending profit, safety and cash strength. (higher is better)",
+}
+
+
+def _ct(name: str, extra: str = "") -> str:
+    """A card title with a clickable ⓘ that explains it in plain language."""
+    info = CHART_INFO.get(name)
+    icon = (f'<span class="info" data-info="{_esc(info)}">i</span>') if info else ""
+    return f'<span class="ct"{(" " + extra) if extra else ""}>{name}</span>{icon}'
 
 
 def _doc(body: str, scripts: str = "", extra_css: str = "") -> str:
@@ -806,6 +881,7 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
 
     rev_html = D.revenue_trend(model)
     sankey_title, sankey_svg = D.income_sankey(model)
+    flows_html = S.flows_card(model)
 
     body = "".join([
         _hero(model, result),
@@ -815,41 +891,41 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
          f"<p>{_esc(summary)}</p></div>{_drivers_html(result)}</div>"),
         _strengths_risks(note, result),
         '<div class="grid-auto">'
-        '<div class="card"><div class="ct-row"><span class="ct">Revenue Trend'
-        "</span></div>"
+        '<div class="card"><div class="ct-row">' + _ct("Revenue Trend")
+        + "</div>"
         f"{rev_html}</div>",
-        f'<div class="card"><div class="ct-row"><span class="ct">Valuation</span>'
+        f'<div class="card"><div class="ct-row">{_ct("Valuation")}'
         f'<span style="font-size:15px;color:#9aa09d">\u203a</span></div>'
         f'<div class="csub">Fundamental metrics to determine fair value</div>'
         f"{_valuation(model)}</div>",
-        '<div class="card"><div class="ct-row"><span class="ct">Key Ratios</span>'
+        '<div class="card"><div class="ct-row">' + _ct("Key Ratios") + ""
         '<span class="pilltag">All</span></div>' + _key_ratios(model) + "</div>",
         "</div>",
         '<div class="grid-300">'
-        '<div class="card"><div class="ct-row" style="padding-bottom:16px">'
-        '<span class="ct">Peer Comparison</span><span class="pilltag">+ Add Peer'
-        "</span></div>" + _peers(peers) + "</div>",
+        '<div class="card"><div class="ct-row">'
+        + _ct("Year-on-year growth") + "</div>"
+        '<div class="csub">How sales, costs and profit moved, in ₹ crore</div>'
+        + flows_html + "</div>",
         '<div class="card" style="display:flex;flex-direction:column;align-items:'
-        'center"><div style="align-self:flex-start" class="ct">Financial Health'
-        "</div>" + viz.gauge(float(result.total_score),
+        'center"><div style="align-self:flex-start">' + _ct("Financial Health")
+        + "</div>" + viz.gauge(float(result.total_score),
                              f"{result.total_score:.0f}%")[0]
         + '<div style="display:flex;align-items:center;justify-content:center;gap:16px;'
           'flex-wrap:wrap;padding-top:12px">'
         + _gauge_inline_legend() + "</div></div></div>",
     ])
     if sankey_svg:
-        body += (f'<div class="card"><div class="ct">{_esc(sankey_title)}</div>'
+        sankey_info = ("Shows how each rupee of sales turns into profit after "
+                       "paying every cost. (keeping more as profit is better)")
+        body += (f'<div class="card"><div class="ct-row">'
+                 f'<span class="ct">{_esc(sankey_title)}</span>'
+                 f'<span class="info" data-info="{_esc(sankey_info)}">i</span></div>'
                  f'<div class="csub">Income statement flow, \u20b9 crore</div>'
                  f"{sankey_svg}</div>")
-    # Height is content-aware so a sparse workbook (no Sankey, no peers) does not
-    # trail a tall band of empty space below the last card, while a full one still
-    # gets the room it needs. scrolling=True is the safety net if content wraps
-    # taller than estimated on a narrow window. Calibrated to the demo model,
-    # whose wide-screen content lands at ~3150px with the Sankey present.
-    # A modest initial height; the in-frame fit expands/shrinks it to the exact
-    # content and scrolling=True covers any shortfall. Keeping it small means a
-    # lagging fit shows a little inner scroll, never a tall empty band.
-    height = 1500 + (200 if sankey_svg else 0) + max(0, len(peers)) * 58
+    # A mild UNDER-estimate (see ratios_shell): the parent-side fit grows the
+    # frame to the exact content, and under-reserving avoids the trailing empty
+    # band that an over-estimate leaves on the frame's reserved container.
+    height = 1500 + (150 if sankey_svg else 0)
     return _doc(body, ""), height
 
 
@@ -880,8 +956,8 @@ def ratios_shell(model, result) -> tuple[str, int]:
         "liab": ("Total liabilities & equity", "Stacked, \u20b9 crore"),
     }
     chart_cards = "".join(
-        f'<div class="card"><div class="ct">{t}</div><div class="csub">{s2}</div>'
-        f"{html}</div>"
+        f'<div class="card"><div class="ct-row">{_ct(t)}</div>'
+        f'<div class="csub">{s2}</div>{html}</div>'
         for key, (t, s2) in titles.items() if key in charts
         for html, _h in [charts[key]])
 
@@ -893,8 +969,9 @@ def ratios_shell(model, result) -> tuple[str, int]:
         f'<div style="flex:0 1 350px;min-width:280px">'
         f"{S.roce_card(model, result)}</div>",
         f'<div class="card" style="flex:1;min-width:300px">'
-        f'<div class="ct">Where each \u20b9100 of sales goes</div>'
-        f'<div class="csub">Latest-year cost structure</div>{cost_html}</div>',
+        f'<div class="ct-row">{_ct("Where each \u20b9100 of sales goes")}</div>'
+        f'<div class="csub">Latest-year cost structure, \u20b9 per \u20b9100 of sales</div>'
+        f"{cost_html}</div>",
         "</div>",
         f'<div class="strip"><div class="slabel">RATIO SCORECARD \u2014 SCORED '
         f'AGAINST SECTOR BANDS</div>{sc_html}</div>',

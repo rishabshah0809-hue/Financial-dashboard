@@ -178,31 +178,84 @@ def dials_row(model) -> tuple[str, int]:
 
 
 def cost_card(model) -> tuple[str, int]:
-    sales_v = last_two(ser(model, "Sales"))[0]
+    """'Where each \u20b9100 of sales goes' \u2014 the cost split straight from the latest
+    year of the Common Size statement (each line is already a % of sales, i.e. the
+    rupees spent per \u20b9100 of sales), shown with the \u20b9 symbol rather than a percent."""
+    cs = model.common_size
 
-    def share(row_names: tuple[str, ...]) -> float | None:
-        row = ser(model, *row_names)
-        if row.empty or not sales_v:
-            return None
-        v = float(row.iloc[-1])
-        pct_like = abs(v) < 3 or "%" in row_names[0].lower() or "margin" in row_names[0].lower()
-        return v if pct_like else v / sales_v * 100
+    def per100(*names: str) -> float:
+        for n in names:
+            if n in cs.index:
+                s = pd.to_numeric(cs.loc[n], errors="coerce").dropna()
+                if len(s):
+                    return round(float(s.iloc[-1]) * 100, 1)
+        return 0.0
 
-    cogs = share(("COGS % Sales", "COGS")) or 0.0
-    dep = share(("Depreciation%Sales", "Depreciation % Sales")) or 0.0
-    interest = share(("Interest % Sales",)) or 0.0
-    tax_row = ser(model, "Tax")
-    tax = (tax_row.iloc[-1] / sales_v * 100) if not tax_row.empty and sales_v else 0.0
-    nm = share(("Net Margins", "Net Profit Margin")) or 0.0
-    other = max(2.0, 100.0 - cogs - dep - interest - tax)
-    kept = max(0.0, min(nm, 100))
-    segs = [("Cost of goods", round(cogs, 1), "#177245"),
-            ("Other operating", round(other, 1), "#3d9e6b"),
-            ("Depreciation", round(dep, 1), "#9ecfb4"),
-            ("Interest", round(interest, 1), "#d9a441"),
-            ("Tax", round(tax, 1), "#c98a7f")]
+    cogs = per100("COGS", "Cost of Goods Sold")
+    other = per100("Selling & General Expenses", "Other Operating Expenses",
+                   "Other Expenses")
+    dep = per100("Depreciation")
+    interest = per100("Interest", "Finance Cost")
+    tax = per100("Tax")
+    kept = per100("Net Profit", "Net profit", "PAT", "Profit after tax")
+    segs = [("Cost of goods", cogs, "#177245"),
+            ("Other operating", other, "#3d9e6b"),
+            ("Depreciation", dep, "#9ecfb4"),
+            ("Interest", interest, "#d9a441"),
+            ("Tax", tax, "#c98a7f")]
     segs = [s for s in segs if s[1] > 0.05]
-    return viz.donut(segs, f"\u20b9{kept:.1f}", "kept per \u20b9100", size=136, sw=18)
+    return viz.donut(segs, f"\u20b9{kept:.1f}", "kept per \u20b9100", size=136, sw=18,
+                     fmt=lambda v: f"\u20b9{v:.1f}")
+
+
+def flows_card(model) -> str:
+    """Four tiles: how sales, costs and profit moved year-on-year (in \u20b9 crore),
+    plus the latest other income versus operating profit."""
+    yrs = full_years(model)
+    if len(yrs) < 2:
+        return ""
+    fy1, fy0 = yrs[-1], yrs[-2]
+
+    def val(y, *names):
+        s = pd.to_numeric(ser(model, *names), errors="coerce")
+        return float(s.get(y)) if y in s.index and pd.notna(s.get(y)) else None
+
+    def cr(v):
+        if v is None:
+            return "\u2014"
+        return f"\u20b9{v / 1e5:.2f}L" if abs(v) >= 1e5 else f"\u20b9{v:,.0f}"
+
+    def growth_tile(label, names):
+        a, b = val(fy1, *names), val(fy0, *names)
+        if a is None or not b:
+            return ""
+        g = (a - b) / abs(b) * 100
+        up = g >= 0
+        arrow, col = ("\u25b2", "#2f9e63") if up else ("\u25bc", "#d0554a")
+        return (f'<div class="ftile"><div class="fg">'
+                f'<span class="farr" style="color:{col}">{arrow}</span> {g:+.1f}%</div>'
+                f'<div class="flbl">{label}</div>'
+                f'<div class="frow"><span>{cr(a)}<small>{fy1} cr</small></span>'
+                f'<i></i><span>{cr(b)}<small>{fy0} cr</small></span></div></div>')
+
+    oi = val(fy1, "Other Income", "Other Income ")
+    eb = val(fy1, "EBIT (OPM)", "EBIT", "EBIT (Operating Profit)")
+    oi_tile = ""
+    if oi is not None:
+        note = ""
+        if eb is not None:
+            rel = "above" if oi >= eb else "below"
+            note = f'<div class="fnote">{rel} EBIT of {cr(eb)}</div>'
+        oi_tile = (f'<div class="ftile"><div class="flbl2">Other income \u00b7 {fy1}'
+                   f'</div><div class="fbig">{cr(oi)}</div>{note}</div>')
+
+    tiles = "".join([
+        growth_tile("Net profit growth", ("Net Profit", "Net profit")),
+        oi_tile,
+        growth_tile("Revenue growth", ("Sales",)),
+        growth_tile("COGS growth", ("COGS",)),
+    ])
+    return f'<div class="ftiles">{tiles}</div>'
 
 
 def deepdive_charts(model) -> dict[str, tuple[str, int]]:

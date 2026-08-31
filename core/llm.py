@@ -259,6 +259,83 @@ def _extract_json(text: str) -> dict:
     return json.loads(text[start:end + 1])
 
 
+# Plain-language rationale for each ratio: (friendly name, why-good, why-bad).
+# {val} is filled with the latest reading. Written for a non-finance reader and
+# focused on what it means for the business, not just the band it lands in.
+RATIO_MEANINGS = {
+    "Interest Coverage Ratio": ("Interest cover",
+        "profit covers the interest bill {val} over, so the debt is comfortably affordable",
+        "profit covers the interest bill only {val}, so a dip in earnings could make debt payments hard to meet"),
+    "Cash Conversion Cycle": ("Cash cycle",
+        "cash comes back in {val} — it funds the business quickly without extra borrowing",
+        "cash is tied up for {val} in stock and unpaid bills, straining day-to-day funding"),
+    "Debtor Days": ("Collection speed",
+        "customers pay in about {val}, so cash flows in fast",
+        "customers take about {val} to pay, locking up cash the business could use"),
+    "Inventory Days": ("Inventory speed",
+        "stock sells through in about {val}, keeping little money idle on shelves",
+        "stock sits for about {val}, tying up cash and risking write-downs"),
+    "Return on Capital Employed (ROCE) %": ("ROCE",
+        "every rupee of capital earns {val} back as profit — the business uses its money efficiently",
+        "capital earns only {val} back as profit, so the business isn't using its money efficiently"),
+    "Return on Equity (ROE) %": ("Return on equity",
+        "shareholders earn {val} on their money — a strong return for owners",
+        "shareholders earn only {val} on their money — a thin return for owners"),
+    "Return on Assets (ROA) %": ("Return on assets",
+        "the company squeezes {val} of profit from its assets",
+        "the company squeezes only {val} of profit from its assets"),
+    "Debt to Equity Ratio": ("Debt load",
+        "debt is a modest {val} of owners' money, so the balance sheet is safe",
+        "debt is a heavy {val} of owners' money, which raises risk if profits wobble"),
+    "Gross Margin": ("Gross margin",
+        "{val} of every sale is left after production cost — solid pricing power",
+        "only {val} of every sale is left after production cost — thin pricing power"),
+    "EBITDA Margin": ("Operating margin",
+        "the core business keeps {val} of sales as operating profit",
+        "the core business keeps only {val} of sales as operating profit"),
+    "Net Profit Margin": ("Net margin",
+        "{val} of every sale reaches the bottom line as profit",
+        "only {val} of every sale reaches the bottom line as profit"),
+    "Net Profit Growth": ("Profit growth",
+        "bottom-line profit grew {val} year on year",
+        "bottom-line profit moved {val} year on year — momentum is weak"),
+    "Sales Growth": ("Sales growth",
+        "revenue grew {val} year on year",
+        "revenue moved {val} year on year — the top line is barely growing"),
+    "Fixed Asset Turnover": ("Asset efficiency",
+        "each rupee of plant and equipment generates {val} of sales",
+        "each rupee of plant and equipment generates only {val} of sales — assets are under-used"),
+    "CFO / PAT": ("Cash quality",
+        "reported profit turns into real cash at {val} — earnings are high quality",
+        "reported profit turns into cash at only {val} — profit isn't fully backed by cash"),
+    "Interest % Sales": ("Interest burden",
+        "interest eats just {val} of sales, leaving room to invest",
+        "interest eats {val} of sales, leaving less for growth"),
+}
+
+
+def _friendly(metric: str) -> str:
+    """A short, plain title when a ratio isn't in RATIO_MEANINGS."""
+    return (metric.replace(" Ratio", "").replace(" (OPM)", "")
+            .replace(" %", "").replace("%", "").strip())
+
+
+def _reason(m, is_strength: bool) -> str:
+    """One plain-language line: why the ratio is strong/weak and its business impact."""
+    val = m.display(m.latest)
+    info = RATIO_MEANINGS.get(m.metric)
+    if info:
+        name, good, bad = info
+        clause = (good if is_strength else bad).format(val=val)
+        return f"{name} — {clause}."
+    name = _friendly(m.metric)
+    if is_strength:
+        return (f"{name} — at {val} it clears the sector's strong mark, "
+                "a clear plus for the business.")
+    return (f"{name} — at {val} it sits below the sector's safe level, "
+            "a weak spot that drags on the business.")
+
+
 def offline_note(result: Assessment) -> dict:
     """
     Deterministic fallback so the terminal is fully usable with no API key.
@@ -283,13 +360,10 @@ def offline_note(result: Assessment) -> dict:
         "summary": summary,
         "sector_context": result.sector.notes,
         "strengths": [
-            f"{m.metric}: {m.display(m.latest)} (sub-score {m.score:.0f}/100)"
-            for m in best[:4] if m.score >= 55
+            _reason(m, True) for m in best[:4] if m.score >= 55
         ] or ["No metric currently clears its sector's strong threshold."],
         "risks": [
-            f"{m.metric}: {m.display(m.latest)} against a sector weak band of "
-            f"{m.display(m.weak_at)} (sub-score {m.score:.0f}/100)"
-            for m in worst[:4] if m.score < 60
+            _reason(m, False) for m in worst[:4] if m.score < 60
         ] or ["No metric falls into the sector's weak band."],
         "what_to_watch": [
             f"Direction of {m.metric} — currently "
