@@ -392,6 +392,25 @@ def analyst_config() -> LLMConfig:
     return primary
 
 
+def brief_config() -> LLMConfig:
+    """Like analyst_config, but Gemini is PRIMARY for the Company Brief: the brief
+    feeds long document extracts, and Groq's free tier (~8k tokens/min, shared with
+    the analyst note) is too tight, whereas Gemini flash has far more headroom.
+    Groq is the fallback."""
+    try:
+        secrets = dict(st.secrets)
+    except Exception:                       # noqa: BLE001
+        secrets = {}
+    gemini = config_from_env("gemini", secrets=secrets)
+    groq = config_from_env("groq", secrets=secrets)
+    live = [c for c in (gemini, groq) if c.is_live]
+    if not live:
+        return gemini
+    primary, fallbacks = live[0], live[1:]
+    primary.fallbacks = fallbacks
+    return primary
+
+
 def step(number: int, label: str) -> None:
     st.markdown(
         f'<div class="step"><span class="n">{number}</span>{label}'
@@ -678,7 +697,7 @@ def _company_brief_block(company: str, config: LLMConfig) -> None:
 def qa_tab(result, config: LLMConfig) -> None:
     _page_header("Ask the analyst",
                  "Answers grounded only in the loaded model.")
-    _company_brief_block(result.company, config)
+    _company_brief_block(result.company, brief_config())
     with card("Ask the analyst"):
         st.caption(
             "Free-text questions about the loaded company. The model only sees the "
