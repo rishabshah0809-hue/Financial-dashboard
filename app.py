@@ -621,17 +621,19 @@ BRIEF_CSS = """<style>
 </style>"""
 
 
-@st.cache_data(show_spinner=False, ttl=86400)
-def _cached_brief(company: str, _config: LLMConfig):
-    """Cache the brief per company for the session (network + LLM happen once).
-    _config is underscored so Streamlit doesn't try to hash the API keys."""
-    return BR.build_brief(company, _config)
-
-
 def _company_brief_block(company: str, config: LLMConfig) -> None:
-    """COMPANY BRIEF — three grounded sections above the Ask-AI chat."""
-    with st.spinner("Reading the latest official filings…"):
-        b = _cached_brief(company, config)
+    """COMPANY BRIEF — three grounded sections above the Ask-AI chat.
+
+    Only a *successful* brief is memoised in session_state; an offline/error
+    result is left uncached so a later visit retries (a transient LLM failure
+    must never get stuck for the session)."""
+    key = f"__brief__{company}"
+    b = st.session_state.get(key)
+    if b is None or b.offline or b.error:
+        with st.spinner("Reading the latest official filings…"):
+            b = BR.build_brief(company, config)
+        if not b.offline and not b.error and (b.core_focus or b.unavailable):
+            st.session_state[key] = b
 
     tag = ('<span style="font-family:ui-monospace,Menlo,monospace;font-size:10px;'
            'letter-spacing:1.6px;color:#8b918e;font-weight:700">COMPANY BRIEF</span>')
