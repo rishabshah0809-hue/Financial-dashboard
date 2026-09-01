@@ -668,8 +668,15 @@ def _company_brief_block(company: str, config: LLMConfig) -> None:
                 f'<div class="bbody">{body}</div></div>')
 
     if b.offline:
+        try:
+            _sec = dict(st.secrets)
+        except Exception:                       # noqa: BLE001
+            _sec = {}
+        _gk = bool(config_from_env("groq", secrets=_sec).api_keys)
+        _mk = bool(config_from_env("gemini", secrets=_sec).api_keys)
         note = ("The AI brief needs the analyst connection; showing the source "
-                "documents below. Add API keys to generate the written brief.")
+                "documents below. Add API keys to generate the written brief. "
+                f"(diagnostic — keys detected · Groq: {_gk} · Gemini: {_mk})")
         body = f'<div class="bnote">{note}</div>'
     elif b.error and not (b.core_focus or b.key_initiatives or b.why_care):
         body = f'<div class="bnote">{b.error}</div>'
