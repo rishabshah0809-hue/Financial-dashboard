@@ -30,16 +30,6 @@ class SectorProfile:
     notes: str
     peer_context: str = ""
     aliases: tuple[str, ...] = field(default_factory=tuple)
-    # Trendlyne sector coordinates, used only by the Sector lens to fetch live
-    # sector-level aggregates (P/E, P/B, ROE, ROCE, ROA, sector score, ...).
-    # These do NOT affect scoring — the benchmarks above remain the yardstick for
-    # the Dashboard and Ratio deep dive. trendlyne_name is the sector's own label
-    # on Trendlyne, which may be broader/narrower than this profile's name (a few
-    # FundaCheck buckets are aggregates that map onto the closest single Trendlyne
-    # sector); the UI shows the fetched label so the source is always transparent.
-    trendlyne_id: int | None = None
-    trendlyne_slug: str = ""
-    trendlyne_name: str = ""
 
 
 # Ratios stored as decimals in the workbook (0.18 = 18%) are kept as decimals
@@ -62,15 +52,12 @@ _GENERIC = {
 _EQUAL_WEIGHTS = {p: 1.0 for p in PILLARS}
 
 
-def _profile(name, overrides, weights, notes, peer="", aliases=(),
-             tl_id=None, tl_slug="", tl_name=""):
+def _profile(name, overrides, weights, notes, peer="", aliases=()):
     benchmarks = dict(_GENERIC)
     benchmarks.update(overrides)
     full_weights = dict(_EQUAL_WEIGHTS)
     full_weights.update(weights)
-    return SectorProfile(name, benchmarks, full_weights, notes, peer, aliases,
-                         trendlyne_id=tl_id, trendlyne_slug=tl_slug,
-                         trendlyne_name=tl_name)
+    return SectorProfile(name, benchmarks, full_weights, notes, peer, aliases)
 
 
 SECTORS: dict[str, SectorProfile] = {
@@ -81,7 +68,6 @@ SECTORS: dict[str, SectorProfile] = {
         "Balanced scoring with no sector tilt. Use this when the business does "
         "not fit a single bucket, or as a sanity check against a specific sector.",
         aliases=("other", "conglomerate", "diversified"),
-        tl_id=11, tl_slug="diversified", tl_name="Diversified",
     ),
     "it_services": _profile(
         "IT Services & Software",
@@ -99,7 +85,6 @@ SECTORS: dict[str, SectorProfile] = {
         "margin compression matters more than a one-off slow growth year.",
         "Peers typically run 20-27% EBITDA margins and D/E under 0.1.",
         aliases=("software", "tech", "it", "saas", "technology"),
-        tl_id=1, tl_slug="software-services", tl_name="Software & Services",
     ),
     "fmcg": _profile(
         "FMCG & Consumer Staples",
@@ -118,7 +103,6 @@ SECTORS: dict[str, SectorProfile] = {
         "base plus a short (often negative) working capital cycle.",
         "Best-in-class names earn 30%+ ROCE and hold negative working capital.",
         aliases=("consumer", "staples", "food", "beverage"),
-        tl_id=7, tl_slug="fmcg", tl_name="FMCG",
     ),
     "banking": _profile(
         "Banking & Financial Services",
@@ -136,7 +120,6 @@ SECTORS: dict[str, SectorProfile] = {
         "consistency of both. Turnover and working-capital ratios are meaningless here.",
         "A healthy bank shows ROA above 1.2% and ROE in the mid-to-high teens.",
         aliases=("bank", "nbfc", "finance", "financial", "lending", "insurance"),
-        tl_id=21, tl_slug="banking-and-finance", tl_name="Banking and Finance",
     ),
     "infrastructure": _profile(
         "Infrastructure, Power & Capital Goods",
@@ -158,9 +141,6 @@ SECTORS: dict[str, SectorProfile] = {
         "Comparable developers run D/E of 1-2x with interest cover above 2.5x.",
         aliases=("infra", "power", "energy", "utilities", "construction",
                  "engineering", "capital goods", "ports", "logistics"),
-        # Aggregate bucket: mapped to the closest single Trendlyne sector (Utilities,
-        # i.e. Power). The Lens shows the fetched Trendlyne label so it is explicit.
-        tl_id=28, tl_slug="utilities", tl_name="Utilities",
     ),
     "manufacturing": _profile(
         "Manufacturing & Industrials",
@@ -178,9 +158,6 @@ SECTORS: dict[str, SectorProfile] = {
         "good margin year. Compare across a full cycle, not one year.",
         aliases=("auto", "industrial", "chemicals", "cement", "steel", "metals",
                  "pharma manufacturing"),
-        # Aggregate bucket: mapped to Trendlyne's General Industrials (capital goods
-        # + industrial goods). The Lens shows the fetched Trendlyne label.
-        tl_id=24, tl_slug="general-industrials", tl_name="General Industrials",
     ),
     "pharma": _profile(
         "Pharmaceuticals & Healthcare",
@@ -196,8 +173,6 @@ SECTORS: dict[str, SectorProfile] = {
         "is structural rather than a warning. Gross margin durability and a low "
         "debt load are the quality markers.",
         aliases=("healthcare", "hospital", "life sciences", "biotech"),
-        tl_id=17, tl_slug="pharmaceuticals-biotechnology",
-        tl_name="Pharmaceuticals & Biotechnology",
     ),
     "retail": _profile(
         "Retail & E-commerce",
@@ -214,7 +189,6 @@ SECTORS: dict[str, SectorProfile] = {
         "turnover, fast inventory, and negative working capital funded by "
         "suppliers. Judge growth and throughput before margins.",
         aliases=("ecommerce", "consumer discretionary", "qsr", "apparel"),
-        tl_id=6, tl_slug="retailing", tl_name="Retailing",
     ),
     "realestate": _profile(
         "Real Estate",
@@ -231,7 +205,6 @@ SECTORS: dict[str, SectorProfile] = {
         "terrible by construction. Survival is a debt story: net debt, interest "
         "cover and collections discipline decide the verdict.",
         aliases=("property", "realty", "housing"),
-        tl_id=18, tl_slug="realty", tl_name="Realty",
     ),
 }
 
@@ -280,20 +253,6 @@ def sector_choices() -> list[tuple[str, str]]:
     """(key, display name) pairs for the sidebar dropdown."""
     return [(key, profile.name) for key, profile in SECTORS.items()]
 
-
-TRENDLYNE_BASE = "https://trendlyne.com/equity/sector/{id}/{slug}/"
-
-
-def trendlyne_url(profile: SectorProfile) -> str | None:
-    """The Trendlyne sector page for this profile, or None if unmapped.
-
-    The slug is cosmetic on Trendlyne (the numeric id resolves the sector), so a
-    URL is still built when only the id is known.
-    """
-    if profile.trendlyne_id is None:
-        return None
-    slug = profile.trendlyne_slug or "sector"
-    return TRENDLYNE_BASE.format(id=profile.trendlyne_id, slug=slug)
 
 
 # --------------------------------------------------------------------------

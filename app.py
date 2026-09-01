@@ -10,6 +10,7 @@ Run it with:   streamlit run app.py
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 from contextlib import contextmanager
@@ -24,7 +25,6 @@ from core import design_blocks as D
 from core import report as REP
 from core import sections as S
 from core import shell as SH
-from core import trendlyne as TL
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
 from core.derive import fill_missing_ratios
@@ -576,13 +576,24 @@ def statements_tab(model) -> None:
     html, height = SH.statements_shell(model, query)
     _render_shell(html, height)
 
+@st.cache_data(show_spinner=False)
+def _load_sector_snapshot() -> dict | None:
+    """Read the monthly sector snapshot (built by the GitHub Action). None if absent."""
+    path = APP_DIR / "data" / "sector_snapshot.json"
+    try:
+        return json.loads(path.read_text())
+    except Exception:                               # noqa: BLE001 - missing/invalid file
+        return None
+
+
 def sector_lens_tab(model, result) -> None:
-    """Sector lens - live sector benchmarks from Trendlyne + company comparison."""
-    sec = result.sector
-    with st.spinner("Fetching sector data from Trendlyne…"):
-        snap = TL.get_sector_snapshot(
-            sec.name, sec.trendlyne_id, sec.trendlyne_slug, sec.trendlyne_name)
-    html, height = SH.sector_shell(model, result, snap)
+    """Sector lens - sector benchmarks from the monthly snapshot + company comparison."""
+    snap_all = _load_sector_snapshot()
+    key = st.session_state.get("sector_pref", "generic")
+    sector_snap = None
+    if snap_all and isinstance(snap_all.get("sectors"), dict):
+        sector_snap = snap_all["sectors"].get(key)
+    html, height = SH.sector_shell(model, result, sector_snap)
     _render_shell(html, height)
 
 def qa_tab(result, config: LLMConfig) -> None:

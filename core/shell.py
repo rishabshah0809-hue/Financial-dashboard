@@ -1054,7 +1054,9 @@ def ratios_shell(model, result) -> tuple[str, int]:
 
 
 # --------------------------------------------------------------------------
-# Sector lens \u2014 live sector benchmarks from Trendlyne (see core/trendlyne.py)
+# Sector lens \u2014 sector benchmarks computed from IndianAPI + NSE constituents,
+# read from data/sector_snapshot.json (see scripts/build_sector_snapshot.py).
+# The app never calls a live API here; it only reads the monthly snapshot.
 # --------------------------------------------------------------------------
 _TL_GOOD = "#177245"      # cheaper / higher return than the sector
 _TL_BAD = "#a4483f"       # pricier / lower return than the sector
@@ -1176,16 +1178,18 @@ def _join_names(names: list[str]) -> str:
     return ", ".join(names[:-1]) + " and " + names[-1]
 
 
-def _interpretation(comp: dict, snap: dict) -> str | None:
-    """A short, plain-English reading built only from available comparisons."""
-    if not snap.get("ok"):
-        return None
+def _interpretation(comp: dict, sect: dict) -> str | None:
+    """A short, plain-English reading built only from available comparisons.
+
+    ``sect`` is a plain {metric: value_or_None} dict; a metric that is missing
+    or not applicable for the sector is None and is simply skipped.
+    """
     parts: list[str] = []
 
     # Valuation: P/E and P/B (below the sector reads as cheaper).
     val_bits = []
     for key, name in (("pe", "P/E"), ("pb", "P/B")):
-        d = _direction(comp.get(key), snap.get(key), higher_better=False)
+        d = _direction(comp.get(key), sect.get(key), higher_better=False)
         if d in ("below", "above"):
             val_bits.append((name, d))
     if val_bits:
@@ -1200,7 +1204,7 @@ def _interpretation(comp: dict, snap: dict) -> str | None:
     # Returns: ROE / ROCE / ROA (higher than the sector is good).
     ret_bits = []
     for key, name in (("roe", "ROE"), ("roce", "ROCE"), ("roa", "ROA")):
-        d = _direction(comp.get(key), snap.get(key), higher_better=True)
+        d = _direction(comp.get(key), sect.get(key), higher_better=True)
         if d in ("higher", "lower"):
             ret_bits.append((name, d))
     if ret_bits:
@@ -1219,56 +1223,87 @@ def _interpretation(comp: dict, snap: dict) -> str | None:
 
 
 def _source_line(snap: dict) -> str:
-    url = snap.get("url") or "https://trendlyne.com/equity/sector-industry-analysis/sector/day/"
-    when = snap.get("fetched_at_display")
-    stamp = f" \u00b7 updated {_esc(when)}" if when else ""
-    return (f'<a href="{_esc(url)}" target="_blank" rel="noopener" '
-            f'style="font-size:12px;color:#177245;font-weight:600">Source: '
-            f'Trendlyne</a><span style="font-size:12px;color:#9aa09d">{stamp}</span>')
+    when = snap.get("as_of")
+    idx = snap.get("reference_index")
+    stamp = f" \u00b7 as of {_esc(when)}" if when else ""
+    idx_txt = f" \u00b7 {_esc(idx)}" if idx else ""
+    return ('<span style="font-size:12px;color:#177245;font-weight:600">Source: '
+            f'IndianAPI + NSE</span><span style="font-size:12px;color:#9aa09d">'
+            f'{idx_txt}{stamp}</span>')
 
 
-def sector_shell(model, result, snap: dict) -> tuple[str, int]:
+def _sect_values(snap: dict | None) -> tuple[dict, dict]:
+    """(values, meta) for a sector snapshot: {metric: value|None} + roce info."""
+    metrics = (snap or {}).get("metrics", {})
+    vals = {m: (metrics.get(m) or {}).get("value") for m in ("pe", "pb", "roe", "roce", "roa")}
+    roce = metrics.get("roce") or {}
+    meta = {"roce_applicable": roce.get("applicable", True),
+            "roce_reason": roce.get("reason", "")}
+    return vals, meta
+
+
+def sector_shell(model, result, snap: dict | None) -> tuple[str, int]:
     """
-    Sector lens \u2014 the selected sector's live Trendlyne benchmarks and a
-    Company-vs-Sector comparison. ``snap`` comes from ``core.trendlyne`` and is
-    always a dict (with ``ok=False`` when Trendlyne could not be reached).
+    Sector lens \u2014 the selected sector's benchmarks (computed monthly from
+    IndianAPI + NSE constituents) and a Company-vs-Sector comparison.
+
+    ``snap`` is that sector's entry from data/sector_snapshot.json, or None when
+    the snapshot has not been generated yet. Company figures always come from the
+    uploaded workbook; any value that is missing or not applicable shows "\u2014" and
+    is never estimated.
     """
     comp = _company_vr(model)
-    ok = bool(snap.get("ok"))
     sector_name = result.sector.name
-    tl_name = snap.get("trendlyne_name") or sector_name
+    have = snap is not None
+    sect, meta = _sect_values(snap)
+    roce_applicable = meta["roce_applicable"]
+    idx_name = (snap or {}).get("reference_index", "")
 
-    # ---- Sector pulse (or an unavailable notice) ----
-    if ok:
+    # ---- Sector pulse (or a "not generated yet" notice) ----
+    if have:
+        pulse_data = (snap or {}).get("pulse", {})
+        inc = snap.get("constituents_included")
+        att = snap.get("constituents_attempted")
+        cov = (f'{inc} of {att} constituents' if inc is not None and att else "")
         pulse = (
             '<div style="display:flex;gap:14px;flex-wrap:wrap">'
-            + _tile("Sector Score", f'{_fx(snap.get("sector_score"), "score")}'
-                    '<span style="font-size:15px;font-weight:600;color:#9aa09d"> /100</span>')
-            + _tile("No. of Companies", _fx(snap.get("companies"), "int"))
-            + _tile("Avg Market Cap", _fx(snap.get("avg_market_cap"), "mcap"))
+            + _tile("Companies", _fx(pulse_data.get("no_companies"), "int"), cov)
+            + _tile("Total Market Cap", _fx(pulse_data.get("total_market_cap"), "mcap"))
+            + _tile("Avg Market Cap", _fx(pulse_data.get("avg_market_cap"), "mcap"))
             + "</div>")
     else:
         pulse = (
             '<div style="background:#fbf7ec;border:1px solid #ecdfbf;border-radius:14px;'
             'padding:16px 18px;color:#7a6a3c;font-size:13.5px;line-height:1.55">'
-            '<b style="color:#5f5326">Sector data temporarily unavailable.</b><br>'
-            f'{_esc(snap.get("error_text", "Could not fetch sector data."))} '
+            '<b style="color:#5f5326">Sector benchmarks not available yet.</b><br>'
+            'The monthly sector snapshot has not been generated for this sector. '
             'The company figures below are read from your uploaded model; the sector '
-            'column will fill in once Trendlyne can be reached again.</div>')
+            'column fills in once the snapshot is built.</div>')
 
-    # ---- Company vs Sector table ----
+    # ---- ROCE row: withhold with a reason when not applicable (e.g. banks) ----
+    if roce_applicable:
+        roce_row = _cmp_row("ROCE", comp["roce"], sect.get("roce"), "pct")
+    else:
+        td = 'padding:11px 14px;font-size:13.5px;border-top:1px solid #f1f3f1'
+        roce_row = (
+            f'<tr><td style="{td};color:#5c635f;font-weight:600">ROCE</td>'
+            f'<td style="{td};text-align:right;color:#b8bdb9">\u2014</td>'
+            f'<td style="{td};text-align:right;color:#b8bdb9">\u2014</td>'
+            f'<td style="{td};text-align:right;font-size:11.5px;color:#9aa09d">'
+            'not meaningful for this sector</td></tr>')
+
     rows = "".join([
         '<tr><td colspan="4" style="padding:10px 14px 4px;font-size:10.5px;'
         'font-weight:700;letter-spacing:.6px;color:#9aa09d;'
         'font-family:ui-monospace,Menlo,monospace">VALUATION</td></tr>',
-        _cmp_row("P/E", comp["pe"], snap.get("pe"), "x"),
-        _cmp_row("P/B", comp["pb"], snap.get("pb"), "x"),
+        _cmp_row("P/E", comp["pe"], sect.get("pe"), "x"),
+        _cmp_row("P/B", comp["pb"], sect.get("pb"), "x"),
         '<tr><td colspan="4" style="padding:14px 14px 4px;font-size:10.5px;'
         'font-weight:700;letter-spacing:.6px;color:#9aa09d;'
         'font-family:ui-monospace,Menlo,monospace">RETURNS</td></tr>',
-        _cmp_row("ROE", comp["roe"], snap.get("roe"), "pct"),
-        _cmp_row("ROCE", comp["roce"], snap.get("roce"), "pct"),
-        _cmp_row("ROA", comp["roa"], snap.get("roa"), "pct"),
+        _cmp_row("ROE", comp["roe"], sect.get("roe"), "pct"),
+        roce_row,
+        _cmp_row("ROA", comp["roa"], sect.get("roa"), "pct"),
     ])
     th = ('padding:8px 14px;font-size:10.5px;font-weight:700;letter-spacing:.5px;'
           'color:#9aa09d;text-transform:uppercase;text-align:right')
@@ -1278,8 +1313,8 @@ def sector_shell(model, result, snap: dict) -> tuple[str, int]:
         f'<td style="{th}">Company</td><td style="{th}">Sector</td>'
         f'<td style="{th}">Difference</td></tr>{rows}</table>')
 
-    # ---- interpretation + missing-metric note ----
-    reading = _interpretation(comp, snap)
+    # ---- interpretation (only over available, applicable metrics) ----
+    reading = _interpretation(comp, sect)
     reading_card = ""
     if reading:
         reading_card = (
@@ -1288,31 +1323,39 @@ def sector_shell(model, result, snap: dict) -> tuple[str, int]:
             f'<div style="font-size:14px;line-height:1.6;color:#26332c;'
             f'padding-top:6px">{_esc(reading)}</div></div>')
 
-    missing_note = ""
-    if ok and snap.get("missing"):
-        missing_note = (
-            '<div style="font-size:12px;color:#9aa09d;padding:2px 4px">'
-            'Not published for this sector on Trendlyne (shown as \u2014): '
-            f'{_esc(", ".join(snap["missing"]))}.</div>')
+    # ---- footnotes: ROCE-not-applicable reason + coverage/skips ----
+    notes = []
+    if not roce_applicable and meta["roce_reason"]:
+        notes.append(_esc(meta["roce_reason"]))
+    if have and snap.get("constituents_skipped"):
+        notes.append(f'{snap["constituents_skipped"]} constituent(s) skipped '
+                     '(missing data); sector values use the rest.')
+    notes_html = ""
+    if notes:
+        notes_html = ('<div style="font-size:12px;color:#9aa09d;padding:2px 4px;'
+                      'line-height:1.5">' + "<br>".join(notes) + "</div>")
 
+    idx_display = _esc(idx_name or "\u2014")
+    src_line = _source_line(snap or {})
     body = "".join([
         '<div class="pghead"><span class="pt">Sector lens</span>'
-        '<span class="ps">Live sector benchmarks from Trendlyne.</span></div>',
+        '<span class="ps">Sector benchmarks from IndianAPI + NSE, refreshed monthly.'
+        '</span></div>',
         # pulse card
         '<div class="card">'
         '<div style="display:flex;align-items:baseline;justify-content:space-between;'
         'gap:12px;flex-wrap:wrap;padding-bottom:12px">'
         f'<div><div class="ct">{_esc(sector_name)}</div>'
-        f'<div class="csub" style="padding-bottom:0">Trendlyne sector: '
-        f'{_esc(tl_name)}</div></div>'
-        f'<div>{_source_line(snap)}</div></div>'
+        f'<div class="csub" style="padding-bottom:0">Reference index: '
+        f'{idx_display}</div></div>'
+        f'<div>{src_line}</div></div>'
         f'{pulse}</div>',
         # comparison card
         f'<div class="card"><div class="ct">Company vs Sector</div>'
         f'<div class="csub">{_esc(model.company.title())} against the '
-        f'{_esc(tl_name)} sector aggregate</div>{table}</div>',
+        f'{_esc(sector_name)} sector aggregate</div>{table}</div>',
         reading_card,
-        missing_note,
+        notes_html,
     ])
     return _doc(body, ""), 1000
 
