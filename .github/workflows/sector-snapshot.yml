@@ -1,0 +1,53 @@
+name: Monthly sector snapshot
+
+# Regenerates data/sector_snapshot.json once a month from NSE constituents +
+# IndianAPI fundamentals. The Streamlit app only reads that file, so it never
+# calls IndianAPI at runtime. Monthly cadence keeps usage well under the free
+# 500-credit plan.
+
+on:
+  schedule:
+    - cron: "0 3 1 * *"        # 03:00 UTC on the 1st of each month
+  workflow_dispatch: {}         # allow manual runs from the Actions tab
+
+permissions:
+  contents: write               # to commit the refreshed snapshot
+
+concurrency:
+  group: sector-snapshot
+  cancel-in-progress: false
+
+jobs:
+  build-snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Build sector snapshot
+        env:
+          # Stored ONLY as a repository secret; never printed or committed.
+          INDIANAPI_KEY: ${{ secrets.INDIANAPI_KEY }}
+        # Non-zero exit (over-budget abort, or validation failure) fails the job
+        # and — because the script never writes on failure — the previous good
+        # snapshot is kept. All 9 sectors in one run, capped at 400 credits.
+        run: python scripts/build_sector_snapshot.py --max-budget 400
+
+      - name: Commit refreshed snapshot if changed
+        # Only reached when the build step succeeded (valid snapshot written).
+        run: |
+          if [[ -n "$(git status --porcelain data/sector_snapshot.json)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/sector_snapshot.json
+            git commit -m "Refresh sector snapshot (automated monthly update)"
+            git push
+          else
+            echo "No change in sector_snapshot.json."
+          fi

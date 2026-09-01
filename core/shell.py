@@ -20,10 +20,14 @@ from html import escape
 
 import pandas as pd
 
+from datetime import date
+
 from . import design_blocks as D
 from . import sections as S
 from . import viz
 from .scoring import Assessment
+from .sector_universe import UNIVERSE
+from . import sector_cycle as CYCLE
 
 INK = viz.INK
 BODY = viz.BODY
@@ -1054,7 +1058,9 @@ def ratios_shell(model, result) -> tuple[str, int]:
 
 
 # --------------------------------------------------------------------------
-# Sector lens \u2014 live sector benchmarks from Trendlyne (see core/trendlyne.py)
+# Sector lens \u2014 sector benchmarks computed from IndianAPI + NSE constituents,
+# read from data/sector_snapshot.json (see scripts/build_sector_snapshot.py).
+# The app never calls a live API here; it only reads the monthly snapshot.
 # --------------------------------------------------------------------------
 _TL_GOOD = "#177245"      # cheaper / higher return than the sector
 _TL_BAD = "#a4483f"       # pricier / lower return than the sector
@@ -1083,9 +1089,13 @@ def _company_vr(model) -> dict[str, float | None]:
              "PB Ratio", "P/B", "PB")
     if pb is not None and not (0 < pb < 200):
         pb = None
+    peg = raw("PEG Ratio", "PEG", "Price Earning to Growth", "PEG TTM")
+    if peg is not None and not (0 < peg <= 20):
+        peg = None
     return {
         "pe": pe,
         "pb": pb,
+        "peg": peg,
         "roe": pctv("Return on Equity (ROE) %", "ROE", "Return on Equity"),
         "roce": pctv("Return on Capital Employed (ROCE) %", "ROCE",
                      "Return on Capital Employed"),
@@ -1099,6 +1109,8 @@ def _fx(v, kind) -> str:
         return "\u2014"
     if kind == "x":
         return f"{v:.2f}x"
+    if kind == "peg":
+        return f"{v:.2f}"
     if kind == "pct":
         return f"{v:.2f}%"
     if kind == "int":
@@ -1130,7 +1142,7 @@ def _cmp_row(label: str, comp, sect, kind: str) -> str:
     """
     diff = '<span style="color:#b8bdb9">\u2014</span>'
     if comp is not None and sect is not None:
-        if kind == "x":                     # valuation: relative discount/premium
+        if kind in ("x", "peg"):            # valuation: relative discount/premium
             pct = (comp - sect) / sect * 100 if sect else 0.0
             cheaper = comp < sect
             colour = _TL_GOOD if cheaper else _TL_BAD
@@ -1176,16 +1188,18 @@ def _join_names(names: list[str]) -> str:
     return ", ".join(names[:-1]) + " and " + names[-1]
 
 
-def _interpretation(comp: dict, snap: dict) -> str | None:
-    """A short, plain-English reading built only from available comparisons."""
-    if not snap.get("ok"):
-        return None
+def _interpretation(comp: dict, sect: dict) -> str | None:
+    """A short, plain-English reading built only from available comparisons.
+
+    ``sect`` is a plain {metric: value_or_None} dict; a metric that is missing
+    or not applicable for the sector is None and is simply skipped.
+    """
     parts: list[str] = []
 
     # Valuation: P/E and P/B (below the sector reads as cheaper).
     val_bits = []
     for key, name in (("pe", "P/E"), ("pb", "P/B")):
-        d = _direction(comp.get(key), snap.get(key), higher_better=False)
+        d = _direction(comp.get(key), sect.get(key), higher_better=False)
         if d in ("below", "above"):
             val_bits.append((name, d))
     if val_bits:
@@ -1200,7 +1214,7 @@ def _interpretation(comp: dict, snap: dict) -> str | None:
     # Returns: ROE / ROCE / ROA (higher than the sector is good).
     ret_bits = []
     for key, name in (("roe", "ROE"), ("roce", "ROCE"), ("roa", "ROA")):
-        d = _direction(comp.get(key), snap.get(key), higher_better=True)
+        d = _direction(comp.get(key), sect.get(key), higher_better=True)
         if d in ("higher", "lower"):
             ret_bits.append((name, d))
     if ret_bits:
@@ -1218,101 +1232,285 @@ def _interpretation(comp: dict, snap: dict) -> str | None:
     return "The company " + ", while ".join(parts) + "."
 
 
-def _source_line(snap: dict) -> str:
-    url = snap.get("url") or "https://trendlyne.com/equity/sector-industry-analysis/sector/day/"
-    when = snap.get("fetched_at_display")
-    stamp = f" \u00b7 updated {_esc(when)}" if when else ""
-    return (f'<a href="{_esc(url)}" target="_blank" rel="noopener" '
-            f'style="font-size:12px;color:#177245;font-weight:600">Source: '
-            f'Trendlyne</a><span style="font-size:12px;color:#9aa09d">{stamp}</span>')
+def _days_ago(as_of: str | None) -> str:
+    """'(N days ago)' from a YYYY-MM-DD date, or '' if unparseable."""
+    if not as_of:
+        return ""
+    try:
+        d = date.fromisoformat(as_of[:10])
+    except ValueError:
+        return ""
+    n = (date.today() - d).days
+    if n <= 0:
+        return "(today)"
+    return f"({n} day{'s' if n != 1 else ''} ago)"
 
 
-def sector_shell(model, result, snap: dict) -> tuple[str, int]:
+def _source_line(snap: dict, meta: dict | None) -> str:
+    """Two-line source + last-updated block. Times come from the snapshot, not now."""
+    updated = (meta or {}).get("generated_at") or snap.get("as_of")
+    ago = _days_ago(snap.get("as_of") or (meta or {}).get("as_of_date"))
+    updated_txt = ""
+    if updated:
+        updated_txt = (f'<div style="font-size:12px;color:#9aa09d">Last updated: '
+                       f'{_esc(updated)} {ago}</div>')
+    return ('<div style="text-align:right"><span style="font-size:12px;color:#177245;'
+            'font-weight:600">Source: IndianAPI + NSE</span>'
+            f'{updated_txt}</div>')
+
+
+def _sect_values(snap: dict | None) -> tuple[dict, dict]:
+    """(values, meta) for a sector snapshot: {metric: value|None} + roce info."""
+    metrics = (snap or {}).get("metrics", {})
+    vals = {m: (metrics.get(m) or {}).get("value") for m in ("pe", "pb", "roe", "roce", "roa")}
+    vals["peg"] = (metrics.get("peg") or {}).get("value")
+    vals["growth"] = (metrics.get("earnings_growth") or {}).get("value")
+    roce = metrics.get("roce") or {}
+    meta = {"roce_applicable": roce.get("applicable", True),
+            "roce_reason": roce.get("reason", "")}
+    return vals, meta
+
+
+def _benchmarks_block(sect: dict, roce_applicable: bool) -> str:
+    """Sector-only benchmark tiles: P/E, P/B, ROE, ROCE, ROA."""
+    cells = [
+        ("P/E", _fx(sect.get("pe"), "x")),
+        ("P/B", _fx(sect.get("pb"), "x")),
+        ("PEG", _fx(sect.get("peg"), "peg")),
+        ("ROE", _fx(sect.get("roe"), "pct")),
+        ("ROCE", "\u2014" if not roce_applicable else _fx(sect.get("roce"), "pct")),
+        ("ROA", _fx(sect.get("roa"), "pct")),
+        ("Earnings growth", _fx(sect.get("growth"), "pct")),
+    ]
+    tiles = "".join(
+        '<div style="flex:1;min-width:96px;background:#fff;border:1px solid #eef0ed;'
+        'border-radius:14px;padding:12px 14px">'
+        f'<div style="font-size:11px;color:#8b918e;font-weight:600;'
+        f'letter-spacing:.3px">{lab}</div>'
+        f'<div style="font-size:22px;font-weight:800;color:#15201a;'
+        f'padding-top:4px;font-family:ui-monospace,Menlo,monospace">{val}</div></div>'
+        for lab, val in cells)
+    return f'<div style="display:flex;gap:12px;flex-wrap:wrap">{tiles}</div>'
+
+
+def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
+             na_reason: str = "") -> str:
+    """One horizontal Company-vs-Sector bar (dark bar = company, grey tick = sector)."""
+    lower_better = kind in ("x", "peg")
+    if not applicable:
+        return (
+            '<div style="display:flex;align-items:center;gap:16px;padding:15px 4px 9px;'
+            'border-top:1px solid #f1f3f1">'
+            f'<div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;'
+            f'color:#15201a">{label}</div><div style="font-size:11px;color:#9aa09d;'
+            f'font-family:ui-monospace,Menlo,monospace">you {_fx(comp, kind)}</div></div>'
+            '<div style="flex:1;font-size:11.5px;color:#9aa09d">not meaningful for this sector</div>'
+            '<div style="flex:0 0 128px;text-align:right;color:#b8bdb9;font-size:14px;'
+            'font-weight:700;font-family:ui-monospace,Menlo,monospace">—</div></div>')
+
+    vals = [v for v in (comp, sect) if v is not None]
+    maxv = max(vals) * 1.2 if vals else 1.0
+    if maxv <= 0:
+        maxv = 1.0
+    cw = 0.0 if comp is None else max(0.0, min(100.0, comp / maxv * 100))
+    sw = None if sect is None else max(0.0, min(100.0, sect / maxv * 100))
+
+    if comp is not None and sect is not None:
+        if lower_better:
+            pct = (comp - sect) / sect * 100 if sect else 0.0
+            good = comp < sect
+            arrow, word = ("▼", "cheaper") if good else ("▲", "pricier")
+            pill = (f'<div style="font-size:14px;font-weight:700;'
+                    f'color:{_TL_GOOD if good else _TL_BAD};'
+                    f'font-family:ui-monospace,Menlo,monospace">{arrow} {abs(pct):.1f}% {word}</div>')
+            tt = (f"Company {_fx(comp, kind)} vs Sector {_fx(sect, kind)} — "
+                  f"{abs(pct):.1f}% {'below' if good else 'above'} sector")
+        else:
+            pp = comp - sect
+            good = pp >= 0
+            arrow = "▲" if good else "▼"
+            pill = (f'<div style="font-size:14px;font-weight:700;'
+                    f'color:{_TL_GOOD if good else _TL_BAD};'
+                    f'font-family:ui-monospace,Menlo,monospace">{arrow} {pp:+.2f} pp</div>')
+            tt = f"Company {_fx(comp, kind)} vs Sector {_fx(sect, kind)} — {pp:+.2f}pp"
+    else:
+        pill = ('<div style="font-size:14px;font-weight:700;color:#b8bdb9;'
+                'font-family:ui-monospace,Menlo,monospace">— n/a</div>')
+        tt = f"Company {_fx(comp, kind)} · Sector {_fx(sect, kind)}"
+
+    comp_bar = (f'<div style="position:absolute;left:0;top:0;height:100%;width:{cw:.1f}%;'
+                'background:#33443d;border-radius:7px"></div>') if comp is not None else ""
+    sect_tick = ""
+    if sw is not None:
+        sect_tick = (f'<div style="position:absolute;left:{sw:.1f}%;top:-3px;'
+                     'height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div>'
+                     f'<div style="position:absolute;left:{sw:.1f}%;top:-16px;'
+                     'transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;'
+                     'white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div>')
+    return (
+        f'<div data-tt="{_esc(tt)}" style="display:flex;align-items:center;gap:16px;'
+        'padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default">'
+        f'<div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;'
+        f'color:#15201a">{label}</div><div style="font-size:11px;color:#9aa09d;'
+        f'font-family:ui-monospace,Menlo,monospace">you {_fx(comp, kind)}</div></div>'
+        '<div style="flex:1;position:relative;height:14px;background:#eef1ee;border-radius:7px">'
+        f'{comp_bar}{sect_tick}</div>'
+        '<div style="flex:0 0 128px;text-align:right">'
+        f'{pill}<div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">'
+        f'sector {_fx(sect, kind)}</div></div></div>')
+
+
+def _grp(label: str) -> str:
+    return ('<div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;'
+            'color:#9aa09d;font-family:ui-monospace,Menlo,monospace;'
+            f'padding:16px 4px 2px">{label}</div>')
+
+
+def _seasonality_card(sector_key: str | None, growth) -> str:
+    """Sector cycle & seasonality: structural profile + data-grounded current tilt."""
+    prof = CYCLE.profile(sector_key or "generic")
+    if not prof:
+        return ""
+    phase, sentence = CYCLE.phase_from_growth(growth)
+    badge = (f'<span style="background:#eef2f7;color:#3a5a8a;font-size:11px;'
+             'font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px">'
+             f'{_esc(prof["nature"])}</span>')
+    phase_badge = ""
+    if phase and phase != "—":
+        phase_badge = (f'<span style="background:#eef4f0;color:#177245;font-size:11px;'
+                       'font-weight:700;letter-spacing:.3px;border-radius:20px;'
+                       f'padding:4px 12px;margin-left:8px">Current tilt: {_esc(phase)}</span>')
+    return (
+        '<div class="card"><div style="display:flex;align-items:center;gap:8px;'
+        'flex-wrap:wrap;padding-bottom:4px"><div class="ct">Sector cycle &amp; seasonality</div>'
+        f'{badge}{phase_badge}</div>'
+        '<div class="csub">Structural, long-run behaviour across market cycles · '
+        'current tilt inferred from this snapshot’s pooled earnings growth</div>'
+        f'<div style="font-size:14px;line-height:1.65;color:#3f4744;padding-top:4px">'
+        f'{_esc(prof["text"])}</div>'
+        f'<div style="font-size:13.5px;line-height:1.6;color:#26332c;background:#f4f8f5;'
+        'border:1px solid #dcebe1;border-radius:12px;padding:12px 14px;margin-top:12px">'
+        f'<b>Where it sits now:</b> {_esc(sentence)}</div></div>')
+
+
+def sector_shell(model, result, snap: dict | None,
+                 sector_key: str | None = None, meta: dict | None = None) -> tuple[str, int]:
     """
-    Sector lens \u2014 the selected sector's live Trendlyne benchmarks and a
-    Company-vs-Sector comparison. ``snap`` comes from ``core.trendlyne`` and is
-    always a dict (with ``ok=False`` when Trendlyne could not be reached).
+    Sector lens \u2014 the selected sector's benchmarks (computed monthly from
+    IndianAPI + NSE constituents) and a Company-vs-Sector comparison.
+
+    ``snap`` is that sector's entry from data/sector_snapshot.json, or None when
+    the snapshot has not been generated yet. ``meta`` is the snapshot's top-level
+    metadata (for the last-updated stamp). Company figures always come from the
+    uploaded workbook; any value that is missing or not applicable shows "\u2014" and
+    is never estimated.
     """
     comp = _company_vr(model)
-    ok = bool(snap.get("ok"))
     sector_name = result.sector.name
-    tl_name = snap.get("trendlyne_name") or sector_name
+    have = snap is not None
+    sect, applic = _sect_values(snap)
+    roce_applicable = applic["roce_applicable"]
+    # Reference index is known statically from the mapping even before any
+    # snapshot exists, so it is shown rather than a blank "\u2014".
+    idx_name = (snap or {}).get("reference_index", "")
+    if not idx_name and sector_key and sector_key in UNIVERSE:
+        idx_name = UNIVERSE[sector_key].index_label
 
-    # ---- Sector pulse (or an unavailable notice) ----
-    if ok:
+    # ---- Sector pulse (or a "not generated yet" notice) ----
+    if have:
+        pulse_data = (snap or {}).get("pulse", {})
+        inc = snap.get("constituents_included")
+        att = snap.get("constituents_attempted")
+        cov = (f'{inc} of {att} constituents' if inc is not None and att else "")
         pulse = (
             '<div style="display:flex;gap:14px;flex-wrap:wrap">'
-            + _tile("Sector Score", f'{_fx(snap.get("sector_score"), "score")}'
-                    '<span style="font-size:15px;font-weight:600;color:#9aa09d"> /100</span>')
-            + _tile("No. of Companies", _fx(snap.get("companies"), "int"))
-            + _tile("Avg Market Cap", _fx(snap.get("avg_market_cap"), "mcap"))
+            + _tile("Companies", _fx(pulse_data.get("no_companies"), "int"), cov)
+            + _tile("Total Market Cap", _fx(pulse_data.get("total_market_cap"), "mcap"))
+            + _tile("Avg Market Cap", _fx(pulse_data.get("avg_market_cap"), "mcap"))
             + "</div>")
     else:
         pulse = (
             '<div style="background:#fbf7ec;border:1px solid #ecdfbf;border-radius:14px;'
             'padding:16px 18px;color:#7a6a3c;font-size:13.5px;line-height:1.55">'
-            '<b style="color:#5f5326">Sector data temporarily unavailable.</b><br>'
-            f'{_esc(snap.get("error_text", "Could not fetch sector data."))} '
+            '<b style="color:#5f5326">Sector benchmarks not available yet.</b><br>'
+            'The monthly sector snapshot has not been generated for this sector. '
             'The company figures below are read from your uploaded model; the sector '
-            'column will fill in once Trendlyne can be reached again.</div>')
+            'column fills in once the snapshot is built.</div>')
 
-    # ---- Company vs Sector table ----
-    rows = "".join([
-        '<tr><td colspan="4" style="padding:10px 14px 4px;font-size:10.5px;'
-        'font-weight:700;letter-spacing:.6px;color:#9aa09d;'
-        'font-family:ui-monospace,Menlo,monospace">VALUATION</td></tr>',
-        _cmp_row("P/E", comp["pe"], snap.get("pe"), "x"),
-        _cmp_row("P/B", comp["pb"], snap.get("pb"), "x"),
-        '<tr><td colspan="4" style="padding:14px 14px 4px;font-size:10.5px;'
-        'font-weight:700;letter-spacing:.6px;color:#9aa09d;'
-        'font-family:ui-monospace,Menlo,monospace">RETURNS</td></tr>',
-        _cmp_row("ROE", comp["roe"], snap.get("roe"), "pct"),
-        _cmp_row("ROCE", comp["roce"], snap.get("roce"), "pct"),
-        _cmp_row("ROA", comp["roa"], snap.get("roa"), "pct"),
-    ])
-    th = ('padding:8px 14px;font-size:10.5px;font-weight:700;letter-spacing:.5px;'
-          'color:#9aa09d;text-transform:uppercase;text-align:right')
+    # ---- Company-vs-Sector horizontal bars (dark bar = company, grey tick = sector) ----
     table = (
-        '<table style="width:100%;border-collapse:collapse">'
-        f'<tr><td style="{th};text-align:left">Metric</td>'
-        f'<td style="{th}">Company</td><td style="{th}">Sector</td>'
-        f'<td style="{th}">Difference</td></tr>{rows}</table>')
+        '<div style="padding-top:6px">'
+        + _grp("VALUATION")
+        + _bar_row("P/E", comp["pe"], sect.get("pe"), "x")
+        + _bar_row("P/B", comp["pb"], sect.get("pb"), "x")
+        + _bar_row("PEG", comp["peg"], sect.get("peg"), "peg")
+        + _grp("RETURNS")
+        + _bar_row("ROE", comp["roe"], sect.get("roe"), "pct")
+        + _bar_row("ROCE", comp["roce"], sect.get("roce"), "pct",
+                   applicable=roce_applicable)
+        + _bar_row("ROA", comp["roa"], sect.get("roa"), "pct")
+        + "</div>")
 
-    # ---- interpretation + missing-metric note ----
-    reading = _interpretation(comp, snap)
+    # ---- interpretation, styled as a verdict card ----
+    reading = _interpretation(comp, sect)
     reading_card = ""
     if reading:
         reading_card = (
-            '<div class="card" style="background:#f4f8f5;border-color:#dcebe1">'
-            '<div class="ct">Reading</div>'
-            f'<div style="font-size:14px;line-height:1.6;color:#26332c;'
-            f'padding-top:6px">{_esc(reading)}</div></div>')
+            '<div class="verdict" style="--rail:#d9a441;display:block">'
+            '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;'
+            'padding-bottom:8px">'
+            '<div style="background:#fdf3e2;color:#b5761f;font-size:11px;font-weight:700;'
+            'letter-spacing:.4px;border-radius:20px;padding:4px 12px">COMPANY vs SECTOR</div>'
+            '<div style="font-size:20px;font-weight:800;letter-spacing:-.4px;'
+            'color:#15201a">Reading</div></div>'
+            f'<div style="font-size:14.5px;line-height:1.62;color:#3f4744">{_esc(reading)}</div>'
+            '</div>')
 
-    missing_note = ""
-    if ok and snap.get("missing"):
-        missing_note = (
-            '<div style="font-size:12px;color:#9aa09d;padding:2px 4px">'
-            'Not published for this sector on Trendlyne (shown as \u2014): '
-            f'{_esc(", ".join(snap["missing"]))}.</div>')
+    # ---- footnotes: ROCE-not-applicable reason + coverage/skips ----
+    notes = []
+    if not roce_applicable and applic["roce_reason"]:
+        notes.append(_esc(applic["roce_reason"]))
+    if have and snap.get("constituents_skipped"):
+        notes.append(f'{snap["constituents_skipped"]} constituent(s) skipped '
+                     '(missing data); sector values use the rest.')
+    notes_html = ""
+    if notes:
+        notes_html = ('<div style="font-size:12px;color:#9aa09d;padding:2px 4px;'
+                      'line-height:1.5">' + "<br>".join(notes) + "</div>")
 
+    idx_display = _esc(idx_name or "\u2014")
+    src_line = _source_line(snap or {}, meta)
+    period = (snap or {}).get("data_period")
+    period_txt = f' \u00b7 data period {_esc(period)}' if period else ""
+    benchmarks_card = ""
+    if have:
+        benchmarks_card = (
+            '<div class="card"><div class="ct">Sector benchmarks</div>'
+            f'<div class="csub">Pooled across the {_esc(idx_name or sector_name)} '
+            f'constituents{period_txt}</div>'
+            f'{_benchmarks_block(sect, roce_applicable)}</div>')
     body = "".join([
         '<div class="pghead"><span class="pt">Sector lens</span>'
-        '<span class="ps">Live sector benchmarks from Trendlyne.</span></div>',
+        '<span class="ps">Sector benchmarks from IndianAPI + NSE, refreshed monthly.'
+        '</span></div>',
         # pulse card
         '<div class="card">'
         '<div style="display:flex;align-items:baseline;justify-content:space-between;'
         'gap:12px;flex-wrap:wrap;padding-bottom:12px">'
         f'<div><div class="ct">{_esc(sector_name)}</div>'
-        f'<div class="csub" style="padding-bottom:0">Trendlyne sector: '
-        f'{_esc(tl_name)}</div></div>'
-        f'<div>{_source_line(snap)}</div></div>'
+        f'<div class="csub" style="padding-bottom:0">Reference index: '
+        f'{idx_display}</div></div>'
+        f'<div>{src_line}</div></div>'
         f'{pulse}</div>',
+        benchmarks_card,
         # comparison card
         f'<div class="card"><div class="ct">Company vs Sector</div>'
         f'<div class="csub">{_esc(model.company.title())} against the '
-        f'{_esc(tl_name)} sector aggregate</div>{table}</div>',
+        f'{_esc(sector_name)} sector aggregate</div>{table}</div>',
         reading_card,
-        missing_note,
+        notes_html,
+        # sector cycle & seasonality (structural profile + data-grounded tilt)
+        _seasonality_card(sector_key, sect.get("growth")),
     ])
     return _doc(body, ""), 1000
 
