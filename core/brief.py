@@ -179,7 +179,12 @@ def discover_documents(symbol: str, sess: requests.Session | None = None) -> lis
     concall_block = section.find("div", class_=lambda c: c and "concalls" in c)
     transcript = ppt = None
     if concall_block:
-        for li in concall_block.find_all("li"):
+        # Only the most-recent concalls: if the latest transcript/PPT isn't
+        # publicly linked, omit it rather than reaching back to a stale (e.g.
+        # 2023) filing while the presentation is current.
+        for i, li in enumerate(concall_block.find_all("li")):
+            if i >= 4:
+                break
             date_el = li.find("div")
             date = date_el.get_text(" ", strip=True) if date_el else ""
             for a in li.find_all("a"):
