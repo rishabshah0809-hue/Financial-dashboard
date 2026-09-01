@@ -27,7 +27,8 @@ from . import sections as S
 from . import viz
 from .scoring import Assessment
 from .sector_universe import UNIVERSE
-from . import sector_cycle as CYCLE
+from . import tilt as TILT
+
 
 INK = viz.INK
 BODY = viz.BODY
@@ -1248,26 +1249,39 @@ def _days_ago(as_of: str | None) -> str:
 
 def _source_line(snap: dict, meta: dict | None) -> str:
     """Two-line source + last-updated block. Times come from the snapshot, not now."""
-    updated = (meta or {}).get("generated_at") or snap.get("as_of")
-    ago = _days_ago(snap.get("as_of") or (meta or {}).get("as_of_date"))
+    updated = (meta or {}).get("as_of_date") or snap.get("as_of_date") or snap.get("as_of")
+    ago = _days_ago(updated)
+    src = (meta or {}).get("source") or snap.get("source") or "IndianAPI + NSE"
     updated_txt = ""
     if updated:
-        updated_txt = (f'<div style="font-size:12px;color:#9aa09d">Last updated: '
-                       f'{_esc(updated)} {ago}</div>')
-    return ('<div style="text-align:right"><span style="font-size:12px;color:#177245;'
-            'font-weight:600">Source: IndianAPI + NSE</span>'
-            f'{updated_txt}</div>')
+        updated_txt = f'<div style="font-size:12px;color:#9aa09d">Last updated: {_esc(str(updated))} {ago}</div>'
+    return (
+        f'<div style="text-align:right"><span style="font-size:12px;color:#177245;'
+        f'font-weight:600">Source: {_esc(src)}</span>'
+        f'{updated_txt}</div>'
+    )
 
 
 def _sect_values(snap: dict | None) -> tuple[dict, dict]:
     """(values, meta) for a sector snapshot: {metric: value|None} + roce info."""
     metrics = (snap or {}).get("metrics", {})
-    vals = {m: (metrics.get(m) or {}).get("value") for m in ("pe", "pb", "roe", "roce", "roa")}
-    vals["peg"] = (metrics.get("peg") or {}).get("value")
-    vals["growth"] = (metrics.get("earnings_growth") or {}).get("value")
-    roce = metrics.get("roce") or {}
-    meta = {"roce_applicable": roce.get("applicable", True),
-            "roce_reason": roce.get("reason", "")}
+    vals = {
+        "pe": metrics.get("pe"),
+        "pb": metrics.get("pb"),
+        "roe": metrics.get("roe"),
+        "roce": metrics.get("roce"),
+        "roa": metrics.get("roa"),
+        "growth": snap.get("earnings_growth") if snap else None,
+        "peg": metrics.get("peg"),
+    }
+    roce_val = metrics.get("roce")
+    roce_note = metrics.get("roce_note") or ""
+    is_fin = bool(snap.get("is_financial")) if snap else False
+    roce_applicable = not is_fin and (roce_val is not None or not roce_note)
+    meta = {
+        "roce_applicable": roce_applicable,
+        "roce_reason": roce_note if (not roce_applicable and roce_note) else ("ROCE is not a meaningful metric for lenders." if is_fin else ""),
+    }
     return vals, meta
 
 
@@ -1276,11 +1290,9 @@ def _benchmarks_block(sect: dict, roce_applicable: bool) -> str:
     cells = [
         ("P/E", _fx(sect.get("pe"), "x")),
         ("P/B", _fx(sect.get("pb"), "x")),
-        ("PEG", _fx(sect.get("peg"), "peg")),
         ("ROE", _fx(sect.get("roe"), "pct")),
-        ("ROCE", "\u2014" if not roce_applicable else _fx(sect.get("roce"), "pct")),
         ("ROA", _fx(sect.get("roa"), "pct")),
-        ("Earnings growth", _fx(sect.get("growth"), "pct")),
+        ("ROCE", "—" if not roce_applicable else _fx(sect.get("roce"), "pct")),
     ]
     tiles = "".join(
         '<div style="flex:1;min-width:96px;background:#fff;border:1px solid #eef0ed;'
@@ -1289,7 +1301,8 @@ def _benchmarks_block(sect: dict, roce_applicable: bool) -> str:
         f'letter-spacing:.3px">{lab}</div>'
         f'<div style="font-size:22px;font-weight:800;color:#15201a;'
         f'padding-top:4px;font-family:ui-monospace,Menlo,monospace">{val}</div></div>'
-        for lab, val in cells)
+        for lab, val in cells
+    )
     return f'<div style="display:flex;gap:12px;flex-wrap:wrap">{tiles}</div>'
 
 
@@ -1306,7 +1319,8 @@ def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
             f'font-family:ui-monospace,Menlo,monospace">you {_fx(comp, kind)}</div></div>'
             '<div style="flex:1;font-size:11.5px;color:#9aa09d">not meaningful for this sector</div>'
             '<div style="flex:0 0 128px;text-align:right;color:#b8bdb9;font-size:14px;'
-            'font-weight:700;font-family:ui-monospace,Menlo,monospace">—</div></div>')
+            'font-weight:700;font-family:ui-monospace,Menlo,monospace">—</div></div>'
+        )
 
     vals = [v for v in (comp, sect) if v is not None]
     maxv = max(vals) * 1.2 if vals else 1.0
@@ -1320,33 +1334,40 @@ def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
             pct = (comp - sect) / sect * 100 if sect else 0.0
             good = comp < sect
             arrow, word = ("▼", "cheaper") if good else ("▲", "pricier")
-            pill = (f'<div style="font-size:14px;font-weight:700;'
-                    f'color:{_TL_GOOD if good else _TL_BAD};'
-                    f'font-family:ui-monospace,Menlo,monospace">{arrow} {abs(pct):.1f}% {word}</div>')
-            tt = (f"Company {_fx(comp, kind)} vs Sector {_fx(sect, kind)} — "
-                  f"{abs(pct):.1f}% {'below' if good else 'above'} sector")
+            pill = (
+                f'<div style="font-size:14px;font-weight:700;'
+                f'color:{_TL_GOOD if good else _TL_BAD};'
+                f'font-family:ui-monospace,Menlo,monospace">{arrow} {abs(pct):.1f}% {word}</div>'
+            )
+            tt = f"Company {_fx(comp, kind)} vs Sector {_fx(sect, kind)} — {abs(pct):.1f}% {'below' if good else 'above'} sector"
         else:
             pp = comp - sect
             good = pp >= 0
             arrow = "▲" if good else "▼"
-            pill = (f'<div style="font-size:14px;font-weight:700;'
-                    f'color:{_TL_GOOD if good else _TL_BAD};'
-                    f'font-family:ui-monospace,Menlo,monospace">{arrow} {pp:+.2f} pp</div>')
+            pill = (
+                f'<div style="font-size:14px;font-weight:700;'
+                f'color:{_TL_GOOD if good else _TL_BAD};'
+                f'font-family:ui-monospace,Menlo,monospace">{arrow} {pp:+.2f} pp</div>'
+            )
             tt = f"Company {_fx(comp, kind)} vs Sector {_fx(sect, kind)} — {pp:+.2f}pp"
     else:
         pill = ('<div style="font-size:14px;font-weight:700;color:#b8bdb9;'
                 'font-family:ui-monospace,Menlo,monospace">— n/a</div>')
         tt = f"Company {_fx(comp, kind)} · Sector {_fx(sect, kind)}"
 
-    comp_bar = (f'<div style="position:absolute;left:0;top:0;height:100%;width:{cw:.1f}%;'
-                'background:#33443d;border-radius:7px"></div>') if comp is not None else ""
+    comp_bar = (
+        f'<div style="position:absolute;left:0;top:0;height:100%;width:{cw:.1f}%;'
+        'background:#33443d;border-radius:7px"></div>'
+    ) if comp is not None else ""
     sect_tick = ""
     if sw is not None:
-        sect_tick = (f'<div style="position:absolute;left:{sw:.1f}%;top:-3px;'
-                     'height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div>'
-                     f'<div style="position:absolute;left:{sw:.1f}%;top:-16px;'
-                     'transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;'
-                     'white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div>')
+        sect_tick = (
+            f'<div style="position:absolute;left:{sw:.1f}%;top:-3px;'
+            'height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div>'
+            f'<div style="position:absolute;left:{sw:.1f}%;top:-16px;'
+            'transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;'
+            'white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div>'
+        )
     return (
         f'<div data-tt="{_esc(tt)}" style="display:flex;align-items:center;gap:16px;'
         'padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default">'
@@ -1357,101 +1378,254 @@ def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
         f'{comp_bar}{sect_tick}</div>'
         '<div style="flex:0 0 128px;text-align:right">'
         f'{pill}<div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">'
-        f'sector {_fx(sect, kind)}</div></div></div>')
+        f'sector {_fx(sect, kind)}</div></div></div>'
+    )
 
 
 def _grp(label: str) -> str:
-    return ('<div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;'
-            'color:#9aa09d;font-family:ui-monospace,Menlo,monospace;'
-            f'padding:16px 4px 2px">{label}</div>')
+    return (
+        '<div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;'
+        'color:#9aa09d;font-family:ui-monospace,Menlo,monospace;'
+        f'padding:16px 4px 2px">{label}</div>'
+    )
 
 
-def _seasonality_card(sector_key: str | None, growth) -> str:
+def _seasonality_card(snap: dict | None, sector_key: str | None) -> str:
     """Sector cycle & seasonality: structural profile + data-grounded current tilt."""
-    prof = CYCLE.profile(sector_key or "generic")
+    prof = TILT.profile(sector_key or "generic")
     if not prof:
         return ""
-    phase, sentence = CYCLE.phase_from_growth(growth)
-    badge = (f'<span style="background:#eef2f7;color:#3a5a8a;font-size:11px;'
-             'font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px">'
-             f'{_esc(prof["nature"])}</span>')
-    phase_badge = ""
-    if phase and phase != "—":
-        phase_badge = (f'<span style="background:#eef4f0;color:#177245;font-size:11px;'
-                       'font-weight:700;letter-spacing:.3px;border-radius:20px;'
-                       f'padding:4px 12px;margin-left:8px">Current tilt: {_esc(phase)}</span>')
+    tilt_state = (snap or {}).get("current_tilt") or "Stable"
+    tilt_reason = (snap or {}).get("tilt_reason") or "Baseline established from snapshot fundamentals."
+
+    nature_badge = (
+        f'<span style="background:#eef2f7;color:#3a5a8a;font-size:11px;'
+        'font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px">'
+        f'{_esc(prof["nature"])}</span>'
+    )
+    tilt_color_map = {
+        "Expansion": ("#eef4f0", "#177245"),
+        "Recovery": ("#eef5fc", "#2a629a"),
+        "Stable": ("#f1f3f1", "#4f5854"),
+        "Mid-cycle": ("#f0f7f4", "#1b6f50"),
+        "Slowdown": ("#fbf0ee", "#a4483f"),
+        "Mixed": ("#fdf6eb", "#b5761f"),
+    }
+    t_bg, t_fg = tilt_color_map.get(tilt_state, ("#f1f3f1", "#4f5854"))
+    tilt_badge = (
+        f'<span style="background:{t_bg};color:{t_fg};font-size:11px;'
+        'font-weight:700;letter-spacing:.3px;border-radius:20px;'
+        f'padding:4px 12px;margin-left:8px">Current tilt: {_esc(tilt_state)}</span>'
+    )
+
     return (
         '<div class="card"><div style="display:flex;align-items:center;gap:8px;'
         'flex-wrap:wrap;padding-bottom:4px"><div class="ct">Sector cycle &amp; seasonality</div>'
-        f'{badge}{phase_badge}</div>'
-        '<div class="csub">Structural, long-run behaviour across market cycles · '
-        'current tilt inferred from this snapshot’s pooled earnings growth</div>'
+        f'{nature_badge}{tilt_badge}</div>'
+        '<div class="csub">Structural long-run sector behavior · current monthly tilt recalculated from fundamentals</div>'
         f'<div style="font-size:14px;line-height:1.65;color:#3f4744;padding-top:4px">'
         f'{_esc(prof["text"])}</div>'
         f'<div style="font-size:13.5px;line-height:1.6;color:#26332c;background:#f4f8f5;'
         'border:1px solid #dcebe1;border-radius:12px;padding:12px 14px;margin-top:12px">'
-        f'<b>Where it sits now:</b> {_esc(sentence)}</div></div>')
+        f'<b>Current tilt reading:</b> {_esc(tilt_reason)}</div></div>'
+    )
+
+
+def _mom_card(snap: dict | None) -> str:
+    """Render month-over-month differences card if available."""
+    if not snap:
+        return ""
+    mom = snap.get("monthly_changes")
+    if not mom or not isinstance(mom, dict):
+        return ""
+
+    bits = []
+    for k in ("pe", "pb", "roe", "roa", "roce"):
+        if k in mom and isinstance(mom[k], dict):
+            c = mom[k].get("change")
+            fv = mom[k].get("from")
+            tv = mom[k].get("to")
+            ch_str = f"{c:+}" if c is not None else ""
+            bits.append(
+                f'<span style="background:#fff;border:1px solid #eef0ed;border-radius:8px;'
+                f'padding:4px 10px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace">'
+                f'<b>{k.upper()}:</b> {fv} → <b>{tv}</b> ({ch_str})</span>'
+            )
+
+    top_ch = mom.get("top10", {})
+    if top_ch.get("changed"):
+        bits.append(
+            f'<span style="background:#fff;border:1px solid #eef0ed;border-radius:8px;'
+            f'padding:4px 10px;font-size:12.5px;color:#177245;font-weight:600">'
+            f'{top_ch.get("changed")} Top-10 name change(s)</span>'
+        )
+
+    if not bits:
+        return ""
+
+    return (
+        '<div class="card"><div class="ct">Month-over-month changes</div>'
+        '<div class="csub">Comparison against previous monthly sector snapshot</div>'
+        f'<div style="display:flex;gap:8px;flex-wrap:wrap;padding-top:6px">{" ".join(bits)}</div></div>'
+    )
+
+
+def _top10_table(top10: list[dict] | None, is_financial: bool) -> str:
+    """Render Top 10 constituents table with clickable official NSE links."""
+    if not top10:
+        return (
+            '<div class="card"><div class="ct">Top companies by market cap</div>'
+            '<div class="csub">Constituent breakdown</div>'
+            '<div style="padding:14px;color:#8b918e;font-size:13px">No constituent rankings available in this snapshot.</div></div>'
+        )
+
+    headers = [
+        "Rank", "Company", "Market Cap", "P/E", "P/B", "ROE %", "ROA %",
+        "ROCE %", "Rev Gr %", "EPS Gr %", "OPM %", "NPM %", "D/E", "Asset Turn", "Int Cov"
+    ]
+    th_html = "".join(
+        f'<th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;'
+        f'color:#8b918e;text-align:{"left" if i < 2 else "right"};'
+        f'border-bottom:1px solid #eef0ed;white-space:nowrap">{h}</th>'
+        for i, h in enumerate(headers)
+    )
+
+    rows_html = []
+    for r in top10:
+        rank = r.get("rank", "—")
+        name = r.get("name", "—")
+        sym = r.get("nse_symbol", "")
+        nse_url = r.get("nse_url") or f"https://www.nseindia.com/get-quotes/equity?symbol={sym}"
+        mcap = _fx(r.get("market_cap"), "mcap")
+        pe = _fx(r.get("pe"), "x")
+        pb = _fx(r.get("pb"), "x")
+        roe = _fx(r.get("roe"), "pct")
+        roa = _fx(r.get("roa"), "pct")
+        roce = "—" if is_financial else _fx(r.get("roce"), "pct")
+        rev_gr = _fx(r.get("revenue_growth_yoy"), "pct")
+        eps_gr = _fx(r.get("eps_ttm_growth"), "pct")
+        opm = _fx(r.get("opm"), "pct")
+        npm = _fx(r.get("npm"), "pct")
+        de = _fx(r.get("debt_to_equity"), "peg")
+        at = _fx(r.get("asset_turnover"), "peg")
+        ic = _fx(r.get("interest_coverage"), "peg")
+
+        comp_cell = (
+            f'<a href="{_esc(nse_url)}" target="_blank" rel="noopener noreferrer" '
+            f'style="color:#177245;font-weight:700;text-decoration:none" '
+            f'title="Open official NSE quote for {_esc(sym)}">{_esc(name)} '
+            f'<span style="font-size:10.5px;color:#9aa09d;font-weight:500">({_esc(sym)}) ↗</span></a>'
+        )
+
+        cells = [
+            f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;color:#9aa09d">{rank}</td>',
+            f'<td style="padding:10px 10px;font-size:13px">{comp_cell}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;text-align:right;font-family:ui-monospace,Menlo,monospace">{mcap}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pe}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pb}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roe}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roa}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roce}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{rev_gr}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{eps_gr}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{opm}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{npm}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{de}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{at}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{ic}</td>',
+        ]
+        rows_html.append(f'<tr style="border-bottom:1px solid #f6f8f6">{"".join(cells)}</tr>')
+
+    return (
+        '<div class="card"><div class="ct">Top 10 companies by market cap</div>'
+        '<div class="csub">Ranked strictly by actual Market Cap · Click company name to open official NSE quote</div>'
+        '<div style="overflow-x:auto;padding-top:8px">'
+        '<table style="width:100%;border-collapse:collapse">'
+        f'<thead><tr>{th_html}</tr></thead>'
+        f'<tbody>{"".join(rows_html)}</tbody></table></div></div>'
+    )
 
 
 def sector_shell(model, result, snap: dict | None,
                  sector_key: str | None = None, meta: dict | None = None) -> tuple[str, int]:
     """
-    Sector lens \u2014 the selected sector's benchmarks (computed monthly from
-    IndianAPI + NSE constituents) and a Company-vs-Sector comparison.
-
-    ``snap`` is that sector's entry from data/sector_snapshot.json, or None when
-    the snapshot has not been generated yet. ``meta`` is the snapshot's top-level
-    metadata (for the last-updated stamp). Company figures always come from the
-    uploaded workbook; any value that is missing or not applicable shows "\u2014" and
-    is never estimated.
+    Unified Sector Lens shell.
+    Renders header, badges, benchmarks, seasonality & tilt, MoM diffs,
+    company vs sector comparison, and Top 10 constituent table.
     """
     comp = _company_vr(model)
     sector_name = result.sector.name
     have = snap is not None
     sect, applic = _sect_values(snap)
     roce_applicable = applic["roce_applicable"]
-    # Reference index is known statically from the mapping even before any
-    # snapshot exists, so it is shown rather than a blank "\u2014".
-    idx_name = (snap or {}).get("reference_index", "")
-    if not idx_name and sector_key and sector_key in UNIVERSE:
-        idx_name = UNIVERSE[sector_key].index_label
+    is_fin = bool(snap.get("is_financial")) if snap else False
 
-    # ---- Sector pulse (or a "not generated yet" notice) ----
+    idx_name = (snap or {}).get("reference_index", "")
+    map_type = (snap or {}).get("mapping_type", "")
+    map_note = (snap or {}).get("mapping_note", "")
+    if not idx_name and sector_key and sector_key in UNIVERSE:
+        uni = UNIVERSE[sector_key]
+        idx_name = uni.index_label
+        map_type = uni.mapping_type
+        map_note = uni.mapping_note
+
+    # Badge styling
+    badge_colors = {
+        "exact": ("#eef5f0", "#177245"),
+        "approximate": ("#fcf6e8", "#b8860b"),
+        "proxy": ("#faeeed", "#a55"),
+    }
+    bg, fg = badge_colors.get(map_type, ("#f1f3f1", "#8b918e"))
+    map_badge = (
+        f'<span style="background:{bg};color:{fg};font-size:11px;'
+        'font-weight:700;letter-spacing:.3px;border-radius:20px;'
+        f'padding:3px 10px;text-transform:capitalize">{_esc(map_type or "standard")}</span>'
+    )
+
+    # Sector pulse
     if have:
-        pulse_data = (snap or {}).get("pulse", {})
-        inc = snap.get("constituents_included")
-        att = snap.get("constituents_attempted")
-        cov = (f'{inc} of {att} constituents' if inc is not None and att else "")
+        inc = snap.get("included_count")
+        att = snap.get("constituent_count")
+        skp = snap.get("skipped_count", 0)
+        cov = f"{inc} of {att} constituents" + (f" · {skp} skipped" if skp else "")
+        top_list = snap.get("top10", [])
+        tot_mcap = sum(r.get("market_cap", 0) for r in top_list if r.get("market_cap")) if top_list else None
+        avg_mcap = (tot_mcap / len(top_list)) if (tot_mcap and top_list) else None
+
         pulse = (
             '<div style="display:flex;gap:14px;flex-wrap:wrap">'
-            + _tile("Companies", _fx(pulse_data.get("no_companies"), "int"), cov)
-            + _tile("Total Market Cap", _fx(pulse_data.get("total_market_cap"), "mcap"))
-            + _tile("Avg Market Cap", _fx(pulse_data.get("avg_market_cap"), "mcap"))
-            + "</div>")
+            + _tile("Constituents", _fx(inc, "int"), cov)
+            + _tile("Sector P/E", _fx(sect.get("pe"), "x"), "Excl. loss-makers")
+            + _tile("Sector P/B", _fx(sect.get("pb"), "x"), "Year-end equity")
+            + _tile("Sector ROE", _fx(sect.get("roe"), "pct"), "Pooled aggregate")
+            + _tile("Sector ROCE", "—" if not roce_applicable else _fx(sect.get("roce"), "pct"),
+                    "Lenders n/a" if not roce_applicable else "Pooled aggregate")
+            + "</div>"
+        )
     else:
         pulse = (
             '<div style="background:#fbf7ec;border:1px solid #ecdfbf;border-radius:14px;'
             'padding:16px 18px;color:#7a6a3c;font-size:13.5px;line-height:1.55">'
             '<b style="color:#5f5326">Sector benchmarks not available yet.</b><br>'
-            'The monthly sector snapshot has not been generated for this sector. '
+            'The monthly sector snapshot has not been generated for this sector yet. '
             'The company figures below are read from your uploaded model; the sector '
-            'column fills in once the snapshot is built.</div>')
+            'column fills in once data/sector_snapshot.json is generated.</div>'
+        )
 
-    # ---- Company-vs-Sector horizontal bars (dark bar = company, grey tick = sector) ----
+    # Company-vs-Sector horizontal bars
     table = (
         '<div style="padding-top:6px">'
         + _grp("VALUATION")
         + _bar_row("P/E", comp["pe"], sect.get("pe"), "x")
         + _bar_row("P/B", comp["pb"], sect.get("pb"), "x")
-        + _bar_row("PEG", comp["peg"], sect.get("peg"), "peg")
         + _grp("RETURNS")
         + _bar_row("ROE", comp["roe"], sect.get("roe"), "pct")
-        + _bar_row("ROCE", comp["roce"], sect.get("roce"), "pct",
-                   applicable=roce_applicable)
+        + _bar_row("ROCE", comp["roce"], sect.get("roce"), "pct", applicable=roce_applicable)
         + _bar_row("ROA", comp["roa"], sect.get("roa"), "pct")
-        + "</div>")
+        + "</div>"
+    )
 
-    # ---- interpretation, styled as a verdict card ----
+    # Reading card
     reading = _interpretation(comp, sect)
     reading_card = ""
     if reading:
@@ -1464,55 +1638,60 @@ def sector_shell(model, result, snap: dict | None,
             '<div style="font-size:20px;font-weight:800;letter-spacing:-.4px;'
             'color:#15201a">Reading</div></div>'
             f'<div style="font-size:14.5px;line-height:1.62;color:#3f4744">{_esc(reading)}</div>'
-            '</div>')
+            '</div>'
+        )
 
-    # ---- footnotes: ROCE-not-applicable reason + coverage/skips ----
+    # Footnotes
     notes = []
-    if not roce_applicable and applic["roce_reason"]:
+    if not roce_applicable and applic.get("roce_reason"):
         notes.append(_esc(applic["roce_reason"]))
-    if have and snap.get("constituents_skipped"):
-        notes.append(f'{snap["constituents_skipped"]} constituent(s) skipped '
-                     '(missing data); sector values use the rest.')
+    if map_note:
+        notes.append(f"Universe mapping: {_esc(map_note)}")
+    if have and snap.get("skipped_count"):
+        notes.append(f'{snap["skipped_count"]} constituent(s) skipped in snapshot computation (missing statement data).')
+
     notes_html = ""
     if notes:
-        notes_html = ('<div style="font-size:12px;color:#9aa09d;padding:2px 4px;'
-                      'line-height:1.5">' + "<br>".join(notes) + "</div>")
+        notes_html = (
+            '<div style="font-size:12px;color:#9aa09d;padding:4px 4px 12px;line-height:1.5">'
+            + "<br>".join(notes)
+            + "</div>"
+        )
 
-    idx_display = _esc(idx_name or "\u2014")
+    idx_display = _esc(idx_name or "—")
     src_line = _source_line(snap or {}, meta)
-    period = (snap or {}).get("data_period")
-    period_txt = f' \u00b7 data period {_esc(period)}' if period else ""
-    benchmarks_card = ""
-    if have:
-        benchmarks_card = (
-            '<div class="card"><div class="ct">Sector benchmarks</div>'
-            f'<div class="csub">Pooled across the {_esc(idx_name or sector_name)} '
-            f'constituents{period_txt}</div>'
-            f'{_benchmarks_block(sect, roce_applicable)}</div>')
+    period = (snap or {}).get("financial_period") or (snap or {}).get("data_period")
+    period_txt = f" · Data period: <b>{_esc(period)}</b>" if period else ""
+
     body = "".join([
         '<div class="pghead"><span class="pt">Sector lens</span>'
         '<span class="ps">Sector benchmarks from IndianAPI + NSE, refreshed monthly.'
         '</span></div>',
-        # pulse card
+        # Header / Pulse Card
         '<div class="card">'
         '<div style="display:flex;align-items:baseline;justify-content:space-between;'
         'gap:12px;flex-wrap:wrap;padding-bottom:12px">'
-        f'<div><div class="ct">{_esc(sector_name)}</div>'
-        f'<div class="csub" style="padding-bottom:0">Reference index: '
-        f'{idx_display}</div></div>'
+        '<div>'
+        f'<div class="ct" style="display:flex;align-items:center;gap:8px">{_esc(sector_name)} {map_badge}</div>'
+        f'<div class="csub" style="padding-bottom:0">Reference universe: <b>{idx_display}</b>{period_txt}</div>'
+        '</div>'
         f'<div>{src_line}</div></div>'
         f'{pulse}</div>',
-        benchmarks_card,
-        # comparison card
+        # Seasonality & Tilt
+        _seasonality_card(snap, sector_key),
+        # Month-over-Month
+        _mom_card(snap),
+        # Company vs Sector Comparison
         f'<div class="card"><div class="ct">Company vs Sector</div>'
-        f'<div class="csub">{_esc(model.company.title())} against the '
-        f'{_esc(sector_name)} sector aggregate</div>{table}</div>',
+        f'<div class="csub">{_esc(model.company.title())} against the {_esc(sector_name)} sector aggregate</div>'
+        f'{table}</div>',
         reading_card,
         notes_html,
-        # sector cycle & seasonality (structural profile + data-grounded tilt)
-        _seasonality_card(sector_key, sect.get("growth")),
+        # Top 10 Table
+        _top10_table((snap or {}).get("top10"), is_fin),
     ])
-    return _doc(body, ""), 1000
+
+    return _doc(body, ""), 1500
 
 
 def statements_shell(model, query: str = "") -> tuple[str, int]:

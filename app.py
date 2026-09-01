@@ -26,6 +26,7 @@ from core import charts as C
 from core import design_blocks as D
 from core import report as REP
 from core import sections as S
+from core import sector_snapshot as SNAP
 from core import shell as SH
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
@@ -611,26 +612,15 @@ def statements_tab(model) -> None:
     html, height = SH.statements_shell(model, query)
     _render_shell(html, height)
 
-@st.cache_data(show_spinner=False)
-def _load_sector_snapshot() -> dict | None:
-    """Read the monthly sector snapshot (built by the GitHub Action). None if absent."""
-    path = APP_DIR / "data" / "sector_snapshot.json"
-    try:
-        return json.loads(path.read_text())
-    except Exception:                               # noqa: BLE001 - missing/invalid file
-        return None
-
-
 def sector_lens_tab(model, result) -> None:
     """Sector lens - sector benchmarks from the monthly snapshot + company comparison."""
-    snap_all = _load_sector_snapshot()
+    snap_all = SNAP.load_snapshot()
     key = st.session_state.get("sector_pref", "generic")
-    sector_snap, meta = None, None
-    if snap_all and isinstance(snap_all.get("sectors"), dict):
-        sector_snap = snap_all["sectors"].get(key)
-        meta = {k: v for k, v in snap_all.items() if k != "sectors"}
+    sector_snap = SNAP.get_sector(snap_all, key) if snap_all else None
+    meta = SNAP.snapshot_meta(snap_all) if snap_all else None
     html, height = SH.sector_shell(model, result, sector_snap, sector_key=key, meta=meta)
     _render_shell(html, height)
+
 
 BRIEF_CSS = """<style>
 .brief{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
