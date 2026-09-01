@@ -76,8 +76,9 @@ class Brief:
     why_care: str = ""
     docs: list[Doc] = field(default_factory=list)       # sources actually used
     unavailable: str = ""                               # non-empty => nothing to show
-    error: str = ""                                     # soft error note
-    offline: bool = False                               # LLM not connected
+    error: str = ""                                     # user-facing soft error note
+    error_detail: str = ""                              # raw provider error (logs only)
+    offline: bool = False                               # no provider key detected
 
 
 # --------------------------------------------------------------------------
@@ -375,7 +376,12 @@ def build_brief(company: str, config: LLMConfig) -> Brief:
             "core_focus": b.core_focus, "key_initiatives": b.key_initiatives,
             "why_care": b.why_care}), encoding="utf-8")
     except Exception as exc:                            # noqa: BLE001
-        b.error = f"the brief could not be generated ({exc})"
+        # Keys ARE present (we passed the offline check) but every provider
+        # failed — a rate-limit/outage, not a missing key. Say so plainly and
+        # keep the retrieved sources visible. Raw detail kept for logs only.
+        b.error = ("AI brief temporarily unavailable. Your source documents were "
+                   "retrieved successfully. Please try again shortly.")
+        b.error_detail = str(exc)
     return b
 
 
