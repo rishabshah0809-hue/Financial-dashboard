@@ -21,7 +21,10 @@ on a missing API key.
 from __future__ import annotations
 
 import json
+import logging
 import os
+import re
+import time
 from dataclasses import dataclass, field
 
 import requests
@@ -29,6 +32,33 @@ import requests
 from .scoring import Assessment
 
 TIMEOUT_SECONDS = 60
+
+# Diagnostics only. Emits provider name, success/failure, HTTP status, error
+# category and a timestamp. It NEVER logs API keys, secret values, prompts,
+# document text or any user data.
+LOGGER = logging.getLogger("fundacheck.llm")
+
+
+def _classify(err: str) -> tuple[str, str]:
+    """(http_status, category) from a provider error string — no sensitive data."""
+    m = re.search(r"\b([1-5]\d{2})\b", err)
+    http = m.group(1) if m else "none"
+    low = err.lower()
+    if "429" in err or "rate" in low or "quota" in low or "tpm" in low or "too many" in low:
+        cat = "rate_limit"
+    elif "413" in err or "too large" in low or "context length" in low or "token" in low:
+        cat = "too_large"
+    elif "401" in err or "403" in err or "invalid" in low or "unauthor" in low or "permission" in low or "api key" in low:
+        cat = "auth"
+    elif "404" in err or "not found" in low or "no longer available" in low or "model" in low:
+        cat = "model"
+    elif "timeout" in low or "timed out" in low:
+        cat = "timeout"
+    elif http in ("500", "502", "503", "504") or "unavailable" in low or "overload" in low or "high demand" in low:
+        cat = "unavailable"
+    else:
+        cat = "other"
+    return http, cat
 
 # The analyst always runs in reasoning mode. The verdict is a judgement across a
 # dozen interacting ratios where the sector decides what "good" means, so a model
@@ -239,15 +269,23 @@ def post(config: LLMConfig, messages: list[dict]) -> str:
     chain = [config, *(config.fallbacks or [])]
     errors = []
     for cfg in chain:
+        label = PROVIDERS.get(cfg.provider, {}).get("label", cfg.provider)
+        ts = time.strftime("%Y-%m-%dT%H:%M:%S")
         if not cfg.is_live:
             errors.append(f"{cfg.provider}: no key configured")
+            LOGGER.warning("llm provider=%s status=failed http=none category=no_key ts=%s",
+                           label, ts)
             continue
         try:
             text = _post(cfg, messages)
-            _LAST_USED = PROVIDERS.get(cfg.provider, {}).get("label", cfg.provider)
+            _LAST_USED = label
+            LOGGER.info("llm provider=%s status=success http=200 ts=%s", label, ts)
             return text
         except Exception as exc:                # noqa: BLE001 - try the next provider
+            http, category = _classify(str(exc))
             errors.append(f"{cfg.provider}: {exc}")
+            LOGGER.warning("llm provider=%s status=failed http=%s category=%s ts=%s",
+                           label, http, category, ts)
             continue
     raise RuntimeError("all LLM providers failed — " + " | ".join(errors))
 
