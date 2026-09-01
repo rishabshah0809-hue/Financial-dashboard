@@ -590,10 +590,11 @@ def sector_lens_tab(model, result) -> None:
     """Sector lens - sector benchmarks from the monthly snapshot + company comparison."""
     snap_all = _load_sector_snapshot()
     key = st.session_state.get("sector_pref", "generic")
-    sector_snap = None
+    sector_snap, meta = None, None
     if snap_all and isinstance(snap_all.get("sectors"), dict):
         sector_snap = snap_all["sectors"].get(key)
-    html, height = SH.sector_shell(model, result, sector_snap)
+        meta = {k: v for k, v in snap_all.items() if k != "sectors"}
+    html, height = SH.sector_shell(model, result, sector_snap, sector_key=key, meta=meta)
     _render_shell(html, height)
 
 def qa_tab(result, config: LLMConfig) -> None:

@@ -34,9 +34,13 @@ jobs:
         env:
           # Stored ONLY as a repository secret; never printed or committed.
           INDIANAPI_KEY: ${{ secrets.INDIANAPI_KEY }}
-        run: python scripts/build_sector_snapshot.py
+        # Non-zero exit (over-budget abort, or validation failure) fails the job
+        # and — because the script never writes on failure — the previous good
+        # snapshot is kept. All 9 sectors in one run, capped at 400 credits.
+        run: python scripts/build_sector_snapshot.py --max-budget 400
 
       - name: Commit refreshed snapshot if changed
+        # Only reached when the build step succeeded (valid snapshot written).
         run: |
           if [[ -n "$(git status --porcelain data/sector_snapshot.json)" ]]; then
             git config user.name "github-actions[bot]"

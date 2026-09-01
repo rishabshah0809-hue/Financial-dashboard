@@ -101,9 +101,49 @@ def aggregate_sector(uni: SectorUniverse, companies: list[Company],
                                   den_positive=True, as_percent=True, bound_key="roce")
         metrics["roce"]["applicable"] = True
 
+    # Pooled trailing earnings growth (input to PEG): companies that report both
+    # the current and a positive prior-year net income.
+    g_pairs = [c for c in usable if c.net_income is not None
+               and c.net_income_prior is not None and c.net_income_prior > 0]
+    growth = None
+    if g_pairs:
+        cur = sum(c.net_income for c in g_pairs)
+        prior = sum(c.net_income_prior for c in g_pairs)
+        if prior > 0:
+            growth = round((cur - prior) / prior * 100.0, 2)
+    metrics["earnings_growth"] = {
+        "value": growth,
+        "included": [c.symbol for c in g_pairs],
+        "note": "" if growth is not None else "insufficient prior-year data",
+    }
+
+    # Trailing PEG = Sector P/E ÷ pooled earnings growth %. Withheld when growth
+    # is not positive (PEG is meaningless then) or the result is implausible.
+    pe_val = metrics["pe"]["value"]
+    peg_val, peg_note = None, ""
+    if pe_val is None:
+        peg_note = "no sector P/E"
+    elif growth is None:
+        peg_note = "no earnings-growth figure"
+    elif growth <= 0:
+        peg_note = f"earnings growth not positive ({growth}%); PEG not meaningful"
+    else:
+        cand = pe_val / growth
+        if 0 < cand <= 20:
+            peg_val = round(cand, 2)
+        else:
+            peg_note = f"withheld: PEG {cand:.2f} outside plausible range (0,20]"
+    metrics["peg"] = {"value": peg_val, "growth_pct": growth, "note": peg_note,
+                      "basis": "trailing (P/E ÷ latest annual earnings growth)"}
+
     mcaps = [c.market_cap for c in usable if c.market_cap is not None]
     total_mcap = round(sum(mcaps), 2) if mcaps else None
     avg_mcap = round(sum(mcaps) / len(mcaps), 2) if mcaps else None
+
+    # Data period = the most common annual period-end across the constituents,
+    # so the UI can state which fiscal year the sector figures come from.
+    periods = [c.period_label for c in usable if getattr(c, "period_label", None)]
+    data_period = max(set(periods), key=periods.count) if periods else None
 
     skip_detail = [{"symbol": c.symbol, "reason": "; ".join(c.missing) or "no usable data"}
                    for c in dropped]
@@ -114,6 +154,7 @@ def aggregate_sector(uni: SectorUniverse, companies: list[Company],
         "reference_index": uni.index_label,
         "source": SOURCE_LABEL,
         "as_of": as_of,
+        "data_period": data_period,
         "methodology": METHODOLOGY,
         "constituents_attempted": attempted,
         "constituents_included": len(usable),
@@ -124,7 +165,9 @@ def aggregate_sector(uni: SectorUniverse, companies: list[Company],
             "total_market_cap": total_mcap,
             "avg_market_cap": avg_mcap,
         },
-        "metrics": {m: metrics[m] for m in METRICS},
+        "metrics": {**{m: metrics[m] for m in METRICS},
+                    "peg": metrics["peg"],
+                    "earnings_growth": metrics["earnings_growth"]},
     }
 
 

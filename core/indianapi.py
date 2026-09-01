@@ -68,6 +68,7 @@ class Company:
     name: str
     period_label: str | None = None
     net_income: float | None = None
+    net_income_prior: float | None = None      # prior annual period, for growth/PEG
     ebitda: float | None = None
     dep_amort: float | None = None
     equity: float | None = None
@@ -146,33 +147,29 @@ def _deep_find(obj, synonyms: tuple[str, ...]) -> float | None:
     return None
 
 
-def _latest_annual(financials) -> dict | None:
-    """Pick the most recent ANNUAL period's stockFinancialMap.
+def _annual_sorted(financials) -> list[dict]:
+    """Annual periods oldest→newest. Never mixes TTM with annual.
 
-    Never mixes fiscal years or TTM with annual: it selects a single annual
-    period and every statement figure is read from that one period.
+    Each returned period's statement figures are read as one coherent set; the
+    last element is the latest year, the second-to-last the prior year.
     """
     if not isinstance(financials, list):
-        return None
+        return []
     annual = []
     for f in financials:
         if not isinstance(f, dict):
             continue
         typ = str(f.get("Type") or f.get("type") or "").lower()
-        # Treat entries explicitly marked annual, or (fallback) any with a
-        # stockFinancialMap when no type is given, as candidates.
         if "annual" in typ or (not typ and f.get("stockFinancialMap")):
             annual.append(f)
     if not annual:
         annual = [f for f in financials if isinstance(f, dict) and f.get("stockFinancialMap")]
-    if not annual:
-        return None
 
     def endkey(f):
         return str(f.get("EndDate") or f.get("endDate") or f.get("FiscalYear")
                    or f.get("fiscalYear") or f.get("Type") or "")
     annual.sort(key=endkey)
-    return annual[-1]
+    return annual
 
 
 def fetch_stock(query: str, key: str) -> dict:
@@ -200,11 +197,18 @@ def fetch_stock(query: str, key: str) -> dict:
 def extract_company(raw: dict, symbol: str, isin: str, name: str) -> Company:
     """Pull the raw fields from one /stock response into a Company record."""
     c = Company(symbol=symbol, isin=isin, name=name)
-    period = _latest_annual(raw.get("financials"))
+    periods = _annual_sorted(raw.get("financials"))
+    period = periods[-1] if periods else None
     sfm = (period or {}).get("stockFinancialMap", {}) if isinstance(period, dict) else {}
     inc, bal, cas = _rows(sfm.get("INC")), _rows(sfm.get("BAL")), _rows(sfm.get("CAS"))
     c.period_label = (str(period.get("EndDate") or period.get("FiscalYear") or "")
                       if isinstance(period, dict) else None)
+
+    # Prior annual period's net income (for pooled earnings growth / PEG). Same
+    # /stock response, no extra API call; None when only one year is available.
+    if len(periods) >= 2:
+        prior_sfm = periods[-2].get("stockFinancialMap", {}) if isinstance(periods[-2], dict) else {}
+        c.net_income_prior = _match(_rows(prior_sfm.get("INC")), INCOME_LABELS["net_income"])
 
     c.net_income = _match(inc, INCOME_LABELS["net_income"])
     c.ebitda = _match(inc, INCOME_LABELS["ebitda"])
