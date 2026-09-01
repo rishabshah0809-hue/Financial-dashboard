@@ -117,25 +117,32 @@ PROVIDERS = {
 
 def _keys_from(source: dict | None, env_name: str) -> list[str]:
     """
-    Collect API keys from Streamlit secrets or the environment.
+    Collect API keys from Streamlit secrets or the environment — tolerantly.
 
-    Accepted shapes, in order: a `groq.api_keys` list, a `GROQ_API_KEYS`
-    comma-separated string, or a single `GROQ_API_KEY`. Keys are never held in
-    source — they come from the deployment's secret store.
+    Streamlit secret names are case-sensitive and users name them in many ways
+    (GROQ_API_KEY, groq_api_key, GROQ_KEY, a [groq] section with api_keys, …).
+    Rather than demand one exact spelling, match the provider prefix
+    case-insensitively across flat entries and sections. Keys are never stored
+    here — they come from the deployment's secret store.
     """
+    prefix = env_name.split("_")[0].lower()     # groq | gemini | google | openrouter
     keys: list[str] = []
 
+    def _add(v) -> None:
+        if isinstance(v, (list, tuple)):
+            keys.extend(str(x) for x in v)
+        elif isinstance(v, str):
+            keys.extend(v.split(","))
+
     if source:
-        block = source.get(env_name.split("_")[0].lower(), {})
-        if isinstance(block, dict):
-            listed = block.get("api_keys") or block.get("keys")
-            if isinstance(listed, (list, tuple)):
-                keys.extend(str(k) for k in listed)
-            elif isinstance(listed, str):
-                keys.extend(listed.split(","))
-        single = source.get(env_name) or source.get(f"{env_name}S")
-        if isinstance(single, str):
-            keys.extend(single.split(","))
+        for raw_k, v in source.items():
+            k = str(raw_k).lower().replace("-", "_")
+            if isinstance(v, dict):                      # e.g. [groq] section
+                if k == prefix or k.startswith(prefix):
+                    _add(v.get("api_keys") or v.get("keys")
+                         or v.get("api_key") or v.get("key"))
+            elif prefix in k and any(t in k for t in ("key", "token", "api", prefix)):
+                _add(v)                                  # e.g. GROQ_API_KEY / groq_key
 
     for name in (f"{env_name}S", env_name):
         raw = os.getenv(name, "")

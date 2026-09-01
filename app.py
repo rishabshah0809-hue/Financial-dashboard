@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -646,13 +647,20 @@ def _company_brief_block(company: str, config: LLMConfig) -> None:
     Only a *successful* brief is memoised in session_state; an offline/error
     result is left uncached so a later visit retries (a transient LLM failure
     must never get stuck for the session)."""
+    # Cache a *successful* brief for the whole session. A failed/offline result is
+    # reused for a short cooldown too, so revisiting the page doesn't hammer the
+    # providers in a loop — after the cooldown it retries once.
     key = f"__brief__{company}"
-    b = st.session_state.get(key)
-    if b is None or b.offline or b.error:
+    entry = st.session_state.get(key)
+    now = time.time()
+    if entry and not entry["b"].offline and not entry["b"].error:
+        b = entry["b"]
+    elif entry and (now - entry["ts"] < 120):
+        b = entry["b"]
+    else:
         with st.spinner("Reading the latest official filings…"):
             b = BR.build_brief(company, config)
-        if not b.offline and not b.error and (b.core_focus or b.unavailable):
-            st.session_state[key] = b
+        st.session_state[key] = {"b": b, "ts": now}
 
     tag = ('<span style="font-family:ui-monospace,Menlo,monospace;font-size:10px;'
            'letter-spacing:1.6px;color:#8b918e;font-weight:700">COMPANY BRIEF</span>')
@@ -668,15 +676,9 @@ def _company_brief_block(company: str, config: LLMConfig) -> None:
                 f'<div class="bbody">{body}</div></div>')
 
     if b.offline:
-        try:
-            _sec = dict(st.secrets)
-        except Exception:                       # noqa: BLE001
-            _sec = {}
-        _gk = bool(config_from_env("groq", secrets=_sec).api_keys)
-        _mk = bool(config_from_env("gemini", secrets=_sec).api_keys)
-        note = ("The AI brief needs the analyst connection; showing the source "
-                "documents below. Add API keys to generate the written brief. "
-                f"(diagnostic — keys detected · Groq: {_gk} · Gemini: {_mk})")
+        note = ("No Groq or Gemini API key is detected in this app's Secrets, so "
+                "the written brief can't be generated. The official source "
+                "documents are shown below.")
         body = f'<div class="bnote">{note}</div>'
     elif b.error and not (b.core_focus or b.key_initiatives or b.why_care):
         body = f'<div class="bnote">{b.error}</div>'
