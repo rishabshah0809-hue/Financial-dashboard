@@ -172,15 +172,16 @@ section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzoneInstruction
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button{
   width:100%!important;background:linear-gradient(135deg,#2a9c62,#177245)!important;
   border:none!important;border-radius:12px!important;padding:11px 18px!important;
-  font-weight:700!important;justify-content:center!important;text-align:center!important}
-/* hide Streamlit's native "Browse files" label/icon, show our own via ::after */
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button,
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button *{
-  font-size:0!important;color:#fff!important}
+  font-weight:700!important;display:flex!important;justify-content:center!important;
+  align-items:center!important}
+/* Hide Streamlit's native icon + "Browse files" label entirely (the icon keeps
+   width even at font-size:0, which is what pushed our text off-centre); draw our
+   own full-width, centred label with ::after. */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button>*{
+  display:none!important}
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button::after{
-  content:"\\2191  Upload new file";font-size:14px!important;color:#fff!important}
-section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button>div{
-  justify-content:center!important;width:100%!important}
+  content:"\\2191  Upload new file";font-size:14px!important;color:#fff!important;
+  width:100%!important;text-align:center!important}
 /* drop the little uploaded-file preview strip Streamlit shows under the button */
 section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"]{display:none!important}
 
@@ -191,11 +192,15 @@ section[data-testid="stSidebar"] [class*="st-key-src-action"] button{
   color:#dde4df!important;font-size:13.5px!important;font-weight:600!important;
   padding:.55rem .8rem!important;margin-top:8px!important;justify-content:center!important;
   text-align:center!important}
-section[data-testid="stSidebar"] [class*="st-key-src-action"] button *{color:#dde4df!important}
-/* Streamlit wraps the label in a flex <div justify-content:flex-start> that pins
-   it left no matter what the button's own alignment is; centre that inner div. */
-section[data-testid="stSidebar"] [class*="st-key-src-action"] button>div{
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button *{
+  color:#dde4df!important;text-align:center!important}
+/* Streamlit wraps the label in a flex container pinned left; force every layer
+   (the wrapper div, the markdown container and the <p>) to fill and centre. */
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button>div,
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button [data-testid="stMarkdownContainer"]{
   justify-content:center!important;width:100%!important;text-align:center!important}
+section[data-testid="stSidebar"] [class*="st-key-src-action"] button p{
+  width:100%!important;text-align:center!important;margin:0 auto!important}
 section[data-testid="stSidebar"] [class*="st-key-src-action"] button:hover{
   background:rgba(255,255,255,.05)!important;border-color:rgba(255,255,255,.24)!important}
 
