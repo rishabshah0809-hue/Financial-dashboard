@@ -108,7 +108,7 @@ PROVIDERS = {
         # Google Generative Language REST API (free tier). Different request/
         # response shape from the OpenAI-style providers above — handled in _post.
         "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        "models": ["gemini-2.0-flash", "gemini-2.5-flash"],
+        "models": ["gemini-2.5-flash", "gemini-2.0-flash"],
         "key_env": "GEMINI_API_KEY",
         "signup": "https://aistudio.google.com/apikey",
     },
@@ -230,18 +230,19 @@ def post(config: LLMConfig, messages: list[dict]) -> str:
     (e.g. Groq → Gemini). Records which provider answered in `last_provider()`."""
     global _LAST_USED
     chain = [config, *(config.fallbacks or [])]
-    last_error = "no provider configured"
+    errors = []
     for cfg in chain:
         if not cfg.is_live:
+            errors.append(f"{cfg.provider}: no key configured")
             continue
         try:
             text = _post(cfg, messages)
             _LAST_USED = PROVIDERS.get(cfg.provider, {}).get("label", cfg.provider)
             return text
         except Exception as exc:                # noqa: BLE001 - try the next provider
-            last_error = f"{cfg.provider}: {exc}"
+            errors.append(f"{cfg.provider}: {exc}")
             continue
-    raise RuntimeError(f"all LLM providers failed — last error: {last_error}")
+    raise RuntimeError("all LLM providers failed — " + " | ".join(errors))
 
 
 def _post_gemini(config: LLMConfig, messages: list[dict]) -> str:
