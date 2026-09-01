@@ -46,9 +46,11 @@ UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 TIMEOUT = 20
 # Token budget for the LLM context: transcript + presentation first (richest
-# management commentary), annual report only if room.
-MAX_DOC_CHARS = 9000
-MAX_CONTEXT_CHARS = 22000
+# management commentary), annual report only if room. Kept small on purpose —
+# Groq's free tier caps at ~8000 tokens/minute, so the whole request (context +
+# prompt + reply) must stay well under that.
+MAX_DOC_CHARS = 4000
+MAX_CONTEXT_CHARS = 8000
 
 
 # --------------------------------------------------------------------------

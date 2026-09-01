@@ -108,7 +108,7 @@ PROVIDERS = {
         # Google Generative Language REST API (free tier). Different request/
         # response shape from the OpenAI-style providers above — handled in _post.
         "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-        "models": ["gemini-2.5-flash", "gemini-2.0-flash"],
+        "models": ["gemini-flash-latest", "gemini-2.0-flash"],
         "key_env": "GEMINI_API_KEY",
         "signup": "https://aistudio.google.com/apikey",
     },
