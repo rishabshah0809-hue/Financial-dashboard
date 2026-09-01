@@ -54,11 +54,13 @@ class LLMConfig:
     dropping to the offline note.
     """
 
-    provider: str = "groq"          # "groq" | "openrouter" | "offline"
+    provider: str = "groq"          # "groq" | "openrouter" | "gemini" | "offline"
     api_keys: list[str] = field(default_factory=list)
     model: str = ""
     temperature: float = 0.2
     reasoning_effort: str = "high"
+    # Providers to try, in order, if this one fails/rate-limits (e.g. Groq → Gemini).
+    fallbacks: list = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Enforce reasoning mode at construction, so no call site can opt out.
@@ -100,6 +102,15 @@ PROVIDERS = {
         ],
         "key_env": "OPENROUTER_API_KEY",
         "signup": "https://openrouter.ai/keys",
+    },
+    "gemini": {
+        "label": "Gemini",
+        # Google Generative Language REST API (free tier). Different request/
+        # response shape from the OpenAI-style providers above — handled in _post.
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        "models": ["gemini-2.0-flash", "gemini-2.5-flash"],
+        "key_env": "GEMINI_API_KEY",
+        "signup": "https://aistudio.google.com/apikey",
     },
 }
 
@@ -145,6 +156,10 @@ def config_from_env(provider: str = "groq", model: str = "",
     if not spec:
         return LLMConfig(provider="offline")
     keys = _keys_from(secrets, spec["key_env"])
+    if provider == "gemini":                    # Google keys are often named GOOGLE_*
+        for k in _keys_from(secrets, "GOOGLE_API_KEY"):
+            if k not in keys:
+                keys.append(k)
     return LLMConfig(
         provider=provider,
         api_keys=keys,
@@ -202,6 +217,74 @@ weak/strong bands — note the bands are sector-specific, not universal):
 Write the analyst note as JSON."""
 
 
+# Which provider actually answered the most recent successful call — for the UI.
+_LAST_USED = ""
+
+
+def last_provider() -> str:
+    return _LAST_USED
+
+
+def post(config: LLMConfig, messages: list[dict]) -> str:
+    """Fallback-aware call: try `config`, then each of its `.fallbacks` in turn
+    (e.g. Groq → Gemini). Records which provider answered in `last_provider()`."""
+    global _LAST_USED
+    chain = [config, *(config.fallbacks or [])]
+    last_error = "no provider configured"
+    for cfg in chain:
+        if not cfg.is_live:
+            continue
+        try:
+            text = _post(cfg, messages)
+            _LAST_USED = PROVIDERS.get(cfg.provider, {}).get("label", cfg.provider)
+            return text
+        except Exception as exc:                # noqa: BLE001 - try the next provider
+            last_error = f"{cfg.provider}: {exc}"
+            continue
+    raise RuntimeError(f"all LLM providers failed — last error: {last_error}")
+
+
+def _post_gemini(config: LLMConfig, messages: list[dict]) -> str:
+    """Google Generative Language API (different shape from the OpenAI providers)."""
+    spec = PROVIDERS["gemini"]
+    system = "\n".join(m["content"] for m in messages if m["role"] == "system")
+    contents = [
+        {"role": "model" if m["role"] == "assistant" else "user",
+         "parts": [{"text": m["content"]}]}
+        for m in messages if m["role"] != "system"
+    ]
+    payload = {
+        "contents": contents,
+        "generationConfig": {"temperature": config.temperature,
+                             "maxOutputTokens": 2600},
+    }
+    if system:
+        payload["system_instruction"] = {"parts": [{"text": system}]}
+    url = spec["url"].format(model=config.model)
+    last_error = "no API key configured"
+    for key in config.api_keys:
+        try:
+            response = requests.post(
+                url, headers={"x-goog-api-key": key, "Content-Type": "application/json"},
+                json=payload, timeout=TIMEOUT_SECONDS)
+        except requests.RequestException as exc:
+            last_error = str(exc)
+            continue
+        if response.status_code == 200:
+            cand = response.json().get("candidates") or []
+            if not cand:
+                last_error = "empty response"
+                continue
+            parts = cand[0].get("content", {}).get("parts", [])
+            return "".join(p.get("text", "") for p in parts)
+        if response.status_code in (401, 403, 429):
+            last_error = f"{response.status_code} on one key"
+            continue
+        raise RuntimeError(f"Gemini returned {response.status_code}: "
+                           f"{response.text[:200]}")
+    raise RuntimeError(f"every Gemini key failed — last error: {last_error}")
+
+
 def _post(config: LLMConfig, messages: list[dict]) -> str:
     """
     Call the provider, trying each key in the pool.
@@ -209,6 +292,8 @@ def _post(config: LLMConfig, messages: list[dict]) -> str:
     A rate-limited or rejected key moves to the next one rather than failing the
     request; only when every key is exhausted does the caller fall back.
     """
+    if config.provider == "gemini":
+        return _post_gemini(config, messages)
     spec = PROVIDERS[config.provider]
     payload = {
         "model": config.model,
@@ -381,7 +466,7 @@ def analyse(result: Assessment, config: LLMConfig) -> dict:
     Falls back to the offline note on any failure, with the error attached
     so the UI can tell the user what went wrong.
     """
-    if not config.is_live:
+    if not config.is_live and not any(c.is_live for c in config.fallbacks):
         return offline_note(result)
 
     messages = [
@@ -389,7 +474,7 @@ def analyse(result: Assessment, config: LLMConfig) -> dict:
         {"role": "user", "content": build_user_prompt(result)},
     ]
     try:
-        note = _extract_json(_post(config, messages))
+        note = _extract_json(post(config, messages))
     except Exception as exc:                      # noqa: BLE001 - surfaced in the UI
         fallback = offline_note(result)
         fallback["_error"] = str(exc)
@@ -402,7 +487,7 @@ def analyse(result: Assessment, config: LLMConfig) -> dict:
 
 def answer_question(result: Assessment, question: str, config: LLMConfig) -> str:
     """Free-text Q&A about the loaded company (the 'ask the analyst' box)."""
-    if not config.is_live:
+    if not config.is_live and not any(c.is_live for c in config.fallbacks):
         return (
             "The analyst is not connected. Add Groq API keys to the app's secrets "
             "(see the README) and ask again."
@@ -420,6 +505,6 @@ def answer_question(result: Assessment, question: str, config: LLMConfig) -> str
         {"role": "user", "content": f"{build_user_prompt(result)}\n\nANALYST QUESTION: {question}"},
     ]
     try:
-        return _post(config, messages).strip()
+        return post(config, messages).strip()
     except Exception as exc:                      # noqa: BLE001
         return f"The model could not be reached: {exc}"

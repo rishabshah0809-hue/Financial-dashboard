@@ -19,6 +19,7 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
+from core import brief as BR
 from core import charts as C
 from core import design_blocks as D
 from core import report as REP
@@ -379,7 +380,16 @@ def analyst_config() -> LLMConfig:
         secrets = dict(st.secrets)
     except Exception:                       # noqa: BLE001 - no secrets file present
         secrets = {}
-    return config_from_env("groq", secrets=secrets)
+    # Groq is primary; Gemini is the automatic fallback if Groq fails/rate-limits.
+    # If only one is configured, that one is used; if neither, the offline note.
+    groq = config_from_env("groq", secrets=secrets)
+    gemini = config_from_env("gemini", secrets=secrets)
+    live = [c for c in (groq, gemini) if c.is_live]
+    if not live:
+        return groq                         # offline path unchanged
+    primary, fallbacks = live[0], live[1:]
+    primary.fallbacks = fallbacks
+    return primary
 
 
 def step(number: int, label: str) -> None:
@@ -590,9 +600,83 @@ def sector_lens_tab(model, result) -> None:
     html, height = SH.sector_shell(model, result, snap)
     _render_shell(html, height)
 
+BRIEF_CSS = """<style>
+.brief{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
+.brief .bcard{background:#fff;border:1px solid #e6ebe7;border-radius:16px;
+  padding:16px 18px;margin-top:10px;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+.brief .bh{font-size:15px;font-weight:800;color:#15201a;margin-bottom:8px}
+.brief .bbody{font-size:13px;line-height:1.6;color:#3f4744}
+.brief .bl{padding:4px 0}
+.brief .bl b{color:#15201a}
+.brief .tagm{color:#177245;font-weight:700}
+.brief .bfoot{font-size:11.5px;color:#9aa09d;font-style:italic;padding:12px 2px 2px}
+.brief .bnote{font-size:13px;color:#8b918e;padding:10px 2px}
+.brief .srcs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:12px}
+.brief .srcl{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+  letter-spacing:1.4px;color:#8b918e;font-weight:700}
+.brief a.src{font-size:12px;font-weight:600;color:#177245;text-decoration:none;
+  background:#eef4f0;border:1px solid #cfe2d7;border-radius:20px;padding:5px 11px}
+.brief a.src:hover{background:#e2efe8}
+</style>"""
+
+
+@st.cache_data(show_spinner=False, ttl=86400)
+def _cached_brief(company: str, _config: LLMConfig):
+    """Cache the brief per company for the session (network + LLM happen once).
+    _config is underscored so Streamlit doesn't try to hash the API keys."""
+    return BR.build_brief(company, _config)
+
+
+def _company_brief_block(company: str, config: LLMConfig) -> None:
+    """COMPANY BRIEF — three grounded sections above the Ask-AI chat."""
+    with st.spinner("Reading the latest official filings…"):
+        b = _cached_brief(company, config)
+
+    tag = ('<span style="font-family:ui-monospace,Menlo,monospace;font-size:10px;'
+           'letter-spacing:1.6px;color:#8b918e;font-weight:700">COMPANY BRIEF</span>')
+
+    if b.unavailable:
+        vcomp(BRIEF_CSS + f'<div class="brief">{tag}<div class="bnote">{b.unavailable}</div></div>', 200)
+        return
+
+    def section(title, html_body):
+        body = html_body or ('<div class="bl">Not stated in the available '
+                             'filings.</div>')
+        return (f'<div class="bcard"><div class="bh">{title}</div>'
+                f'<div class="bbody">{body}</div></div>')
+
+    if b.offline:
+        note = ("The AI brief needs the analyst connection; showing the source "
+                "documents below. Add API keys to generate the written brief.")
+        body = f'<div class="bnote">{note}</div>'
+    elif b.error and not (b.core_focus or b.key_initiatives or b.why_care):
+        body = f'<div class="bnote">{b.error}</div>'
+    else:
+        body = (section("Core Focus", b.core_focus)
+                + section("Key Initiatives", b.key_initiatives)
+                + section("Why Investors Should Care", b.why_care)
+                + '<div class="bfoot">Generated from the latest public filings, '
+                  'investor presentations and earnings-call disclosures.</div>')
+
+    # sources with real "View source" links to the official documents
+    if b.docs:
+        chips = "".join(
+            f'<a class="src" href="{d.url}" target="_blank" rel="noopener">'
+            f'{d.kind} · {d.date}'
+            + ("" if d.readable else " (not machine-readable)")
+            + "</a>"
+            for d in b.docs)
+        body += f'<div class="srcs"><span class="srcl">Sources</span>{chips}</div>'
+
+    height = 200 if b.offline else 640
+    vcomp(BRIEF_CSS + f'<div class="brief">{tag}{body}</div>', height)
+
+
 def qa_tab(result, config: LLMConfig) -> None:
     _page_header("Ask the analyst",
                  "Answers grounded only in the loaded model.")
+    _company_brief_block(result.company, config)
     with card("Ask the analyst"):
         st.caption(
             "Free-text questions about the loaded company. The model only sees the "

@@ -6,3 +6,6 @@ venv/
 .DS_Store
 .streamlit/secrets.toml
 fundacheck_full.html
+.cache/
+_nse_master.csv
+_scr.html
