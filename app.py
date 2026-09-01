@@ -25,6 +25,7 @@ from core import charts as C
 from core import design_blocks as D
 from core import report as REP
 from core import sections as S
+from core import sector_snapshot as SNAP
 from core import shell as SH
 from core import trendlyne as TL
 from core import viz
@@ -612,13 +613,119 @@ def statements_tab(model) -> None:
     _render_shell(html, height)
 
 def sector_lens_tab(model, result) -> None:
-    """Sector lens - live sector benchmarks from Trendlyne + company comparison."""
+    """Sector lens.
+
+    Prefers the monthly IndianAPI + NSE snapshot (``data/sector_snapshot.json``),
+    which is built offline by the GitHub Action — Streamlit only *reads* it and
+    makes no API/NSE calls here. If no snapshot exists yet, the Lens falls back
+    to the previous live Trendlyne path so nothing regresses.
+    """
+    sector_key = st.session_state.get("sector_pref", "generic")
+    snapshot = SNAP.load_snapshot()
+    sector = SNAP.get_sector(snapshot, sector_key)
+    if sector:
+        _render_snapshot_lens(snapshot, sector)
+        return
+    # Fallback: live Trendlyne benchmarks (unchanged behaviour).
     sec = result.sector
     with st.spinner("Fetching sector data from Trendlyne…"):
         snap = TL.get_sector_snapshot(
             sec.name, sec.trendlyne_id, sec.trendlyne_slug, sec.trendlyne_name)
     html, height = SH.sector_shell(model, result, snap)
     _render_shell(html, height)
+
+
+def _fmt(v, suffix="", dash="—"):
+    return dash if v is None else f"{v}{suffix}"
+
+
+def _render_snapshot_lens(snapshot: dict, sector: dict) -> None:
+    """Render the snapshot-backed Sector Lens with native Streamlit widgets —
+    metrics, Top 10 (clickable NSE links), current tilt and month-over-month
+    changes. Every missing value shows as '—'; nothing is computed here."""
+    meta = SNAP.snapshot_meta(snapshot)
+    m = sector.get("metrics", {})
+
+    badge = {"exact": "#177245", "approximate": "#b8860b", "proxy": "#a55"}.get(
+        sector.get("mapping_type"), "#8b918e")
+    _page_header(
+        f"Sector lens : {sector.get('sector_name')}",
+        f"{sector.get('reference_index')} · {sector.get('financial_period') or '—'}")
+    st.markdown(
+        f"<div style='font-size:12.5px;color:#8b918e;padding:2px 4px 10px'>"
+        f"Source: <b>{meta.get('source')}</b> &nbsp;·&nbsp; "
+        f"Last updated: <b>{meta.get('as_of_date') or '—'}</b> &nbsp;·&nbsp; "
+        f"Data period: <b>{sector.get('financial_period') or '—'}</b> &nbsp;·&nbsp; "
+        f"Reference universe: <b>{sector.get('reference_index')}</b> "
+        f"<span style='color:{badge};font-weight:700'>"
+        f"({sector.get('mapping_type')})</span></div>",
+        unsafe_allow_html=True)
+    if sector.get("mapping_type") != "exact" and sector.get("mapping_note"):
+        st.caption(f"Mapping note: {sector['mapping_note']}")
+
+    cols = st.columns(5)
+    cols[0].metric("P/E", _fmt(m.get("pe"), "x"))
+    cols[1].metric("P/B", _fmt(m.get("pb"), "x"))
+    cols[2].metric("ROE", _fmt(m.get("roe"), "%"))
+    cols[3].metric("ROA", _fmt(m.get("roa"), "%"))
+    cols[4].metric("ROCE", _fmt(m.get("roce"), "%"))
+    if m.get("roce") is None and m.get("roce_note"):
+        cols[4].caption(m["roce_note"])
+    st.caption(f"Included {sector.get('included_count')} of "
+               f"{sector.get('constituent_count')} constituents"
+               + (f" · {sector.get('skipped_count')} skipped"
+                  if sector.get('skipped_count') else ""))
+
+    # ---- current tilt + structural seasonality ----
+    st.markdown("#### Sector Cycle & Seasonality")
+    st.markdown(f"**Current tilt: {sector.get('current_tilt')}** — "
+                f"{sector.get('tilt_reason')}")
+    st.caption(f"Structural seasonality: {sector.get('structural_seasonality')}")
+
+    # ---- month-over-month ----
+    mom = sector.get("monthly_changes") or {}
+    if mom:
+        bits = []
+        for k in ("pe", "pb", "roe", "roa", "roce"):
+            if k in mom:
+                bits.append(f"{k.upper()} {mom[k]['from']} → {mom[k]['to']} "
+                            f"({mom[k]['change']:+})")
+        if mom.get("top10", {}).get("changed"):
+            bits.append(f"{mom['top10']['changed']} names changed in the Top 10")
+        if bits:
+            st.markdown("#### Month-over-month")
+            st.markdown(" · ".join(bits))
+
+    # ---- Top 10 with clickable NSE links ----
+    st.markdown("#### Top 10 companies by market cap")
+    top = sector.get("top10", [])
+    if not top:
+        st.caption("No ranked companies available for this sector yet.")
+        return
+    rows = []
+    for r in top:
+        rows.append({
+            "Company": r.get("name"),
+            "NSE": r.get("nse_url"),
+            "Symbol": r.get("nse_symbol"),
+            "Market Cap (₹cr)": r.get("market_cap"),
+            "P/E": r.get("pe"), "P/B": r.get("pb"),
+            "ROE %": r.get("roe"), "ROCE %": r.get("roce"),
+            "OPM %": r.get("opm"), "NPM %": r.get("npm"),
+            "Asset Turn": r.get("asset_turnover"),
+            "Int. Cov.": r.get("interest_coverage"),
+            "D/E": r.get("debt_to_equity"),
+            "EPS TTM Gr %": r.get("eps_ttm_growth"),
+            "Rev Gr YoY %": r.get("revenue_growth_yoy"),
+            "Op Rev TTM %": r.get("op_rev_growth_ttm"),
+        })
+    df = pd.DataFrame(rows).fillna("—")
+    st.dataframe(
+        df, hide_index=True, use_container_width=True,
+        column_config={
+            "NSE": st.column_config.LinkColumn("NSE", display_text="Open ↗"),
+        })
+    st.caption("Company links open the official NSE quote page in a new tab.")
 
 BRIEF_CSS = """<style>
 .brief{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}

@@ -1,0 +1,62 @@
+name: Monthly Sector Snapshot
+
+# Refreshes data/sector_snapshot.json once a month from NSE constituents +
+# IndianAPI. Streamlit only reads that file, so this is the only place credits
+# are ever spent. workflow_dispatch is kept for manual testing.
+on:
+  schedule:
+    # 06:30 UTC (12:00 IST) on the 1st of every month.
+    - cron: "30 6 1 * *"
+  workflow_dispatch: {}
+
+# Only one refresh at a time; never cancel a run mid-way (it could leave a
+# half-written commit — the script writes atomically, but this is belt-and-braces).
+concurrency:
+  group: sector-snapshot
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # to commit the refreshed snapshot
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Refresh NSE constituent lists
+        # Downloads the published constituent CSVs into data/nse_constituents/.
+        # Fail-soft: if a list can't be fetched the sector is reported as skipped;
+        # the run still uses whatever lists succeeded plus any committed CSVs.
+        run: python scripts/fetch_nse_constituents.py || echo "constituent refresh had misses; continuing with available lists"
+
+      - name: Build sector snapshot
+        id: build
+        env:
+          INDIANAPI_KEY: ${{ secrets.INDIANAPI_KEY }}
+        run: |
+          python scripts/refresh_sectors.py
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Commit snapshot if it changed
+        # Only commits when the job produced a new, valid snapshot. On abort or
+        # validation failure the script leaves the previous file untouched and
+        # there is nothing to commit — the site keeps showing last month's data.
+        run: |
+          if git diff --quiet -- data/sector_snapshot.json; then
+            echo "No snapshot change — nothing to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sector_snapshot.json data/nse_constituents/*.csv || true
+          git commit -m "chore(sector-lens): monthly snapshot refresh"
+          git push
