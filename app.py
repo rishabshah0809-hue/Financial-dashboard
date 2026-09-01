@@ -394,19 +394,19 @@ def analyst_config() -> LLMConfig:
 
 
 def brief_config() -> LLMConfig:
-    """Like analyst_config, but Gemini is PRIMARY for the Company Brief: the brief
-    feeds long document extracts, and Groq's free tier (~8k tokens/min, shared with
-    the analyst note) is too tight, whereas Gemini flash has far more headroom.
-    Groq is the fallback."""
+    """Provider order for the Company Brief: Groq PRIMARY, Gemini FALLBACK.
+    The brief's document context is kept small enough to fit Groq's free-tier
+    token limit, so Groq answers reliably; Gemini catches the case where Groq
+    rate-limits or errors. Same shared secrets/detection as the analyst note."""
     try:
         secrets = dict(st.secrets)
     except Exception:                       # noqa: BLE001
         secrets = {}
-    gemini = config_from_env("gemini", secrets=secrets)
     groq = config_from_env("groq", secrets=secrets)
-    live = [c for c in (gemini, groq) if c.is_live]
+    gemini = config_from_env("gemini", secrets=secrets)
+    live = [c for c in (groq, gemini) if c.is_live]
     if not live:
-        return gemini
+        return groq
     primary, fallbacks = live[0], live[1:]
     primary.fallbacks = fallbacks
     return primary

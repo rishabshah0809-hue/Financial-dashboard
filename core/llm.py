@@ -46,16 +46,17 @@ def _classify(err: str) -> tuple[str, str]:
     low = err.lower()
     if "429" in err or "rate" in low or "quota" in low or "tpm" in low or "too many" in low:
         cat = "rate_limit"
-    elif "413" in err or "too large" in low or "context length" in low or "token" in low:
+    elif "413" in err or "too large" in low or "context length" in low:
         cat = "too_large"
-    elif "401" in err or "403" in err or "invalid" in low or "unauthor" in low or "permission" in low or "api key" in low:
+    elif http in ("401", "403") or "unauthor" in low or "permission" in low or "api key" in low:
         cat = "auth"
-    elif "404" in err or "not found" in low or "no longer available" in low or "model" in low:
-        cat = "model"
-    elif "timeout" in low or "timed out" in low:
-        cat = "timeout"
+    # HTTP 5xx is a provider outage regardless of any "model" wording in the body.
     elif http in ("500", "502", "503", "504") or "unavailable" in low or "overload" in low or "high demand" in low:
         cat = "unavailable"
+    elif "timeout" in low or "timed out" in low:
+        cat = "timeout"
+    elif http == "404" or "not found" in low or "no longer available" in low or "model" in low:
+        cat = "model"
     else:
         cat = "other"
     return http, cat
