@@ -1060,7 +1060,7 @@ def ratios_shell(model, result) -> tuple[str, int]:
 
 # --------------------------------------------------------------------------
 # Sector lens \u2014 sector benchmarks computed from IndianAPI + NSE constituents,
-# read from data/sector_snapshot.json (see scripts/build_sector_snapshot.py).
+# read from data/sector_snapshot.json (see scripts/refresh_sectors.py).
 # The app never calls a live API here; it only reads the monthly snapshot.
 # --------------------------------------------------------------------------
 _TL_GOOD = "#177245"      # cheaper / higher return than the sector

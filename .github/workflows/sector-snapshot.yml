@@ -1,9 +1,14 @@
 name: Monthly sector snapshot
 
-# Regenerates data/sector_snapshot.json once a month from NSE constituents +
-# IndianAPI fundamentals. The Streamlit app only reads that file, so it never
-# calls IndianAPI at runtime. Monthly cadence keeps usage well under the free
-# 500-credit plan.
+# Regenerates data/sector_snapshot.json once a month from official NSE index
+# constituents + IndianAPI fundamentals. The Streamlit app only READS that file,
+# so it never calls IndianAPI at runtime. Monthly cadence keeps usage well under
+# the free 500-credit plan (the builder aborts before any call if the unique
+# company count would exceed the 400-credit safety ceiling).
+#
+# This is the single sector-refresh workflow. The builder validates before
+# writing and never overwrites a good snapshot with a broken one, so a failed
+# run simply keeps the previous snapshot.
 
 on:
   schedule:
@@ -21,33 +26,44 @@ jobs:
   build-snapshot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          python-version: "3.11"
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
 
       - name: Install dependencies
-        run: pip install requests
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-      - name: Build sector snapshot
+      - name: Fetch official NSE index constituents
+        run: |
+          python scripts/fetch_nse_constituents.py || echo "NSE fetch completed with warnings; proceeding with cached constituent lists."
+
+      - name: Refresh sector snapshot
         env:
           # Stored ONLY as a repository secret; never printed or committed.
           INDIANAPI_KEY: ${{ secrets.INDIANAPI_KEY }}
         # Non-zero exit (over-budget abort, or validation failure) fails the job
         # and — because the script never writes on failure — the previous good
         # snapshot is kept. All 9 sectors in one run, capped at 400 credits.
-        run: python scripts/build_sector_snapshot.py --max-budget 400
+        run: python scripts/refresh_sectors.py --max-budget 400
 
       - name: Commit refreshed snapshot if changed
-        # Only reached when the build step succeeded (valid snapshot written).
+        # Only reached when the refresh step succeeded (valid snapshot written).
         run: |
-          if [[ -n "$(git status --porcelain data/sector_snapshot.json)" ]]; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add data/sector_snapshot.json
-            git commit -m "Refresh sector snapshot (automated monthly update)"
-            git push
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sector_snapshot.json data/nse_constituents/
+          if git diff --staged --quiet; then
+            echo "No change in sector snapshot or constituent lists."
           else
-            echo "No change in sector_snapshot.json."
+            git commit -m "chore(sectors): refresh monthly sector snapshot [skip ci]"
+            git push
           fi

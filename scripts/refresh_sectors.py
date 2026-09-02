@@ -327,7 +327,7 @@ def run(
         fetcher = E.Fetcher()
         fetch_fn = fetcher.fetch
 
-    stats = {"expected": expected, "actual": 0, "successful": 0, "failed": 0}
+    stats = {"expected": len(union), "actual": 0, "successful": 0, "failed": 0}
     try:
         snapshot = build_snapshot(fetch_fn, per_sector, union, name_map, previous, stats)
     except Exception as exc:
