@@ -38,10 +38,9 @@ LOGGER = logging.getLogger("fundacheck.refresh")
 
 SNAPSHOT_PATH = ROOT / "data" / "sector_snapshot.json"
 COMPANY_MASTER_PATH = ROOT / "data" / "company_master.csv"
-MAX_REQUESTS = 400
+MAX_REQUESTS = 460          # unique companies across all 27 niche universes ~= 410
 REFRESH_FREQUENCY = "monthly"
 SOURCE = "IndianAPI (company fundamentals) + NSE Indices (constituents)"
-TOP_N = 10
 
 
 def _load_previous(path: Path = SNAPSHOT_PATH) -> dict | None:
@@ -102,12 +101,12 @@ def _mom_changes(current: dict, previous: dict | None) -> dict:
                 "change": round(cv - pv, 2),
             }
 
-    cur_top = [r.get("nse_symbol") for r in current.get("top10", []) if r.get("nse_symbol")]
-    prev_top = [r.get("nse_symbol") for r in previous.get("top10", []) if r.get("nse_symbol")]
+    cur_top = [r.get("nse_symbol") for r in current.get("constituents", []) if r.get("nse_symbol")]
+    prev_top = [r.get("nse_symbol") for r in previous.get("constituents", []) if r.get("nse_symbol")]
     if cur_top and prev_top:
         new_names = [s for s in cur_top if s not in set(prev_top)]
         dropped_names = [s for s in prev_top if s not in set(cur_top)]
-        changes["top10"] = {
+        changes["constituents"] = {
             "changed": len(new_names),
             "new_entrants": new_names,
             "dropped": dropped_names,
@@ -115,15 +114,29 @@ def _mom_changes(current: dict, previous: dict | None) -> dict:
     return changes
 
 
-def _sector_growth(companies: list[E.Company]) -> float | None:
-    """Calculate pooled trailing earnings growth for a sector."""
-    pairs = [c for c in companies if c.net_income is not None and c.prev_revenue is not None]
-    # Use revenue YoY as proxy if available
-    rev_cur = sum(c.revenue for c in companies if c.revenue is not None and c.prev_revenue is not None and c.prev_revenue > 0)
-    rev_prev = sum(c.prev_revenue for c in companies if c.revenue is not None and c.prev_revenue is not None and c.prev_revenue > 0)
-    if rev_prev > 0:
-        return round((rev_cur / rev_prev - 1) * 100.0, 2)
-    return None
+def _pooled_growth(companies: list[E.Company], cur_attr: str, prev_attr: str) -> float | None:
+    """Pooled YoY growth = (Σ current / Σ prior - 1) * 100.
+
+    Only companies with both a current and a *positive* prior value are pooled,
+    so a negative or zero prior base can't invert the sign of the result.
+    """
+    cur = sum(getattr(c, cur_attr) for c in companies
+              if getattr(c, cur_attr) is not None
+              and getattr(c, prev_attr) is not None and getattr(c, prev_attr) > 0)
+    prev = sum(getattr(c, prev_attr) for c in companies
+               if getattr(c, cur_attr) is not None
+               and getattr(c, prev_attr) is not None and getattr(c, prev_attr) > 0)
+    return round((cur / prev - 1) * 100.0, 2) if prev > 0 else None
+
+
+def _sector_revenue_growth(companies: list[E.Company]) -> float | None:
+    """Pooled trailing revenue (top-line) growth for a sector."""
+    return _pooled_growth(companies, "revenue", "prev_revenue")
+
+
+def _sector_earnings_growth(companies: list[E.Company]) -> float | None:
+    """Pooled trailing earnings (net-income) growth for a sector."""
+    return _pooled_growth(companies, "net_income", "prev_net_income")
 
 
 def build_snapshot(
@@ -139,9 +152,11 @@ def build_snapshot(
     skipped_fetch: dict[str, str] = {}
 
     for sym in union:
-        name = name_map.get(sym, sym)
+        # IndianAPI resolves NSE ticker symbols reliably, whereas suffixed
+        # company names ("Infosys Ltd.") frequently return "Stock not found".
+        # Query by symbol; the display name still comes from the API response.
         try:
-            raw = fetch_fn(name, expected_symbol=sym)
+            raw = fetch_fn(sym, expected_symbol=sym)
         except E.IndianAPIError as err:
             LOGGER.error("IndianAPI error fetching %s: %s — aborting further API calls", sym, err)
             raise
@@ -174,12 +189,39 @@ def build_snapshot(
                 skipped.append({"symbol": s, "reason": skipped_fetch.get(s, "not_fetched")})
 
         metrics = E.pooled_metrics(companies, is_financial=uni.is_financial)
-        top10 = E.rank_top(companies, TOP_N, is_financial=uni.is_financial)
+        # ALL constituents ranked by market cap (no Top-10 truncation).
+        constituents = E.rank_top(companies, None, is_financial=uni.is_financial)
 
         years = [c.fiscal_year for c in companies if c.fiscal_year]
         period = max(set(years), key=years.count) if years else None
 
-        earnings_growth = _sector_growth(companies)
+        earnings_growth = _sector_earnings_growth(companies)
+        revenue_growth = _sector_revenue_growth(companies)
+
+        # Sector PEG = sector P/E / trailing pooled earnings-growth %. Defined
+        # only when earnings growth is positive (a negative/zero base makes PEG
+        # meaningless), matching how PEG is read for single stocks.
+        pe_v = metrics.get("pe")
+        if isinstance(pe_v, (int, float)) and isinstance(earnings_growth, (int, float)) and earnings_growth > 0:
+            metrics["peg"] = round(pe_v / earnings_growth, 2)
+        else:
+            metrics["peg"] = None
+
+        # Sector Piotroski F-score: simple average of constituents' scores.
+        # Suppressed for financial sectors — the F-score is not meaningful for
+        # lenders, same convention as ROCE — so a handful of finance-adjacent
+        # names can't skew the sector figure.
+        if uni.is_financial:
+            metrics["piotroski"] = None
+        else:
+            fscores = [c.piotroski for c in companies if c.piotroski is not None]
+            metrics["piotroski"] = round(sum(fscores) / len(fscores), 1) if fscores else None
+
+        # Sector EPS growth: market-cap-weighted mean of per-company EPS growth.
+        eps_pairs = [(c.eps_growth, c.market_cap) for c in companies
+                     if c.eps_growth is not None and c.market_cap is not None and c.market_cap > 0]
+        wsum = sum(w for _, w in eps_pairs)
+        metrics["eps_growth"] = round(sum(g * w for g, w in eps_pairs) / wsum, 2) if wsum > 0 else None
 
         sector = {
             "key": key,
@@ -195,8 +237,9 @@ def build_snapshot(
             "financial_period": f"FY{period}" if period else None,
             "metrics": metrics,
             "earnings_growth": earnings_growth,
-            "revenue_growth": earnings_growth,
-            "top10": top10,
+            "revenue_growth": revenue_growth,
+            "is_fallback": uni.is_fallback,
+            "constituents": constituents,
         }
 
         prev_sec = _prev_sector(previous, key)
