@@ -129,6 +129,66 @@ def _tt(text: str) -> str:
     return f' data-tt="{escape(str(text), quote=True)}"'
 
 
+# --- numeric safety ----------------------------------------------------------
+# Every builder scales raw ratios into SVG coordinates. Some ratios are
+# genuinely negative (a loss-making company has negative interest cover, ROCE,
+# margins) or non-finite (a zero denominator upstream yields inf/NaN). Dividing
+# by a raw max() then breaks: e.g. an all-negative series has a negative max, so
+# value/max explodes the coordinate off the canvas — and because chart SVGs use
+# overflow:visible, the stray stroke streaks across the whole page. These helpers
+# keep every emitted coordinate finite and on-canvas. They are deliberately
+# no-ops for healthy (all-positive) data: _srange() includes 0, so value/(hi-lo)
+# equals the old value/max whenever the minimum is already >= 0.
+def _finite(v) -> float | None:
+    """float(v) if finite, else None."""
+    try:
+        f = float(v)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+def _pos(v, fallback: float = 1.0) -> float:
+    """A strictly-positive denominator, or the fallback (never 0/neg/NaN)."""
+    f = _finite(v)
+    return f if (f is not None and f > 0) else fallback
+
+
+def _srange(values, include_zero: bool = True) -> tuple[float, float]:
+    """(lo, hi) over the finite values, with hi > lo guaranteed. Including zero
+    anchors the scale at the baseline so positive series render exactly as
+    before while negative series map into the band instead of exploding."""
+    fin = [x for x in (_finite(v) for v in values) if x is not None]
+    if include_zero:
+        fin.append(0.0)
+    if not fin:
+        return 0.0, 1.0
+    lo, hi = min(fin), max(fin)
+    if hi <= lo:
+        hi = lo + 1.0
+    return lo, hi
+
+
+def _clamp(y: float | None, lo: float, hi: float) -> float | None:
+    """Clamp a coordinate into [lo, hi]; None (skip point) if non-finite."""
+    if y is None or not math.isfinite(y):
+        return None
+    return lo if y < lo else hi if y > hi else y
+
+
+def _poly(points: list[tuple[float, float | None]]) -> str:
+    """A polyline path that lifts the pen over None points (a gap) instead of
+    drawing a segment to a bad coordinate."""
+    d, pen_up = [], True
+    for x, y in points:
+        if y is None:
+            pen_up = True
+            continue
+        d.append(("M" if pen_up else "L") + f"{x:.1f} {y:.1f}")
+        pen_up = False
+    return " ".join(d)
+
+
 # --- shared pieces -----------------------------------------------------------
 def crosshair(w: int, h: int, xs: list[float], cls: str = "") -> str:
     lines = [
@@ -156,11 +216,15 @@ def line_chart(cid: str, years: list[str],
     for the hover tooltip. They must agree."""
     w, hh, p = 420, 250, {"l": 42, "r": 14, "t": 30, "b": 30}
     all_vals = [v for _, _, vals in series for v in vals]
-    mn, mx = min(0.0, *all_vals), max(all_vals)
-    sp = (mx - mn) or 1.0
+    # Signed, finite-safe range so negative series (loss-year margins/returns)
+    # scale into the band; clamped so a stray non-finite value can't escape it.
+    mn, mx = _srange(all_vals)
+    sp = mx - mn
     n = len(years)
     X = lambda i: p["l"] + i * (w - p["l"] - p["r"]) / max(1, n - 1)
-    Yp = lambda v: hh - p["b"] - (v - mn) / sp * (hh - p["t"] - p["b"])
+    Yp = lambda v: (None if _finite(v) is None else
+                    _clamp(hh - p["b"] - (_finite(v) - mn) / sp * (hh - p["t"] - p["b"]),
+                           p["t"], hh - p["b"]))
     xs = [X(i) for i in range(n)]
 
     grid = "".join(
@@ -172,13 +236,15 @@ def line_chart(cid: str, years: list[str],
     )
     paths = ""
     for si, (_, colour, vals) in enumerate(series):
-        d = " ".join(("L" if i else "M") + f"{X(i):.1f} {Yp(v):.1f}"
-                     for i, v in enumerate(vals))
-        last = vals[-1]
-        tip = _tt(f"{series[si][0]} · {years[-1]}: {fmt_py(last)}")
+        d = _poly([(X(i), Yp(v)) for i, v in enumerate(vals)])
+        last, last_y = vals[-1], Yp(vals[-1]) if vals else None
+        dot = ""
+        if last_y is not None:
+            tip = _tt(f"{series[si][0]} · {years[-1]}: {fmt_py(last)}")
+            dot = (f'<circle {tip} cx="{xs[-1]:.1f}" cy="{last_y:.1f}" r="3.2" '
+                   f'fill="{colour}" style="cursor:pointer"/>')
         paths += (f'<path d="{d}" fill="none" stroke="{colour}" stroke-width="2.2" '
-                  f'stroke-linejoin="round"/><circle {tip} cx="{xs[-1]:.1f}" '
-                  f'cy="{Yp(last):.1f}" r="3.2" fill="{colour}" style="cursor:pointer"/>')
+                  f'stroke-linejoin="round"/>{dot}')
     xlabels = "".join(
         f'<text x="{x:.1f}" y="{hh - 8}" text-anchor="middle" font-size="10.5" '
         f'fill="{FAINT}" class="mono">{y}</text>'
@@ -213,24 +279,41 @@ def leverage_chart(years: list[str], de: list[float], ic: list[float]) -> tuple[
     lw, lh, lp = 420, 250, {"l": 42, "r": 30, "t": 30, "b": 30}
     n = len(years)
     lbw = (lw - lp["l"] - lp["r"]) / n
-    mx_de, mx_ic = max(de), max(ic) or 1
+    plot_h = lh - lp["t"] - lp["b"]
+    base_y = lh - lp["b"]
+    # D/E bars scale to the largest (finite, positive) D/E; interest cover uses
+    # its own signed range so a loss-maker's negative cover sits low in the band
+    # instead of exploding off-canvas. _srange includes 0, so an all-positive
+    # cover series maps exactly as before (value/max).
+    mx_de = _pos(max((f for f in (_finite(x) for x in de) if f is not None),
+                     default=1.0))
+    ic_lo, ic_hi = _srange(ic)
+
+    def _ic_y(v):
+        f = _finite(v)
+        if f is None:
+            return None
+        y = base_y - (f - ic_lo) / (ic_hi - ic_lo) * plot_h * .9
+        return _clamp(y, lp["t"], base_y)
+
     bars = ""
     for i, y in enumerate(years):
-        bh = de[i] / mx_de * (lh - lp["t"] - lp["b"])
+        de_f = _finite(de[i])
+        if de_f is None:
+            continue
+        bh = max(0.0, min(de_f, mx_de)) / mx_de * plot_h
         x = lp["l"] + i * lbw + lbw * .2
-        fill = "#a7c9b6" if de[i] > 1.5 else LIGHT
-        bars += (f'<rect{_tt(f"D/E {y}: {de[i]:.2f}x")} x="{x:.1f}" '
-                 f'y="{lh - lp["b"] - bh:.1f}" width="{lbw * .6:.1f}" height="{bh:.1f}" '
+        fill = "#a7c9b6" if de_f > 1.5 else LIGHT
+        bars += (f'<rect{_tt(f"D/E {y}: {de_f:.2f}x")} x="{x:.1f}" '
+                 f'y="{base_y - bh:.1f}" width="{lbw * .6:.1f}" height="{bh:.1f}" '
                  f'rx="4" fill="{fill}" style="cursor:pointer"/>')
-    ic_d = " ".join(
-        ("L" if i else "M") + f'{lp["l"] + i * lbw + lbw / 2:.1f} '
-        f'{lh - lp["b"] - v / mx_ic * (lh - lp["t"] - lp["b"]) * .9:.1f}'
-        for i, v in enumerate(ic))
+    ic_d = _poly([(lp["l"] + i * lbw + lbw / 2, _ic_y(v)) for i, v in enumerate(ic)])
     ic_dots = "".join(
-        f'<circle{_tt(f"Interest cover {years[i]}: {v:.2f}x")} '
+        f'<circle{_tt(f"Interest cover {years[i]}: {_finite(v):.2f}x")} '
         f'cx="{lp["l"] + i * lbw + lbw / 2:.1f}" '
-        f'cy="{lh - lp["b"] - v / mx_ic * (lh - lp["t"] - lp["b"]) * .9:.1f}" '
-        f'r="3" fill="{GREEN}" style="cursor:pointer"/>' for i, v in enumerate(ic))
+        f'cy="{_ic_y(v):.1f}" '
+        f'r="3" fill="{GREEN}" style="cursor:pointer"/>'
+        for i, v in enumerate(ic) if _ic_y(v) is not None)
     xlabels = "".join(
         f'<text x="{lp["l"] + i * lbw + lbw / 2:.1f}" y="{lh - 8}" text-anchor="middle" '
         f'font-size="10.5" fill="{FAINT}" class="mono">{y}</text>'
@@ -254,8 +337,8 @@ def wc_chart(years, debtor, inv, pay, ccc) -> tuple[str, int]:
     ww, wh, wp = 420, 268, {"l": 44, "r": 14, "t": 30, "b": 30}
     n = len(years)
     wbw = (ww - wp["l"] - wp["r"]) / n
-    mx_up = max(d + iv for d, iv in zip(debtor, inv))
-    mx_dn = max(pay)
+    mx_up = _pos(max((d + iv for d, iv in zip(debtor, inv)), default=1.0))
+    mx_dn = _pos(max(pay, default=1.0))
     up_h = (wh - wp["t"] - wp["b"]) * (mx_up / (mx_up + mx_dn))
     zero = wp["t"] + up_h
     body = f'<line x1="{wp["l"]}" x2="{ww - wp["r"]}" y1="{zero:.1f}" y2="{zero:.1f}" stroke="{ZERO}"/>'
@@ -299,7 +382,7 @@ def cash_chart(years, cfo, cfi, cff) -> tuple[str, int]:
     cw, ch, cp = 420, 250, {"l": 46, "r": 14, "t": 30, "b": 30}
     n = len(years)
     cbw = (cw - cp["l"] - cp["r"]) / n
-    cmax = max(abs(v) for s in (cfo, cfi, cff) for v in s) or 1
+    cmax = _pos(max((abs(v) for s in (cfo, cfi, cff) for v in s), default=1.0))
     czero = cp["t"] + (ch - cp["t"] - cp["b"]) / 2
     body = f'<line x1="{cp["l"]}" x2="{cw - cp["r"]}" y1="{czero:.1f}" y2="{czero:.1f}" stroke="{ZERO}"/>'
     names = ["Operating", "Investing", "Financing"]
@@ -335,7 +418,7 @@ def area_chart(cid, years, layers: list[tuple[str, str, list[float]]],
     w, hh, p = 420, 250, {"l": 46, "r": 14, "t": 30, "b": 44}
     n = len(years)
     totals = [sum(l[2][i] for l in layers) for i in range(n)]
-    mx = max(totals) * 1.04 or 1
+    mx = _pos(max(totals, default=0.0) * 1.04)
     X = lambda i: p["l"] + i * (w - p["l"] - p["r"]) / max(1, n - 1)
     Yp = lambda v: hh - p["b"] - v / mx * (hh - p["t"] - p["b"])
     xs = [X(i) for i in range(n)]
@@ -627,12 +710,14 @@ def gauge_legend(compact: bool = False) -> str:
 # --- ROCE spark ---------------------------------------------------------------------------
 def spark(vals: list[float], colour_line: str = AMBER_TXT) -> tuple[str, int]:
     rw, rh = 300, 62
-    mn, mx = min(vals), max(vals)
+    mn, mx = _srange(vals, include_zero=False)
+    sp = mx - mn
     px = lambda i: i / max(1, len(vals) - 1) * rw
-    py = lambda v: rh - 4 - (v - mn) / ((mx - mn) or 1) * (rh - 10)
-    line = " ".join(("L" if i else "M") + f"{px(i):.1f} {py(v):.1f}"
-                    for i, v in enumerate(vals))
-    pts = " ".join(f"{px(i):.1f},{py(v):.1f}" for i, v in enumerate(vals))
+    py = lambda v: (None if _finite(v) is None else
+                    _clamp(rh - 4 - (_finite(v) - mn) / sp * (rh - 10), 0.0, rh))
+    line = _poly([(px(i), py(v)) for i, v in enumerate(vals)])
+    pts = " ".join(f"{px(i):.1f},{py(v):.1f}"
+                   for i, v in enumerate(vals) if py(v) is not None)
     svg = (_svg(rw, rh,
                 '<defs><linearGradient id="spk" x1="0" y1="0" x2="0" y2="1">'
                 f'<stop offset="0%" stop-color="#c9903a" stop-opacity=".3"/>'
