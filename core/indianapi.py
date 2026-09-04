@@ -331,7 +331,15 @@ def top_metrics(c: Company, *, is_financial: bool) -> dict:
         "market_cap": _round(c.market_cap, 2),
         "pe": c.ratios.get("pe_ttm"),
         "pb": c.ratios.get("pb"),
-        "roe": c.ratios.get("roe"),
+        # ROE derived from raw net income / year-end equity (same basis as the
+        # ROA column and the pooled sector ROE). IndianAPI's per-company
+        # returnOnAverageEquityTrailing12Month is empty for most names, so
+        # reading it alone left the whole column blank; the raw ingredients are
+        # already extracted. Only derive on positive equity — a negative book
+        # value makes NI/equity misleading, so fall back to the API figure.
+        "roe": (_round(c.net_income / c.total_equity * 100.0, 2)
+                if (c.net_income is not None and c.total_equity and c.total_equity > 0)
+                else c.ratios.get("roe")),
         "roa": _round(c.net_income / c.total_assets * 100.0, 2) if (c.net_income is not None and c.total_assets and c.total_assets > 0) else None,
         "roce": roce,
         "revenue_growth_yoy": rev_growth,
@@ -339,7 +347,15 @@ def top_metrics(c: Company, *, is_financial: bool) -> dict:
         "opm": c.ratios.get("opm"),
         "npm": c.ratios.get("npm"),
         "debt_to_equity": c.ratios.get("debt_to_equity"),
-        "asset_turnover": c.ratios.get("asset_turnover"),
+        # Asset turnover: prefer IndianAPI's TTM figure; where it is missing
+        # (common) derive Revenue / Total Assets for non-financials. Not
+        # meaningful for lenders, so left blank for financial sectors.
+        "asset_turnover": (c.ratios.get("asset_turnover")
+                           if c.ratios.get("asset_turnover") is not None
+                           else (_round(c.revenue / c.total_assets, 2)
+                                 if (not is_financial and c.revenue is not None
+                                     and c.total_assets and c.total_assets > 0)
+                                 else None)),
         "interest_coverage": c.ratios.get("interest_coverage"),
         "op_rev_growth_ttm": c.ratios.get("op_rev_growth_ttm"),
     }
