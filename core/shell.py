@@ -700,18 +700,48 @@ def _score_rationale(result) -> str:
         f'background:{viz.band(s)}"></div></div>'
         f'<b style="color:{viz.band(s)}">{s:.0f}</b></div>'
         for p, s in sorted(pillars.items(), key=lambda kv: -kv[1]))
-    ranked = sorted(result.metrics, key=lambda m: m.score, reverse=True)
-    ups = ", ".join(S.short_name(m.metric) for m in ranked[:2]) or "—"
-    downs = ", ".join(S.short_name(m.metric) for m in reversed(ranked[-2:])) or "—"
     info = ("A 0–100 health rating, weighted for this sector. It blends the "
             "area sub-scores below into one number. (higher is better)")
-    narrative = (
-        f"The Funda Score is a 0–100 health rating, tuned to the "
-        f"<b>{_esc(result.sector.name)}</b> sector. {_esc(result.company.title())} "
-        f"scores <b>{result.total_score:.0f}/100</b>, which lands in the "
-        f"<b>{result.verdict.lower()}</b> band. It is lifted most by "
-        f"<b>{_esc(ups)}</b> and held back by <b>{_esc(downs)}</b>. Each bar is one "
-        "area's 0–100 sub-score; the total is their weighted average.")
+
+    # Plain-English, 4-sentence explanation of HOW the score was reached, per the
+    # mandated writing rules (docs/WRITING_STYLE.md): what the band means, the
+    # strongest area and why, the weakest area and why, and how it all combines.
+    def _driver_metric(pillar: str, best: bool):
+        members = [m for m in result.metrics if m.pillar == pillar]
+        if not members:
+            return None
+        return max(members, key=lambda m: m.score) if best else min(members, key=lambda m: m.score)
+
+    band = result.verdict.lower()
+    band_meaning = {
+        "strong": "meaning its fundamentals look solid across the board",
+        "neutral": "meaning a mixed picture, with real strengths but also clear weak spots",
+        "weak": "meaning the fundamentals look fragile and call for caution",
+    }.get(band, "a mixed picture")
+
+    parts = [
+        f"The Funda Score is a 0–100 health check built for how "
+        f"<b>{_esc(result.sector.name)}</b> companies actually work, and "
+        f"{_esc(result.company.title())} scores <b>{result.total_score:.0f}/100</b> — "
+        f"the <b>{band}</b> band, {band_meaning}."
+    ]
+    if pillars:
+        top_p = max(pillars, key=pillars.get)
+        low_p = min(pillars, key=pillars.get)
+        tm, lm = _driver_metric(top_p, True), _driver_metric(low_p, False)
+        top_bit = f", helped most by {_esc(S.short_name(tm.metric))}" if tm else ""
+        low_bit = f", where {_esc(S.short_name(lm.metric))} is the main weak point" if lm else ""
+        parts.append(
+            f"Its strongest area is <b>{_esc(top_p)}</b> at {pillars[top_p]:.0f}/100"
+            f"{top_bit}, which is what holds the score up.")
+        parts.append(
+            f"The biggest drag is <b>{_esc(low_p)}</b> at {pillars[low_p]:.0f}/100"
+            f"{low_bit}, which is what keeps the score from being higher.")
+    parts.append(
+        "Each area below is scored 0–100 and then blended by how much it matters "
+        "in this sector, so a strong area can partly offset a weak one to give the "
+        "headline number.")
+    narrative = " ".join(parts)
     return (
         '<div class="card scoreexp"><div class="ct-row">'
         f'<span class="ct">How the Funda Score is built</span>'

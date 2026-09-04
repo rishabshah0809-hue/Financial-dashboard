@@ -750,6 +750,36 @@ def _load(file_bytes: bytes | None, path: str | None):
     return load_model(path) if path else load_model(pd.io.common.BytesIO(file_bytes))
 
 
+@st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
+def _live_quote(company: str) -> dict | None:
+    """
+    Last traded price and market cap from the live daily feed (IndianAPI / NSE,
+    the same numbers Screener shows), cached for 24 hours so it refreshes once a
+    day and never hammers the API. Returns None if the feed is unavailable, so
+    the header falls back to the workbook's own figures.
+    """
+    try:
+        from core.indianapi import fetch_quote
+        # IndianAPI matches better without the trailing company-form suffix.
+        name = re.sub(r"(?i)\s+(ltd|limited)\.?$", "", (company or "").strip())
+        return fetch_quote(name or company)
+    except Exception:                              # noqa: BLE001 - never block the app
+        return None
+
+
+def _apply_live_quote(model) -> None:
+    """Overlay the live daily price / market cap onto the model's metadata."""
+    quote = _live_quote(model.company)
+    if not quote:
+        return
+    if quote.get("current_price") is not None:
+        model.meta["current_price"] = quote["current_price"]
+    if quote.get("market_cap") is not None:
+        model.meta["market_cap"] = quote["market_cap"]
+    model.meta["price_source"] = quote.get("source", "")
+    model.meta["price_as_of"] = quote.get("as_of", "")
+
+
 def main() -> None:
     mode = "dark" if st.session_state.get("dark_mode", False) else "light"
     inject_css(mode, minimized=bool(st.session_state.get("nav_min", False)))
@@ -790,6 +820,11 @@ def main() -> None:
     except Exception as exc:                       # noqa: BLE001
         st.error(f"Unexpected problem reading the workbook: {exc}")
         return
+
+    # Refresh last traded price and market cap from the live daily feed so the
+    # header shows today's value, not the workbook's stale one. Done before the
+    # ratios below because the trailing P/E is priced off current_price.
+    _apply_live_quote(model)
 
     # Fill in any benchmark ratio the workbook did not supply, computed from
     # its own statements, so a formulas-only export still analyses.

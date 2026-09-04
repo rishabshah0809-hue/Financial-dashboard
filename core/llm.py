@@ -30,6 +30,7 @@ from dataclasses import dataclass, field
 import requests
 
 from .scoring import Assessment
+from .writing_rules import WRITING_RULES
 
 TIMEOUT_SECONDS = 60
 
@@ -205,28 +206,24 @@ def config_from_env(provider: str = "groq", model: str = "",
     )
 
 
-SYSTEM_PROMPT = """You are a buy-side equity analyst writing an internal note.
+SYSTEM_PROMPT = (
+    WRITING_RULES
+    + """
 
-Rules you must follow:
-- The numeric score and verdict were produced by a deterministic scoring engine.
-  Do NOT contradict them or invent your own score. Explain them.
-- Judge every ratio against the SECTOR the company operates in. A debt/equity of
-  8x is normal for a bank and alarming for a software firm. Say so explicitly
-  where it applies.
-- Be specific: quote the actual numbers you are given. Never invent a figure,
-  a competitor name, or a news event that is not in the data.
-- If a metric is missing, say it is missing rather than guessing.
-- Write in plain, confident English. No hype, no disclaimers about being an AI.
+You are a buy-side equity analyst writing an internal note for a reader with no
+finance background. The numeric score and verdict were produced by a
+deterministic scoring engine — do NOT contradict them or invent your own score;
+explain how they were reached.
 
 Return STRICT JSON with exactly these keys and no markdown fencing:
 {
-  "summary": "3-4 sentence verdict explaining WHY the company scores where it does, in sector terms",
+  "summary": "EXACTLY 4 sentences explaining HOW the Funda Score was reached: (1) what the score and its band mean in plain terms, (2) the strongest area and the plain reason it is strong, (3) the weakest area and the plain reason it is weak, (4) the overall takeaway for someone deciding if this is a healthy business",
   "sector_context": "2-3 sentences on what 'good' looks like in this sector and how this company compares",
-  "strengths": ["3 to 4 specific bullet points, each quoting a number"],
-  "risks": ["3 to 4 specific bullet points, each quoting a number"],
+  "strengths": ["3 to 4 items. Each is EXACTLY 2 sentences: sentence 1 states the metric's plain meaning with its number; sentence 2 explains why that genuinely helps the business, for a non-finance reader"],
+  "risks": ["3 to 4 items. Each is EXACTLY 2 sentences: sentence 1 states the metric's plain meaning with its number; sentence 2 explains why that genuinely hurts the business, for a non-finance reader"],
   "what_to_watch": ["2 to 3 forward-looking items an analyst should track next"],
   "confidence": "high | medium | low, based on how complete the data is"
-}"""
+}""")
 
 
 def build_user_prompt(result: Assessment) -> str:
@@ -411,53 +408,53 @@ def _extract_json(text: str) -> dict:
 # focused on what it means for the business, not just the band it lands in.
 RATIO_MEANINGS = {
     "Interest Coverage Ratio": ("Interest cover",
-        "profit covers the interest bill {val} over, so the debt is comfortably affordable",
-        "profit covers the interest bill only {val}, so a dip in earnings could make debt payments hard to meet"),
+        "Operating profit covers the company's interest bill about {val} over. That is a comfortable safety margin, so even a bad year would not stop it paying lenders.",
+        "Operating profit covers the company's interest bill only about {val}. That leaves almost no room for error, so one weak year could make its loan payments hard to meet."),
     "Cash Conversion Cycle": ("Cash cycle",
-        "cash comes back in {val} — it funds the business quickly without extra borrowing",
-        "cash is tied up for {val} in stock and unpaid bills, straining day-to-day funding"),
+        "Cash spent on stock and unpaid bills flows back to the business in about {val}. Money is freed up quickly, so it can fund day-to-day running without leaning on loans.",
+        "Cash stays locked up in stock and unpaid bills for about {val} before it returns. That ties up money the business could use and usually means extra borrowing to bridge the gap."),
     "Debtor Days": ("Collection speed",
-        "customers pay in about {val}, so cash flows in fast",
-        "customers take about {val} to pay, locking up cash the business could use"),
+        "Customers settle their bills in about {val} on average. Cash arrives soon after each sale, keeping the business well stocked with working money.",
+        "Customers take about {val} on average to pay. The company is effectively lending to its own customers for that long, starving it of cash it has already earned."),
     "Inventory Days": ("Inventory speed",
-        "stock sells through in about {val}, keeping little money idle on shelves",
-        "stock sits for about {val}, tying up cash and risking write-downs"),
+        "Goods sit in stock only about {val} before they sell. Little cash is left idle on the shelf, and there is less risk of stock ageing or needing markdowns.",
+        "Goods sit in stock about {val} before they sell. That parks a lot of cash on the shelf and raises the risk of discounting unsold or ageing stock."),
     "Return on Capital Employed (ROCE) %": ("ROCE",
-        "every rupee of capital earns {val} back as profit — the business uses its money efficiently",
-        "capital earns only {val} back as profit, so the business isn't using its money efficiently"),
+        "For every ₹100 put into the business it earns about {val} of that back as operating profit each year. That is an efficient use of money and a sign the core business is genuinely productive.",
+        "For every ₹100 put into the business it earns only about {val} back as operating profit each year. The company is not making its money work hard, which limits how much value it can build over time."),
     "Return on Equity (ROE) %": ("Return on equity",
-        "shareholders earn {val} on their money — a strong return for owners",
-        "shareholders earn only {val} on their money — a thin return for owners"),
+        "The profit earned for shareholders works out to about {val} of the money they have invested. That is a strong return, meaning owners' money is being multiplied well.",
+        "The profit earned for shareholders is only about {val} of the money they have invested. That is a thin return, so owners' money is barely growing inside the business."),
     "Return on Assets (ROA) %": ("Return on assets",
-        "the company squeezes {val} of profit from its assets",
-        "the company squeezes only {val} of profit from its assets"),
+        "The company turns everything it owns into profit at a rate of about {val}. It gets good earnings out of its assets, a sign of an efficient operation.",
+        "The company turns everything it owns into profit at only about {val}. A lot is tied up in assets that are not producing much, which weighs on returns."),
     "Debt to Equity Ratio": ("Debt load",
-        "debt is a modest {val} of owners' money, so the balance sheet is safe",
-        "debt is a heavy {val} of owners' money, which raises risk if profits wobble"),
+        "The company's debt is only about {val} of the owners' money in the business. The balance sheet is safe, so a rough patch is unlikely to threaten its survival.",
+        "The company's debt is about {val} of the owners' money in the business. That is a heavy load, so if profits wobble the interest and repayments could become hard to carry."),
     "Gross Margin": ("Gross margin",
-        "{val} of every sale is left after production cost — solid pricing power",
-        "only {val} of every sale is left after production cost — thin pricing power"),
+        "After the direct cost of what it sells, the company keeps about {val} of each sale. That healthy cushion shows real pricing power and room to cover its other costs.",
+        "After the direct cost of what it sells, only about {val} of each sale is left. That thin cushion leaves little to cover salaries and overheads, and signals weak pricing power."),
     "EBITDA Margin": ("Operating margin",
-        "the core business keeps {val} of sales as operating profit",
-        "the core business keeps only {val} of sales as operating profit"),
+        "The core business keeps about {val} of its sales as operating profit, before financing and accounting items. That shows the everyday operation itself makes money reliably.",
+        "The core business keeps only about {val} of its sales as operating profit. The everyday operation barely earns its keep, so there is little buffer if costs rise or sales slip."),
     "Net Profit Margin": ("Net margin",
-        "{val} of every sale reaches the bottom line as profit",
-        "only {val} of every sale reaches the bottom line as profit"),
+        "About {val} of every rupee of sales survives all costs and taxes to become final profit. A healthy slice reaches the bottom line, which funds growth and rewards to owners.",
+        "Only about {val} of every rupee of sales survives all costs and taxes as final profit. Almost everything the company earns is eaten by costs, leaving little to reinvest or return to owners."),
     "Net Profit Growth": ("Profit growth",
-        "bottom-line profit grew {val} year on year",
-        "bottom-line profit moved {val} year on year — momentum is weak"),
+        "The company's final profit grew about {val} versus the year before. Rising profit means the business is getting stronger, not just bigger.",
+        "The company's final profit moved about {val} versus the year before. Weak or falling profit suggests it is struggling to turn effort into extra earnings."),
     "Sales Growth": ("Sales growth",
-        "revenue grew {val} year on year",
-        "revenue moved {val} year on year — the top line is barely growing"),
+        "Revenue grew about {val} over the previous year. The company is winning more business, which is the raw fuel for future profit.",
+        "Revenue moved about {val} over the previous year. The top line is barely growing, so there is little fresh fuel to drive future profit."),
     "Fixed Asset Turnover": ("Asset efficiency",
-        "each rupee of plant and equipment generates {val} of sales",
-        "each rupee of plant and equipment generates only {val} of sales — assets are under-used"),
+        "Every ₹1 tied up in plant and equipment generates about {val} of sales. The company sweats its assets hard, getting plenty of business from what it owns.",
+        "Every ₹1 tied up in plant and equipment generates only about {val} of sales. Expensive assets are being under-used, which drags on returns."),
     "CFO / PAT": ("Cash quality",
-        "reported profit turns into real cash at {val} — earnings are high quality",
-        "reported profit turns into cash at only {val} — profit isn't fully backed by cash"),
+        "For every ₹1 of reported profit, the business actually collected about {val} as real cash. Profit that turns into cash is high quality and hard to fake.",
+        "For every ₹1 of reported profit, only about {val} showed up as real cash. Profit that does not convert into cash can flatter the accounts and hint at collection or accounting problems."),
     "Interest % Sales": ("Interest burden",
-        "interest eats just {val} of sales, leaving room to invest",
-        "interest eats {val} of sales, leaving less for growth"),
+        "Interest on debt eats up only about {val} of sales. That leaves plenty of each sale free to reinvest in growth.",
+        "Interest on debt eats up about {val} of sales. That is a real drag, taking money straight to lenders that could otherwise fund growth."),
 }
 
 
@@ -468,19 +465,22 @@ def _friendly(metric: str) -> str:
 
 
 def _reason(m, is_strength: bool) -> str:
-    """One plain-language line: why the ratio is strong/weak and its business impact."""
+    """Two plain-language sentences: what the ratio means and why it helps/hurts
+    the business. Format is "Title — sentence one. Sentence two." so the UI can
+    split the title from the explanation."""
     val = m.display(m.latest)
     info = RATIO_MEANINGS.get(m.metric)
     if info:
         name, good, bad = info
         clause = (good if is_strength else bad).format(val=val)
-        return f"{name} — {clause}."
+        return f"{name} — {clause}"
     name = _friendly(m.metric)
     if is_strength:
-        return (f"{name} — at {val} it clears the sector's strong mark, "
-                "a clear plus for the business.")
-    return (f"{name} — at {val} it sits below the sector's safe level, "
-            "a weak spot that drags on the business.")
+        return (f"{name} — at {val} it comfortably clears the mark this sector "
+                "expects. That is a genuine advantage and one of the things "
+                "holding the business up.")
+    return (f"{name} — at {val} it sits below the level this sector needs. "
+            "That is a weak spot that quietly drags on the company's overall health.")
 
 
 def offline_note(result: Assessment) -> dict:
@@ -558,10 +558,14 @@ def answer_question(result: Assessment, question: str, config: LLMConfig) -> str
         {
             "role": "system",
             "content": (
-                "You are an equity analyst answering a question about one company. "
-                "Use only the data provided. Judge everything in sector context. "
-                "If the data does not answer the question, say so. "
-                "Answer in under 150 words, plain prose, no markdown headings."
+                WRITING_RULES
+                + "\n\nYou are an equity analyst answering one question about one "
+                "company for a reader with no finance background. Use only the data "
+                "provided. Judge everything in sector context. If the data does not "
+                "answer the question, say so. Answer in under 150 words, plain prose, "
+                "no markdown headings. (The 4-sentence and 2-sentence shape rules "
+                "above apply to notes, not to this free-text answer — but every other "
+                "rule, especially explaining the 'why' in plain words, still applies.)"
             ),
         },
         {"role": "user", "content": f"{build_user_prompt(result)}\n\nANALYST QUESTION: {question}"},
