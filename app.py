@@ -27,6 +27,7 @@ from core import design_blocks as D
 from core import report as REP
 from core import sections as S
 from core import sector_snapshot as SNAP
+from core import sector_universe as U
 from core import shell as SH
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
@@ -596,13 +597,119 @@ def statements_tab(model) -> None:
     html, height = SH.statements_shell(model, query)
     _render_shell(html, height)
 
+@st.cache_data(show_spinner=False)
+def _company_name_index() -> dict[str, str]:
+    """normalized company name -> NSE symbol, from data/company_master.csv."""
+    import csv
+    from pathlib import Path
+    path = Path(__file__).resolve().parent / "data" / "company_master.csv"
+    out: dict[str, str] = {}
+    if not path.exists():
+        return out
+    try:
+        with path.open(newline="", encoding="utf-8-sig") as fh:
+            for row in csv.DictReader(fh):
+                sym = (row.get("nse_symbol") or row.get("symbol") or "").strip().upper()
+                name = (row.get("name") or row.get("company") or "").strip()
+                if sym and name:
+                    out[_norm_name(name)] = sym
+    except Exception:
+        return {}
+    return out
+
+
+def _norm_name(s: str) -> str:
+    s = (s or "").lower()
+    for junk in (" ltd.", " ltd", " limited", " the ", "&", ".", ","):
+        s = s.replace(junk, " ")
+    return " ".join(s.split())
+
+
+def _resolve_nse_symbol(company_name: str) -> str | None:
+    """Best-effort resolve an uploaded company name to its NSE symbol."""
+    idx = _company_name_index()
+    if not idx:
+        return None
+    key = _norm_name(company_name)
+    if key in idx:
+        return idx[key]
+    try:
+        from rapidfuzz import process, fuzz
+        match = process.extractOne(key, idx.keys(), scorer=fuzz.WRatio, score_cutoff=90)
+        if match:
+            return idx[match[0]]
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(show_spinner=False, ttl=86400)
+def _screener_market(symbol: str, date_key: str) -> dict | None:
+    """One cached Screener fetch per company per day (date_key busts it daily)."""
+    from core import screener as SC
+    c = SC.fetch(symbol)
+    return {"cmp": c.cmp, "market_cap": c.market_cap} if c else None
+
+
+def _enrich_market(model) -> None:
+    """Set the analysed company's Last Traded Price + Market Cap from Screener
+    (today's cached snapshot first, else one cached fetch/day). Falls back to the
+    uploaded Excel values if Screener can't resolve the company — never scrapes on
+    every rerun, and never fabricates."""
+    import datetime as _dt
+    sym = _resolve_nse_symbol(model.company)
+    if not sym:
+        return
+    scr = SNAP.load_screener()
+    if scr:
+        for s in scr.get("sectors", []):
+            for r in s.get("constituents", []):
+                if r.get("nse_symbol") == sym and r.get("cmp"):
+                    model.meta["current_price"] = r["cmp"]
+                    if r.get("market_cap"):
+                        model.meta["market_cap"] = r["market_cap"]
+                    model.meta["market_source"] = f"Screener · {scr.get('market_snapshot_date', '')}"
+                    return
+    data = _screener_market(sym, _dt.date.today().isoformat())
+    if data:
+        if data.get("cmp"):
+            model.meta["current_price"] = data["cmp"]
+        if data.get("market_cap"):
+            model.meta["market_cap"] = data["market_cap"]
+        model.meta["market_source"] = f"Screener · {_dt.date.today().isoformat()}"
+
+
 def sector_lens_tab(model, result) -> None:
-    """Sector lens - sector benchmarks from the monthly snapshot + company comparison."""
-    snap_all = SNAP.load_snapshot()
-    key = st.session_state.get("sector_pref", "generic")
-    sector_snap = SNAP.get_sector(snap_all, key) if snap_all else None
-    meta = SNAP.snapshot_meta(snap_all) if snap_all else None
-    html, height = SH.sector_shell(model, result, sector_snap, sector_key=key, meta=meta)
+    """Sector lens - niche NSE-index peer universe + company comparison."""
+    fundamentals = SNAP.load_snapshot()      # IndianAPI periodic (PEG/EPS/Piotroski/ROA)
+    screener = SNAP.load_screener()          # daily Screener market snapshot
+
+    # Classify the analysed company into a niche NSE sectoral index by symbol.
+    sym = _resolve_nse_symbol(model.company)
+    auto_key, auto_type = U.classify_symbol(sym) if sym else (None, "unclassified")
+
+    options = list(U.ORDER)  # 25 niche + 2 broad fallbacks
+    labels = {k: U.UNIVERSES[k].sector_name for k in options}
+    default_key = auto_key if auto_key in options else options[0]
+
+    if auto_key:
+        tag = {"exact": "niche match", "broad_proxy": "Broad / Proxy fallback"}.get(auto_type, auto_type)
+        st.caption(f"Detected peer universe for **{model.company.title()}** "
+                   f"({sym}): **{labels[auto_key]}** — {tag}. Override below if needed.")
+    else:
+        st.caption(f"Could not map **{model.company.title()}** to an NSE sectoral index "
+                   f"automatically — pick the closest peer universe below.")
+
+    chosen = st.selectbox(
+        "Peer universe (NSE sectoral index)", options,
+        index=options.index(default_key),
+        format_func=lambda k: f"{labels[k]}" + ("  · Broad/Proxy" if U.UNIVERSES[k].is_fallback else ""),
+    )
+
+    sector_snap, src_meta = SNAP.merge_sector(screener, fundamentals, chosen)
+    meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}
+    meta.update(src_meta)
+    html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen, meta=meta)
     _render_shell(html, height)
 
 
@@ -845,6 +952,7 @@ def main() -> None:
         LOGGER.info("sector detected for %s: %s (%s)", model.company, detected, why)
         st.rerun()
 
+    _enrich_market(model)          # live CMP + Market Cap from Screener (daily-cached)
     sector = get_sector(sector_key)
     try:
         result = assess(model, sector)

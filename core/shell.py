@@ -1278,18 +1278,31 @@ def _days_ago(as_of: str | None) -> str:
 
 
 def _source_line(snap: dict, meta: dict | None) -> str:
-    """Two-line source + last-updated block. Times come from the snapshot, not now."""
-    updated = (meta or {}).get("as_of_date") or snap.get("as_of_date") or snap.get("as_of")
-    ago = _days_ago(updated)
-    src = (meta or {}).get("source") or snap.get("source") or "IndianAPI + NSE"
-    updated_txt = ""
-    if updated:
-        updated_txt = f'<div style="font-size:12px;color:#9aa09d">Last updated: {_esc(str(updated))} {ago}</div>'
-    return (
-        f'<div style="text-align:right"><span style="font-size:12px;color:#177245;'
-        f'font-weight:600">Source: {_esc(src)}</span>'
-        f'{updated_txt}</div>'
-    )
+    """Source + freshness block. Market (Screener, daily) and fundamentals
+    (IndianAPI + NSE, periodic) are shown separately and never conflated."""
+    m = meta or {}
+    lines = []
+    mkt_date = m.get("market_snapshot_date")
+    if m.get("market_source") and mkt_date:
+        stale_tag = ('<span style="color:#b8860b;font-weight:700"> · STALE (today\'s refresh unavailable)</span>'
+                     if m.get("market_stale") else "")
+        sc = m.get("market_stale_count") or 0
+        sc_tag = (f'<span style="color:#b8860b"> · {sc} co. stale</span>' if sc else "")
+        lines.append(f'<div style="font-size:12px;color:#177245;font-weight:600">'
+                     f'Market: {_esc(m["market_source"])} · {_esc(str(mkt_date))} {_days_ago(mkt_date)}'
+                     f'{stale_tag}{sc_tag}</div>')
+    period = m.get("fundamental_period") or m.get("financial_period")
+    fund_src = m.get("fundamentals_source") or m.get("source") or "IndianAPI + NSE"
+    fund_bits = f"Fundamentals: {_esc(fund_src)}"
+    if period:
+        fund_bits += f" · {_esc(str(period))}"
+    lines.append(f'<div style="font-size:12px;color:#8b918e">{fund_bits}</div>')
+    inc = snap.get("included_count")
+    if inc:
+        lines.append(f'<div style="font-size:11.5px;color:#9aa09d">Bottom-up calculation from {inc} constituents</div>')
+    if not lines:
+        return ""
+    return f'<div style="text-align:right">{"".join(lines)}</div>'
 
 
 def _sect_values(snap: dict | None) -> tuple[dict, dict]:
@@ -1303,6 +1316,8 @@ def _sect_values(snap: dict | None) -> tuple[dict, dict]:
         "roa": metrics.get("roa"),
         "growth": snap.get("earnings_growth") if snap else None,
         "peg": metrics.get("peg"),
+        "eps_growth": metrics.get("eps_growth"),
+        "piotroski": metrics.get("piotroski"),
     }
     roce_val = metrics.get("roce")
     roce_note = metrics.get("roce_note") or ""
@@ -1482,12 +1497,12 @@ def _mom_card(snap: dict | None) -> str:
                 f'<b>{k.upper()}:</b> {fv} → <b>{tv}</b> ({ch_str})</span>'
             )
 
-    top_ch = mom.get("top10", {})
+    top_ch = mom.get("constituents", {})
     if top_ch.get("changed"):
         bits.append(
             f'<span style="background:#fff;border:1px solid #eef0ed;border-radius:8px;'
             f'padding:4px 10px;font-size:12.5px;color:#177245;font-weight:600">'
-            f'{top_ch.get("changed")} Top-10 name change(s)</span>'
+            f'{top_ch.get("changed")} constituent change(s)</span>'
         )
 
     if not bits:
@@ -1500,17 +1515,19 @@ def _mom_card(snap: dict | None) -> str:
     )
 
 
-def _top10_table(top10: list[dict] | None, is_financial: bool) -> str:
-    """Render Top 10 constituents table with clickable official NSE links."""
-    if not top10:
+def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
+    """Render the FULL constituent peer table with clickable official NSE links.
+    All constituents are shown (no Top-10 truncation), ranked by market cap."""
+    if not peers:
         return (
-            '<div class="card"><div class="ct">Top companies by market cap</div>'
-            '<div class="csub">Constituent breakdown</div>'
-            '<div style="padding:14px;color:#8b918e;font-size:13px">No constituent rankings available in this snapshot.</div></div>'
+            '<div class="card"><div class="ct">Peer comparison — all index constituents</div>'
+            '<div class="csub">Complete constituent universe ranked by market cap</div>'
+            '<div style="padding:14px;color:#8b918e;font-size:13px">No constituent data available in this snapshot.</div></div>'
         )
+    top10 = peers
 
     headers = [
-        "Rank", "Company", "Market Cap", "P/E", "P/B", "ROE %", "ROA %",
+        "Rank", "Company", "CMP", "Market Cap", "P/E", "P/B", "ROE %", "ROA %",
         "ROCE %", "Rev Gr %", "EPS Gr %", "OPM %", "NPM %", "D/E", "Asset Turn", "Int Cov"
     ]
     th_html = "".join(
@@ -1526,6 +1543,8 @@ def _top10_table(top10: list[dict] | None, is_financial: bool) -> str:
         name = r.get("name", "—")
         sym = r.get("nse_symbol", "")
         nse_url = r.get("nse_url") or f"https://www.nseindia.com/get-quotes/equity?symbol={sym}"
+        cmp_v = r.get("cmp")
+        cmp = "—" if cmp_v is None else f"₹{cmp_v:,.0f}"
         mcap = _fx(r.get("market_cap"), "mcap")
         pe = _fx(r.get("pe"), "x")
         pb = _fx(r.get("pb"), "x")
@@ -1540,16 +1559,24 @@ def _top10_table(top10: list[dict] | None, is_financial: bool) -> str:
         at = _fx(r.get("asset_turnover"), "peg")
         ic = _fx(r.get("interest_coverage"), "peg")
 
+        stale_badge = ""
+        if r.get("stale"):
+            since = r.get("stale_since")
+            stale_badge = (f'<span style="font-size:9.5px;color:#b8860b;font-weight:700" '
+                           f'title="Today\'s Screener refresh failed for this company; '
+                           f'showing last snapshot{(" from " + _esc(str(since))) if since else ""}"> '
+                           f'⚠ stale{(" " + _esc(str(since))) if since else ""}</span>')
         comp_cell = (
             f'<a href="{_esc(nse_url)}" target="_blank" rel="noopener noreferrer" '
             f'style="color:#177245;font-weight:700;text-decoration:none" '
             f'title="Open official NSE quote for {_esc(sym)}">{_esc(name)} '
-            f'<span style="font-size:10.5px;color:#9aa09d;font-weight:500">({_esc(sym)}) ↗</span></a>'
+            f'<span style="font-size:10.5px;color:#9aa09d;font-weight:500">({_esc(sym)}) ↗</span></a>{stale_badge}'
         )
 
         cells = [
             f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;color:#9aa09d">{rank}</td>',
             f'<td style="padding:10px 10px;font-size:13px">{comp_cell}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{cmp}</td>',
             f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;text-align:right;font-family:ui-monospace,Menlo,monospace">{mcap}</td>',
             f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pe}</td>',
             f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pb}</td>',
@@ -1566,10 +1593,11 @@ def _top10_table(top10: list[dict] | None, is_financial: bool) -> str:
         ]
         rows_html.append(f'<tr style="border-bottom:1px solid #f6f8f6">{"".join(cells)}</tr>')
 
+    n = len(top10)
     return (
-        '<div class="card"><div class="ct">Top 10 companies by market cap</div>'
-        '<div class="csub">Ranked strictly by actual Market Cap · Click company name to open official NSE quote</div>'
-        '<div style="overflow-x:auto;padding-top:8px">'
+        f'<div class="card"><div class="ct">Peer comparison — all {n} constituents</div>'
+        '<div class="csub">Complete constituent universe ranked by market cap · Click company name to open official NSE quote</div>'
+        '<div style="overflow:auto;max-height:520px;padding-top:8px">'
         '<table style="width:100%;border-collapse:collapse">'
         f'<thead><tr>{th_html}</tr></thead>'
         f'<tbody>{"".join(rows_html)}</tbody></table></div></div>'
@@ -1584,7 +1612,12 @@ def sector_shell(model, result, snap: dict | None,
     company vs sector comparison, and Top 10 constituent table.
     """
     comp = _company_vr(model)
-    sector_name = result.sector.name
+    # Title comes from the selected niche universe, not the scoring bucket.
+    sector_name = (
+        (snap.get("sector_name") if snap else None)
+        or (UNIVERSE[sector_key].sector_name if sector_key in UNIVERSE else None)
+        or result.sector.name
+    )
     have = snap is not None
     sect, applic = _sect_values(snap)
     roce_applicable = applic["roce_applicable"]
@@ -1618,7 +1651,7 @@ def sector_shell(model, result, snap: dict | None,
         att = snap.get("constituent_count")
         skp = snap.get("skipped_count", 0)
         cov = f"{inc} of {att} constituents" + (f" · {skp} skipped" if skp else "")
-        top_list = snap.get("top10", [])
+        top_list = snap.get("constituents", [])
         tot_mcap = sum(r.get("market_cap", 0) for r in top_list if r.get("market_cap")) if top_list else None
         avg_mcap = (tot_mcap / len(top_list)) if (tot_mcap and top_list) else None
 
@@ -1630,6 +1663,11 @@ def sector_shell(model, result, snap: dict | None,
             + _tile("Sector ROE", _fx(sect.get("roe"), "pct"), "Pooled aggregate")
             + _tile("Sector ROCE", "—" if not roce_applicable else _fx(sect.get("roce"), "pct"),
                     "Lenders n/a" if not roce_applicable else "Pooled aggregate")
+            + _tile("Sector PEG", _fx(sect.get("peg"), "peg"), "P/E ÷ earnings growth")
+            + _tile("EPS Growth", _fx(sect.get("eps_growth"), "pct"), "Cap-weighted YoY")
+            + _tile("Piotroski",
+                    "—" if sect.get("piotroski") is None else f"{sect.get('piotroski'):.1f}/9",
+                    "Lenders n/a" if sect.get("piotroski") is None else "Avg F-score (0-9)")
             + "</div>"
         )
     else:
@@ -1717,8 +1755,8 @@ def sector_shell(model, result, snap: dict | None,
         f'{table}</div>',
         reading_card,
         notes_html,
-        # Top 10 Table
-        _top10_table((snap or {}).get("top10"), is_fin),
+        # Full peer table — all constituents
+        _peer_table((snap or {}).get("constituents"), is_fin),
     ])
 
     return _doc(body, ""), 1500

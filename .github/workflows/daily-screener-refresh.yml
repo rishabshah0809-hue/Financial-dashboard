@@ -1,0 +1,51 @@
+name: Daily Screener market snapshot
+
+# Fetches the daily company market snapshot from public Screener.in pages and
+# commits data/screener_snapshot.json (+ a dated history copy). The Streamlit app
+# only READS the snapshot — it never scrapes. Personal, non-commercial use.
+
+on:
+  schedule:
+    - cron: "30 2 * * *"      # 08:00 IST daily (02:30 UTC)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-screener-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Refresh Screener snapshot
+        # Idempotent: skips if today's valid snapshot already exists.
+        run: python scripts/refresh_screener.py --pacing 1.5
+
+      - name: Commit snapshot if changed
+        run: |
+          if [[ -n "$(git status --porcelain data/screener_snapshot.json data/screener_history)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/screener_snapshot.json data/screener_history
+            git commit -m "chore(screener): daily market snapshot [skip ci]"
+            git push
+          else
+            echo "No change in Screener snapshot."
+          fi
