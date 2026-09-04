@@ -469,6 +469,14 @@ def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
         cost_frame = pd.DataFrame.from_dict(costs, orient="index").reindex(
             columns=frame.columns
         )
+        # "Change in Inventory" is a contra-expense in this template: a stock
+        # build is production not yet sold, so it *reduces* the cost of what was
+        # actually sold. It must be subtracted from the cost base, not added,
+        # otherwise EBITDA (and every margin/return derived from it) is wrong —
+        # e.g. FY26 flips from a real +2.2% margin to a spurious -5.1%.
+        for label in list(cost_frame.index):
+            if _norm(label) == "changeininventory":
+                cost_frame.loc[label] = -cost_frame.loc[label]
         total_cost = cost_frame.sum(axis=0, min_count=1)
         frame.loc["COGS"] = total_cost
         frame.loc["EBITDA"] = frame.loc["Sales"] - total_cost
