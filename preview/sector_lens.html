@@ -1,0 +1,512 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+/* html fills any frame overshoot below the (now content-height) body with the
+   page's end colour, so a frame taller than its content shows plain page space
+   rather than a giant stretched card. color-scheme:light stops a viewer whose
+   browser is in dark mode from getting a dark UA canvas behind the page. */
+html{background:#d9ded9;color-scheme:light}
+body{margin:0;padding:6px 20px 14px;
+  background:linear-gradient(180deg,#e7ebe7,#d9ded9);
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a;
+  display:flex;justify-content:center;align-items:flex-start}
+#shell{width:1240px;max-width:100%;background:#e9ece8;border-radius:24px;
+  padding:18px;display:flex;gap:20px;box-shadow:0 10px 30px rgba(21,32,26,.06)}
+main{flex:1;min-width:0;display:flex;flex-direction:column;gap:18px}
+a{color:#177245;text-decoration:none}
+svg{display:block;width:100%;height:auto;overflow:visible}
+text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+.mono{font-family:ui-monospace,Menlo,monospace}
+
+/* ---- hover animation: cards lift with a deeper shadow ---- */
+.card,.kpi,.verdict,.strip,.herostat{
+  transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.card:hover,.strip:hover{transform:translateY(-3px);
+  box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 34px rgba(21,32,26,.12);
+  border-color:#d7e0d9}
+.kpi:hover{transform:translateY(-3px);
+  box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 30px rgba(21,32,26,.13)}
+.kpi.score:hover{box-shadow:0 14px 34px rgba(15,74,44,.30)}
+.verdict:hover{transform:translateY(-2px);
+  box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 30px rgba(21,32,26,.11)}
+.exportbtn{transition:transform .16s ease,box-shadow .16s ease,background .16s ease}
+.exportbtn:hover{transform:translateY(-1px);
+  box-shadow:0 6px 16px rgba(21,32,26,.14)}
+.aibtn{transition:transform .16s ease,box-shadow .16s ease}
+.aibtn:hover{transform:translateY(-1px);box-shadow:0 8px 20px rgba(13,74,44,.28)}
+
+/* ---- top bar ---- */
+.topbar{background:#fff;border-radius:20px;padding:14px 18px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);display:flex;
+  align-items:center;gap:16px;flex-wrap:wrap}
+.searchpill{flex:1 1 200px;min-width:180px;max-width:330px;display:flex;
+  align-items:center;gap:11px;background:#f5f6f5;border-radius:14px;
+  padding:11px 15px}
+.searchpill input{border:none;background:transparent;outline:none;flex:1;
+  min-width:0;font-size:14.5px;font-family:inherit;color:#15201a}
+.searchpill input::placeholder{color:#9aa09d}
+.searchpill .lens{width:13px;height:13px;border-radius:50%;
+  border:2px solid #9aa09d;flex:none}
+.searchpill .kbd{font-size:11.5px;font-weight:600;color:#8d938f;
+  background:#fff;border-radius:7px;padding:4px 8px}
+.topright{margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.monitor{width:44px;height:44px;border-radius:50%;background:#f5f6f5;
+  display:flex;align-items:center;justify-content:center}
+.monitor i{width:16px;height:12px;border:2px solid #4a5350;border-radius:3px}
+.aibtn{display:flex;align-items:center;gap:11px;padding:7px 18px 7px 8px;
+  border-radius:30px;cursor:pointer;border:none;
+  background:radial-gradient(130% 130% at 10% 0%,#2a9c62,#0d4a2c)}
+.aibtn .ic{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.16);
+  display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff}
+.aibtn .t1{font-size:14.5px;font-weight:700;color:#fff;line-height:1.2;text-align:left}
+.aibtn .t2{font-size:10px;letter-spacing:1.2px;color:rgba(255,255,255,.62);
+  font-family:ui-monospace,Menlo,monospace}
+
+/* ---- hero ---- */
+.hero{background:#eef2ee;border-radius:22px;padding:24px;display:flex;
+  align-items:flex-start;gap:20px;flex-wrap:wrap}
+.hero h1{font-size:38px;font-weight:800;letter-spacing:-1.2px;color:#15201a;
+  line-height:1.1}
+.herosub{display:flex;align-items:center;gap:10px;padding-top:8px;flex-wrap:wrap}
+.ticker{font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:1px;
+  color:#8b918e}
+.dotsep{color:#cdd2cf}
+.heroright{margin-left:auto;display:flex;align-items:center;gap:12px;
+  flex-wrap:wrap;justify-content:flex-end;flex:1 1 auto;min-width:0}
+.herostat{background:#fff;border-radius:20px;padding:13px 22px;display:flex;
+  align-items:center;gap:16px;flex-wrap:wrap;min-width:0}
+.herostat .lbl{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;
+  letter-spacing:1.3px;color:#a4a9a6}
+.herostat .val{font-size:26px;font-weight:800;letter-spacing:-1px;color:#15201a}
+.herostat .val small{font-size:15px;color:#8b918e}
+.herostat .up{font-size:11.5px;font-weight:700;color:#177245;background:#eef4f0;
+  border-radius:7px;padding:3px 7px}
+.vrule{width:1px;height:38px;background:#eceeec}
+.mcap{font-size:15px;font-weight:700;color:#15201a;padding-top:6px}
+.exportbtn{background:#fff;color:#15201a;border:1.5px solid #177245;
+  border-radius:26px;padding:15px 26px;font-size:14.5px;font-weight:700;
+  cursor:pointer;font-family:inherit}
+
+/* ---- KPI grid ---- */
+.kpigrid{display:grid;grid-template-columns:repeat(auto-fit,
+  minmax(min(220px,100%),1fr));gap:14px;align-items:stretch}
+/* flex column + ft margin-top:auto keeps the big numbers and footers aligned
+   across all four cards so the row reads as one even set of boxes. */
+.kpi{border-radius:18px;padding:20px 22px;background:#fff;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+  display:flex;flex-direction:column;min-height:172px}
+.kpi .hd{display:flex;align-items:center;justify-content:space-between}
+.kpi .ft{margin-top:auto}
+.kpi .name{font-size:15px;font-weight:600;color:#15201a}
+.kpi .circ{width:30px;height:30px;border-radius:50%;border:1.5px solid #dcdfdc;
+  display:flex;align-items:center;justify-content:center;font-size:13px;
+  color:#4a5350}
+.kpi.score{color:#fff;background:radial-gradient(130% 130% at 85% 15%,#2a9c62 0%,
+  #177245 45%,#0d4a2c 100%)}
+.kpi.score .circ{border-color:rgba(255,255,255,.5);color:#fff}
+.kpi.score .name{color:#fff}
+.kpi.score .ft{color:rgba(255,255,255,.92)}
+.kpi.score .chip{background:rgba(255,255,255,.28);color:#fff}
+.kpi .big{font-size:44px;font-weight:800;letter-spacing:-1.5px;color:#15201a;
+  padding:14px 0 12px}
+.kpi.score .big{color:#fff}
+.kpi .big small{font-size:20px;font-weight:600;opacity:.7}
+.kpi .ft{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8b918e}
+.kpi .chip{border-radius:6px;padding:3px 6px;font-weight:700}
+.chip.g{background:#eef4f0;color:#177245}
+.chip.r{background:#fbeeec;color:#b4483c}
+.chip.w{background:#fdf3e2;color:#b5761f}
+.kpi.score .chip{background:rgba(255,255,255,.18);color:#fff}
+
+/* ---- verdict card ---- */
+.verdict{background:#fff;border-radius:18px;padding:24px 26px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+  border-left:4px solid var(--rail,#d9a441);display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));
+  gap:28px;align-items:center}
+.verdict .chips{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.verdict .vtag{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;
+  font-weight:700;letter-spacing:1.4px;color:#b5761f;background:#fdf3e2;
+  border-radius:20px;padding:7px 13px}
+.verdict .sect{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+  letter-spacing:1.2px;color:#a4a9a6}
+.verdict h2{font-size:29px;font-weight:800;letter-spacing:-.9px;color:#15201a;
+  padding:16px 0 12px}
+.verdict p{font-size:14.5px;line-height:1.65;color:#5f6663;text-wrap:pretty}
+.drivers{display:flex;flex-direction:column;gap:10px}
+.drivers .drow .dl{display:flex;justify-content:space-between;font-size:13px;
+  color:#3f4744;padding-bottom:5px}
+.drivers .drow b{font-weight:700}
+.drivers .track{height:7px;border-radius:7px;background:#f1f3f1}
+.drivers .fill{height:100%;border-radius:7px}
+
+/* ---- strengths / risks ---- */
+.srgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;
+  align-items:start}
+.srpanel{border-radius:18px;padding:20px}
+.srpanel.str{background:#f0f7f3}
+.srpanel.rsk{background:#fcf1ef}
+.srhead{display:flex;align-items:center;justify-content:space-between;
+  padding:0 4px 16px}
+.srhead .t{font-size:17px;font-weight:700;color:#15201a}
+.srhead .cnt{width:28px;height:28px;border-radius:50%;color:#fff;font-size:12.5px;
+  font-weight:700;display:flex;align-items:center;justify-content:center}
+.srlist{display:flex;flex-direction:column;gap:10px}
+.sritem{background:#fff;border-radius:13px;padding:14px 16px;border:1px solid #e9ede9;box-shadow:0 1px 2px rgba(21,32,26,.035)}
+.sritem .it{font-size:14.5px;font-weight:700;color:#15201a}
+.sritem .id2{font-size:12.5px;color:#7d847f;line-height:1.5;padding-top:4px}
+.seeall{cursor:pointer;grid-column:1/-1;background:#fff;border:1px solid #e6e9e7;
+  border-radius:14px;padding:14px;text-align:center;font-size:13.5px;
+  font-weight:700;color:#15201a;font-family:inherit}
+
+/* ---- panel cards & grids ---- */
+.card{background:#fff;border-radius:18px;padding:22px 24px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+/* align-items:stretch makes every card in a row take the tallest card's height,
+   so Revenue / Valuation / Key Ratios line up evenly instead of ragged. */
+.grid-auto{display:grid;grid-template-columns:repeat(auto-fit,
+  minmax(min(280px,100%),1fr));gap:14px;align-items:stretch}
+.grid-300{display:grid;grid-template-columns:repeat(auto-fit,
+  minmax(min(300px,100%),1fr));gap:14px;align-items:stretch}
+.grid-440{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;
+  align-items:start}
+.ct{font-size:17px;font-weight:700;color:#15201a;white-space:nowrap}
+.ct-row{display:flex;align-items:baseline;justify-content:space-between}
+.csub{font-size:12.5px;color:#9aa09d;padding:4px 0 8px}
+
+/* clickable ⓘ info icon next to a title + the wide explanation popover */
+.info{display:inline-flex;align-items:center;justify-content:center;width:16px;
+  height:16px;border-radius:50%;border:1.4px solid #b6c0ba;color:#8b918e;
+  font-size:10px;font-weight:700;font-style:italic;font-family:Georgia,'Times New Roman',serif;
+  cursor:pointer;margin-left:7px;vertical-align:middle;flex:none;user-select:none;
+  transition:background .15s,border-color .15s,color .15s}
+.info:hover{border-color:#177245;color:#177245;background:#eef4f0}
+#fctip.wide{white-space:normal;max-width:250px;line-height:1.55;font-size:12px;
+  color:#e8efe9;padding:11px 13px}
+
+/* year-on-year growth tiles (dashboard) */
+.ftiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px}
+.ftile{background:#fbfcfb;border:1px solid #eef1ee;border-radius:14px;padding:14px 15px}
+.ftile .fg{display:flex;align-items:center;gap:7px;font-size:22px;font-weight:800;
+  letter-spacing:-.6px;color:#15201a}
+.ftile .farr{font-size:13px}
+.ftile .flbl{font-size:12.5px;color:#8b918e;padding-top:2px}
+.ftile .flbl2{font-size:12px;color:#8b918e}
+.ftile .fbig{font-size:22px;font-weight:800;letter-spacing:-.6px;color:#15201a;padding-top:4px}
+.ftile .fnote{font-size:11.5px;color:#d9a441;font-weight:600;padding-top:10px;
+  margin-top:10px;border-top:1px solid #eef1ee}
+.ftile .frow{display:flex;align-items:center;gap:12px;margin-top:11px;padding-top:11px;
+  border-top:1px solid #eef1ee}
+.ftile .frow>span{display:flex;flex-direction:column;font-size:14px;font-weight:700;
+  color:#15201a;font-family:ui-monospace,Menlo,monospace}
+.ftile .frow small{font-size:10px;color:#9aa09d;font-weight:600;padding-top:2px;
+  font-family:ui-monospace,Menlo,monospace}
+.ftile .frow>i{width:1px;height:26px;background:#e6e9e6;flex:none}
+
+/* Funda Score explainer (top of ratio deep dive) */
+.scoreexp{margin-bottom:14px}
+.scoreflex{display:flex;align-items:center;gap:22px;padding:10px 0 4px;flex-wrap:wrap}
+.scorebadge{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;
+  background:radial-gradient(130% 130% at 85% 15%,#2a9c62,#0f4a2c);
+  border-radius:16px;padding:16px 22px;box-shadow:0 8px 22px rgba(15,74,44,.20)}
+.scorebadge .sbig{font-size:34px;font-weight:800;letter-spacing:-1px;color:#fff;line-height:1}
+.scorebadge .sbig small{font-size:15px;color:rgba(255,255,255,.8);font-weight:700}
+.scorebadge .sverdict{font-size:10.5px;font-weight:800;letter-spacing:1px;color:#eafff3;
+  background:rgba(255,255,255,.2);border-radius:20px;padding:3px 12px}
+.scorenar{flex:1;min-width:260px;font-size:13.5px;line-height:1.65;color:#3f4744}
+.scorenar b{color:#15201a;font-weight:700}
+.pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));
+  gap:10px 26px;padding-top:14px;margin-top:6px;border-top:1px solid #eef1ee}
+.prow{display:flex;align-items:center;gap:10px}
+.prow .pl{font-size:12.5px;color:#5f6663;min-width:96px;font-weight:600}
+.prow .ptrack{flex:1;height:7px;background:#eef1ee;border-radius:6px;overflow:hidden}
+.prow .pfill{height:100%;border-radius:6px}
+.prow b{font-size:13px;font-family:ui-monospace,Menlo,monospace;min-width:22px;text-align:right}
+.pilltag{font-size:12px;font-weight:700;color:#177245;border:1.5px solid #cfe2d7;
+  border-radius:20px;padding:6px 12px}
+
+/* revenue trend pill bars (reference design) */
+.pill-head{display:flex;align-items:baseline;justify-content:space-between}
+.pill-note{font-size:12.5px;color:#9aa09d}
+.pill-row{display:flex;align-items:flex-end;gap:10px;height:176px;
+  padding:52px 2px 0;min-width:0}
+.pill-col{flex:1;min-width:0;display:flex;flex-direction:column;
+  align-items:center;gap:9px}
+.pill-col span{font-size:13px;color:#8b918e}
+.pill-wrap{position:relative;width:100%;display:flex;align-items:flex-end;
+  justify-content:center}
+.pill{width:100%;border-radius:40px;transition:filter .2s ease}
+.pill-col:hover .pill{filter:brightness(1.06)}
+.pill-tag{position:absolute;top:-32px;left:50%;transform:translateX(-50%);
+  background:#eef4f0;border-radius:8px;padding:4px 8px;font-size:11.5px;
+  font-weight:700;color:#0f5b34;white-space:nowrap}
+
+/* stat mini-cards (ratio deep dive) */
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,
+  minmax(min(180px,100%),1fr));gap:14px}
+
+/* ratio page header */
+.pghead{display:flex;align-items:baseline;gap:14px;padding:2px 4px 0;flex-wrap:wrap}
+.pghead .pt{font-size:26px;font-weight:800;letter-spacing:-.7px;color:#15201a}
+.pghead .ps{font-size:13.5px;color:#8b918e}
+.leftstack{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.rightstack{flex:2 1 380px;min-width:0;display:flex;flex-direction:column;gap:14px}
+.rowwrap{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
+.strip{background:#fff;border-radius:18px;padding:16px 20px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+.strip .slabel{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+  font-weight:700;letter-spacing:1.4px;color:#8b918e;padding-bottom:8px}
+.dialcard-hd{text-align:center}
+.dialcard-hd .t{font-size:16px;font-weight:700;color:#15201a}
+.dialcard-hd .s{font-size:12.5px;color:#9aa09d;padding-top:3px}
+
+/* sector lens */
+.why{background:#fff;border-radius:18px;padding:20px 24px;
+  border-left:4px solid #7f7de0}
+.why .wl{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;font-weight:700;
+  letter-spacing:1.4px;color:#6f6dd0;padding-bottom:10px}
+.why p{font-size:14.5px;line-height:1.65;color:#5f6663}
+.healthrow{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.healthrow .htxt{flex:1;min-width:120px}
+.healthrow .htxt .t{font-size:16px;font-weight:700;color:#15201a}
+.healthrow .htxt .s{font-size:12.5px;color:#9aa09d;padding-top:4px}
+.legendcol{display:flex;flex-direction:column;gap:9px;flex:1 1 240px;min-width:200px}
+.legrow{display:flex;align-items:center;gap:8px}
+.legrow i{width:11px;height:11px;border-radius:50%;flex:none}
+.legrow span{font-size:12.5px;color:#5f6663}
+
+/* statements */
+.stmttabs{display:flex;align-items:center;gap:6px;padding-bottom:16px;flex-wrap:wrap}
+.stmttab{cursor:pointer;padding:9px 16px;border-radius:11px;font-size:13px;
+  font-weight:700;background:#f4f5f3;color:#5f6663;font-family:inherit;border:none}
+.stmttab.on{background:#177245;color:#fff}
+.pcttoggle{cursor:pointer;display:flex;align-items:center;gap:9px;user-select:none}
+.pctbox{width:17px;height:17px;border-radius:5px;background:#177245;border:2px solid
+  #177245;display:flex;align-items:center;justify-content:center;color:#fff;
+  font-size:11px;font-weight:800}
+.pctbox.off{background:#fff;border-color:#c9cec9;color:transparent}
+.pctlbl{font-size:13px;color:#3f4744}
+.stmtfoot{display:flex;align-items:center;gap:12px;padding-top:14px;flex-wrap:wrap}
+.stmtfoot .note{margin-left:auto;font-size:12px;color:#9aa09d}
+table.stmt{width:100%;border-collapse:collapse}
+table.stmt th{padding:10px 12px;font-size:11.5px;letter-spacing:.8px;color:#8b918e;
+  font-weight:700;text-align:right;border-bottom:1px solid #eceeec;
+  font-family:ui-monospace,Menlo,monospace}
+table.stmt th:first-child{text-align:left;position:sticky;left:0;background:#fafbfa;
+  min-width:200px;font-size:14px;letter-spacing:0;color:#15201a}
+table.stmt td{padding:10px 14px;text-align:right;border-bottom:1px solid #f1f3f1;
+  white-space:nowrap;cursor:default}
+table.stmt td:first-child{text-align:left;position:sticky;left:0;white-space:nowrap;
+  font-size:15px;font-weight:500;color:#3f4744}
+table.stmt tr.head td{font-weight:700;color:#15201a;background:#f5f9f7}
+.val{font-size:17px;font-weight:600;color:#15201a;letter-spacing:-.2px;
+  font-family:ui-monospace,Menlo,monospace}
+tr.head .val{font-weight:800}
+.pctsub{font-size:13px;padding-top:3px;font-weight:600;
+  font-family:ui-monospace,Menlo,monospace}
+.tblwrap{overflow:auto;border:1px solid #eceeec;border-radius:12px}
+
+/* peers */
+.peerlist{display:flex;flex-direction:column;gap:13px}
+.peerrow{display:flex;align-items:center;gap:13px}
+.peerav{width:34px;height:34px;border-radius:11px;flex:none}
+.peermain{flex:1;min-width:0}
+.peername{font-size:14.5px;font-weight:600;color:#15201a}
+.peersub{font-size:12px;color:#9aa09d}
+.peersub b{color:#15201a;font-weight:600}
+.peertag{font-size:11.5px;font-weight:700;border-radius:8px;padding:5px 10px;
+  white-space:nowrap;flex:none}
+.ptag.g{color:#177245;background:#eef4f0}
+.ptag.w{color:#8a7a2e;background:#f8f4e3}
+.ptag.r{color:#a4483f;background:#faeeec}
+.addpeer{display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;
+  border-top:1px dashed #eceeec;margin-top:12px}
+.addpeer input{border:1px solid #e4e7e5;border-radius:9px;padding:7px 10px;
+  font-family:inherit;font-size:12.5px;width:110px}
+.addpeer button{background:#f4f5f3;border:1px solid #e4e7e5;border-radius:9px;
+  padding:7px 12px;font-family:inherit;font-weight:700;font-size:12.5px;
+  color:#15201a;cursor:pointer}
+
+/* toast + tooltip */
+#toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+  background:#0f2a1e;color:#fff;font-size:12.5px;padding:9px 16px;
+  border-radius:10px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
+#fctip{position:absolute;display:none;pointer-events:none;background:#0f2a1e;
+  opacity:.97;border-radius:8px;padding:8px 10px;z-index:60;min-width:96px;
+  font-size:10.5px;line-height:15px;color:#cfe0d7;white-space:nowrap;
+  box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#fctip b{color:#fff;font-weight:700}
+#fctip .yr{font-size:11px;font-weight:700;margin-bottom:4px}
+#fctip span{display:flex;align-items:center;gap:6px}
+#fctip i{width:7px;height:7px;border-radius:50%;flex:none}
+#fctip .v{margin-left:auto;padding-left:12px;color:#fff;font-weight:700;
+  font-family:ui-monospace,Menlo,monospace}
+.hit{cursor:crosshair}
+
+/* --- refined "soft card" polish (imitates the provided design file) --- */
+.kpi.score{border:none;box-shadow:0 8px 22px rgba(15,74,44,.20)}
+.herostat{box-shadow:0 1px 2px rgba(21,32,26,.05),0 4px 12px rgba(21,32,26,.05)}
+main [style*="background:#fff"][style*="border-radius:18px"],
+main [style*="background:#fff"][style*="border-radius:20px"]{
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+</style></head><body><script>
+// Resolve #fctip lazily: this script runs before the #fctip element exists in the
+// document, so capturing it at load time would leave `tip` null and every
+// fcShow() would throw, silently killing all chart/diagram hover tooltips.
+function _fctip(){var t=document.getElementById('fctip');
+  if(!t){t=document.createElement('div');t.id='fctip';document.body.appendChild(t);}
+  return t;}
+// x,y are viewport (client) coords; #fctip is position:absolute, so add the
+// scroll offset to get page coords. This keeps the tooltip glued to the cursor
+// even when the frame is auto-fit to full height and the parent page scrolls
+// (where position:fixed would place it off-screen).
+function fcShow(x,y,html){var tip=_fctip();tip.className='';tip.innerHTML=html;tip.style.display='block';
+  var sx=window.scrollX||0, sy=window.scrollY||0;
+  let px=x+14;if(px+tip.offsetWidth>window.innerWidth-8)px=x-tip.offsetWidth-14;
+  let py=Math.max(4,Math.min(y-tip.offsetHeight/2,window.innerHeight-tip.offsetHeight-4));
+  tip.style.left=(Math.max(4,px)+sx)+'px';
+  tip.style.top=(py+sy)+'px';}
+function fcHide(){var tip=document.getElementById('fctip');if(tip)tip.style.display='none';}
+// click a ⓘ icon -> show its plain-language explanation; click anywhere hides it.
+function fcInfo(x,y,html){var tip=_fctip();tip.className='wide';tip.innerHTML=html;
+  tip.style.display='block';var sx=window.scrollX||0,sy=window.scrollY||0;
+  let px=x+12;if(px+tip.offsetWidth>window.innerWidth-8)px=x-tip.offsetWidth-12;
+  let py=Math.min(y+16,window.innerHeight-tip.offsetHeight-4);
+  tip.style.left=(Math.max(4,px)+sx)+'px';tip.style.top=(Math.max(4,py)+sy)+'px';}
+function fcBindInfo(){
+  document.querySelectorAll('.info').forEach(el=>{
+    el.addEventListener('click',function(e){e.stopPropagation();
+      fcInfo(e.clientX,e.clientY,el.getAttribute('data-info'));});});
+  document.addEventListener('click',function(){fcHide();});}
+// Jump to another page by clicking its sidebar nav button in the parent app.
+function fcGoto(pg){try{var d=window.parent.document;
+  var b=d.querySelector('[class*="st-key-nav-'+pg+'"] button');
+  if(b){b.click();}}catch(e){}}
+function fcBindTips(){
+  document.querySelectorAll('[data-tt]').forEach(el=>{
+    el.addEventListener('mousemove',e=>{
+      fcShow(e.clientX,e.clientY,el.getAttribute('data-tt'));});
+    el.addEventListener('mouseleave',fcHide);});}
+function fcColumns(cid,Y,L,fmt){
+  const svg=document.getElementById(cid);
+  if(!svg)return;
+  const cols=svg.querySelectorAll('.hit'), xl=svg.querySelectorAll('.xline');
+  cols.forEach((el,i)=>{
+    el.addEventListener('mousemove',e=>{
+      const rows=L.map(l=>'<span><i style="background:'+l[1]+'"></i>'+l[0]+
+        '<span class="v">'+fmt(l[2][i])+'</span></span>').join('');
+      fcShow(e.clientX,e.clientY,'<div class="yr">'+Y[i]+'</div>'+rows);
+      xl.forEach(x=>x.style.display='none');if(xl[i])xl[i].style.display='block';});
+    el.addEventListener('mouseleave',()=>{fcHide();
+      xl.forEach(x=>x.style.display='none');});});}
+function toast(msg){const t=document.getElementById('toast');
+  t.textContent=msg;t.style.opacity=1;
+  clearTimeout(t._h);t._h=setTimeout(()=>t.style.opacity=0,1800);}
+</script><div id="shell"><main><div class="pghead"><span class="pt">Sector lens</span><span class="ps">Sector benchmarks from IndianAPI + NSE, refreshed monthly.</span></div><div class="card"><div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-bottom:12px"><div><div class="ct" style="display:flex;align-items:center;gap:8px">Infrastructure, Power &amp; Capital Goods <span style="background:#fcf6e8;color:#b8860b;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:3px 10px;text-transform:capitalize">approximate</span></div><div class="csub" style="padding-bottom:0">Reference universe: <b>NIFTY INFRASTRUCTURE</b> · Data period: <b>FY2026</b></div></div><div><div style="text-align:right"><span style="font-size:12px;color:#177245;font-weight:600">Source: IndianAPI (company fundamentals) + NSE Indices (constituents)</span><div style="font-size:12px;color:#9aa09d">Last updated: 2026-09-01 (3 days ago)</div></div></div></div><div style="display:flex;gap:14px;flex-wrap:wrap"><div style="flex:1;min-width:150px;background:#fff;border:1px solid #eef0ed;border-radius:16px;padding:16px 18px"><div style="font-size:11.5px;color:#8b918e;font-weight:600;letter-spacing:.3px;text-transform:uppercase">Constituents</div><div style="font-size:30px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:6px">1</div><div style="font-size:11.5px;color:#9aa09d;padding-top:3px">1 of 1 constituents</div></div><div style="flex:1;min-width:150px;background:#fff;border:1px solid #eef0ed;border-radius:16px;padding:16px 18px"><div style="font-size:11.5px;color:#8b918e;font-weight:600;letter-spacing:.3px;text-transform:uppercase">Sector P/E</div><div style="font-size:30px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:6px">41.49x</div><div style="font-size:11.5px;color:#9aa09d;padding-top:3px">Excl. loss-makers</div></div><div style="flex:1;min-width:150px;background:#fff;border:1px solid #eef0ed;border-radius:16px;padding:16px 18px"><div style="font-size:11.5px;color:#8b918e;font-weight:600;letter-spacing:.3px;text-transform:uppercase">Sector P/B</div><div style="font-size:30px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:6px">4.79x</div><div style="font-size:11.5px;color:#9aa09d;padding-top:3px">Year-end equity</div></div><div style="flex:1;min-width:150px;background:#fff;border:1px solid #eef0ed;border-radius:16px;padding:16px 18px"><div style="font-size:11.5px;color:#8b918e;font-weight:600;letter-spacing:.3px;text-transform:uppercase">Sector ROE</div><div style="font-size:30px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:6px">11.54%</div><div style="font-size:11.5px;color:#9aa09d;padding-top:3px">Pooled aggregate</div></div><div style="flex:1;min-width:150px;background:#fff;border:1px solid #eef0ed;border-radius:16px;padding:16px 18px"><div style="font-size:11.5px;color:#8b918e;font-weight:600;letter-spacing:.3px;text-transform:uppercase">Sector ROCE</div><div style="font-size:30px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:6px">4.71%</div><div style="font-size:11.5px;color:#9aa09d;padding-top:3px">Pooled aggregate</div></div></div></div><div class="card"><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:4px"><div class="ct">Sector cycle &amp; seasonality</div><span style="background:#eef2f7;color:#3a5a8a;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px">Highly cyclical</span><span style="background:#f0f7f4;color:#1b6f50;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px;margin-left:8px">Current tilt: Mid-cycle</span></div><div class="csub">Structural long-run sector behavior · current monthly tilt recalculated from fundamentals</div><div style="font-size:14px;line-height:1.65;color:#3f4744;padding-top:4px">Infrastructure, power &amp; capital goods is highly cyclical and capex-led. Order inflows track the government and private capital-expenditure cycle and are sensitive to interest rates because projects are long-gestation and debt-funded. Execution has a strong seasonal pattern: activity slows through the monsoon (Q2, Jul–Sep) and accelerates into H2, peaking in the Jan–Mar fiscal year-end push. Leverage makes the sector an early beneficiary of easing cycles and an early casualty of tightening ones.</div><div style="font-size:13.5px;line-height:1.6;color:#26332c;background:#f4f8f5;border:1px solid #dcebe1;border-radius:12px;padding:12px 14px;margin-top:12px"><b>Current tilt reading:</b> Initial snapshot: moderate positive earnings growth (+2.6%) reflects steady mid-cycle activity.</div></div><div class="card"><div class="ct">Company vs Sector</div><div class="csub">Adani Enterprises Ltd against the Infrastructure, Power &amp; Capital Goods sector aggregate</div><div style="padding-top:6px"><div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace;padding:16px 4px 2px">VALUATION</div><div data-tt="Company 23.43x vs Sector 41.49x — 43.5% below sector" style="display:flex;align-items:center;gap:16px;padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default"><div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;color:#15201a">P/E</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">you 23.43x</div></div><div style="flex:1;position:relative;height:14px;background:#eef1ee;border-radius:7px"><div style="position:absolute;left:0;top:0;height:100%;width:47.1%;background:#33443d;border-radius:7px"></div><div style="position:absolute;left:83.3%;top:-3px;height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div><div style="position:absolute;left:83.3%;top:-16px;transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div></div><div style="flex:0 0 128px;text-align:right"><div style="font-size:14px;font-weight:700;color:#177245;font-family:ui-monospace,Menlo,monospace">▼ 43.5% cheaper</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">sector 41.49x</div></div></div><div data-tt="Company — · Sector 4.79x" style="display:flex;align-items:center;gap:16px;padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default"><div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;color:#15201a">P/B</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">you —</div></div><div style="flex:1;position:relative;height:14px;background:#eef1ee;border-radius:7px"><div style="position:absolute;left:83.3%;top:-3px;height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div><div style="position:absolute;left:83.3%;top:-16px;transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div></div><div style="flex:0 0 128px;text-align:right"><div style="font-size:14px;font-weight:700;color:#b8bdb9;font-family:ui-monospace,Menlo,monospace">— n/a</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">sector 4.79x</div></div></div><div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace;padding:16px 4px 2px">RETURNS</div><div data-tt="Company 11.98% vs Sector 11.54% — +0.44pp" style="display:flex;align-items:center;gap:16px;padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default"><div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;color:#15201a">ROE</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">you 11.98%</div></div><div style="flex:1;position:relative;height:14px;background:#eef1ee;border-radius:7px"><div style="position:absolute;left:0;top:0;height:100%;width:83.3%;background:#33443d;border-radius:7px"></div><div style="position:absolute;left:80.3%;top:-3px;height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div><div style="position:absolute;left:80.3%;top:-16px;transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div></div><div style="flex:0 0 128px;text-align:right"><div style="font-size:14px;font-weight:700;color:#177245;font-family:ui-monospace,Menlo,monospace">▲ +0.44 pp</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">sector 11.54%</div></div></div><div data-tt="Company 4.19% vs Sector 4.71% — -0.52pp" style="display:flex;align-items:center;gap:16px;padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default"><div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;color:#15201a">ROCE</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">you 4.19%</div></div><div style="flex:1;position:relative;height:14px;background:#eef1ee;border-radius:7px"><div style="position:absolute;left:0;top:0;height:100%;width:74.1%;background:#33443d;border-radius:7px"></div><div style="position:absolute;left:83.3%;top:-3px;height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div><div style="position:absolute;left:83.3%;top:-16px;transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div></div><div style="flex:0 0 128px;text-align:right"><div style="font-size:14px;font-weight:700;color:#a4483f;font-family:ui-monospace,Menlo,monospace">▼ -0.52 pp</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">sector 4.71%</div></div></div><div data-tt="Company 3.72% vs Sector 3.57% — +0.15pp" style="display:flex;align-items:center;gap:16px;padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default"><div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;color:#15201a">ROA</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">you 3.72%</div></div><div style="flex:1;position:relative;height:14px;background:#eef1ee;border-radius:7px"><div style="position:absolute;left:0;top:0;height:100%;width:83.3%;background:#33443d;border-radius:7px"></div><div style="position:absolute;left:80.1%;top:-3px;height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div><div style="position:absolute;left:80.1%;top:-16px;transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div></div><div style="flex:0 0 128px;text-align:right"><div style="font-size:14px;font-weight:700;color:#177245;font-family:ui-monospace,Menlo,monospace">▲ +0.15 pp</div><div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">sector 3.57%</div></div></div></div></div><div class="verdict" style="--rail:#d9a441;display:block"><div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:8px"><div style="background:#fdf3e2;color:#b5761f;font-size:11px;font-weight:700;letter-spacing:.4px;border-radius:20px;padding:4px 12px">COMPANY vs SECTOR</div><div style="font-size:20px;font-weight:800;letter-spacing:-.4px;color:#15201a">Reading</div></div><div style="font-size:14.5px;line-height:1.62;color:#3f4744">The company trades below the sector on P/E, while returns are mixed versus the sector (ROE higher, ROCE lower, ROA higher).</div></div><div style="font-size:12px;color:#9aa09d;padding:4px 4px 12px;line-height:1.5">Universe mapping: Broad infrastructure index — spans power, telecom and energy as well as construction.</div><div class="card"><div class="ct">Top 10 companies by market cap</div><div class="csub">Ranked strictly by actual Market Cap · Click company name to open official NSE quote</div><div style="overflow-x:auto;padding-top:8px"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:left;border-bottom:1px solid #eef0ed;white-space:nowrap">Rank</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:left;border-bottom:1px solid #eef0ed;white-space:nowrap">Company</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">Market Cap</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">P/E</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">P/B</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">ROE %</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">ROA %</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">ROCE %</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">Rev Gr %</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">EPS Gr %</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">OPM %</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">NPM %</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">D/E</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">Asset Turn</th><th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;text-align:right;border-bottom:1px solid #eef0ed;white-space:nowrap">Int Cov</th></tr></thead><tbody><tr style="border-bottom:1px solid #f6f8f6"><td style="padding:10px 10px;font-size:12.5px;font-weight:700;color:#9aa09d">1</td><td style="padding:10px 10px;font-size:13px"><a href="https://www.nseindia.com/get-quotes/equity?symbol=ADANIENT" target="_blank" rel="noopener noreferrer" style="color:#177245;font-weight:700;text-decoration:none" title="Open official NSE quote for ADANIENT">Adani Enterprises <span style="font-size:10.5px;color:#9aa09d;font-weight:500">(ADANIENT) ↗</span></a></td><td style="padding:10px 10px;font-size:12.5px;font-weight:700;text-align:right;font-family:ui-monospace,Menlo,monospace">₹387,521 Cr</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">48.44x</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">5.06x</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">—</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">3.57%</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">4.71%</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">2.63%</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">3.60%</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">13.90%</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">6.49%</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">1.32</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">—</td><td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">1.20</td></tr></tbody></table></div></div></main></div><div id="toast"></div><div id="fctip"></div><script>
+fcBindTips();
+fcBindInfo();
+</script><script>
+// statements tabs
+document.querySelectorAll('.stmttab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.stmttab').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');
+  document.querySelectorAll('.stmttable').forEach(t=>
+    t.style.display=t.id==='tbl-'+b.dataset.tab?'block':'none');}));
+// % change toggle
+const pt=document.getElementById('pcttoggle');
+const pb=document.getElementById('pctbox');
+if(pt&&pb)pt.addEventListener('click',()=>{
+  pb.classList.toggle('off');
+  const on=!pb.classList.contains('off');
+  document.querySelectorAll('.pctsub').forEach(e=>
+    e.style.display=on?'block':'none');});
+// search filters statement rows + peer names
+const sq=document.getElementById('fcsearch');
+if(sq)sq.addEventListener('input',()=>{
+  const q=sq.value.trim().toLowerCase();
+  document.querySelectorAll('.stmt tr[data-name]').forEach(tr=>{
+    tr.style.display=!q||tr.dataset.name.includes(q)?'':'none';});});
+// see all toggle
+const sa=document.getElementById('seeall');
+if(sa)sa.addEventListener('click',()=>{
+  const open=sa.dataset.open!=='1';
+  sa.dataset.open=open?'1':'0';
+  sa.textContent=open?'Show fewer':'See all';
+  document.querySelectorAll('.moreitem').forEach(e=>
+    e.style.display=open?'':'none');
+  const n=open?sa.dataset.total:'3';
+  document.querySelectorAll('.cnt').forEach(c=>c.textContent=n);});
+// peer add
+const pa=document.getElementById('peeraddbtn');
+if(pa)pa.addEventListener('click',()=>{
+  const nm=document.getElementById('p-name').value.trim();
+  if(!nm){toast('Enter a company name');return;}
+  const pe=parseFloat(document.getElementById('p-pe').value);
+  const roe=parseFloat(document.getElementById('p-roe').value);
+  const de=parseFloat(document.getElementById('p-de').value);
+  const av=['#e8f1ec','#f2f0e6','#f0eaf2','#f6ebe6'][
+    document.querySelectorAll('.peerrow').length%4];
+  let sub='ROE '+(isFinite(roe)?'<b>'+roe.toFixed(1)+'%</b>':'n/a');
+  if(isFinite(de))sub+=' · D/E '+de.toFixed(2);
+  let tag;
+  if(!(pe>0))tag='<span class="peertag r">Loss</span>';
+  else{const cls=pe>=45?'r':pe>=32?'w':'g';
+    tag='<span class="peertag '+cls+'">P/E '+pe.toFixed(1)+'</span>';}
+  const div=document.createElement('div');
+  div.className='peerrow';
+  div.setAttribute('data-name',nm.toLowerCase());
+  div.innerHTML='<div class="peerav" style="background:'+av+'"></div>'+
+    '<div class="peermain"><div class="peername"></div>'+
+    '<div class="peersub">'+sub+'</div></div>'+tag;
+  div.querySelector('.peername').textContent=nm;
+  const list=document.querySelector('.peerlist');
+  list.appendChild(div);
+  ['p-name','p-pe','p-roe','p-de'].forEach(id=>
+    document.getElementById(id).value='');
+  toast(nm+' added to comparison');});
+</script><script>
+(function(){
+  function fit(){
+    try{
+      var s=document.getElementById('shell'); if(!s) return;
+      /* #shell sits inside body's 24px top + 34px bottom padding, so the frame
+         needs the shell height plus that 58px to fit exactly with no trailing gap. */
+      var h=Math.ceil(s.getBoundingClientRect().height)+58;
+      /* Official Streamlit resize channel — works even when the component iframe
+         is served cross-origin (where window.frameElement below is blocked). */
+      try{ window.parent.postMessage(
+        {isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*'); }catch(e){}
+      /* Same-origin fallback: size the frame and collapse every Streamlit wrapper
+         above it so the page ends exactly at the content. Only write on a real
+         change so re-fitting can't churn. */
+      try{ var fe=window.frameElement;
+        if(fe){ var cur=parseInt(fe.style.height)||0;
+          if(Math.abs(cur-h)>1){
+            fe.style.setProperty('height', h+'px', 'important');
+            fe.setAttribute('height', h); }
+          var el=fe.parentElement;
+          for(var i=0;i<5 && el;i++){
+            var tid=el.getAttribute && el.getAttribute('data-testid');
+            if(tid==='stElementContainer'||tid==='stVerticalBlock'||tid==='stVerticalBlockBorderWrapper'){
+              if(el.style.height!=='auto') el.style.height='auto';
+              el.style.minHeight='0px'; }
+            if(tid==='stMain'||tid==='stAppViewContainer') break;
+            el=el.parentElement; } }
+      }catch(e){}
+    }catch(e){}
+  }
+  function schedule(){fit();for(var k=1;k<=12;k++)setTimeout(fit,k*250);}
+  window.addEventListener('load',schedule); schedule();
+  if(window.ResizeObserver){
+    var ro=new ResizeObserver(fit);
+    var s=document.getElementById('shell'); if(s) ro.observe(s);
+    /* Zooming out reflows the cards shorter but does not resize #shell (it is
+       max-width capped); observing the root catches the zoom/width change so the
+       frame re-fits to the new, shorter content instead of scrolling past it. */
+    ro.observe(document.documentElement);
+    if(document.body) ro.observe(document.body);
+  }
+  window.addEventListener('resize',fit);
+  /* The VisualViewport API fires on browser zoom, which plain 'resize' and the
+     max-width-capped #shell observer miss — this is what makes the frame re-fit
+     (shrink) when the user zooms out instead of leaving empty space. */
+  if(window.visualViewport){ window.visualViewport.addEventListener('resize',fit);
+    window.visualViewport.addEventListener('scroll',fit); }
+  /* Low-frequency safety net for anything the events miss (kept lightweight). */
+  setInterval(fit, 1000);
+})();
+</script></body></html>

@@ -1,0 +1,134 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
+svg{display:block;width:100%;height:auto;overflow:visible}
+text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
+.mono{font-family:ui-monospace,Menlo,monospace}
+#wrap{position:relative}
+#fctip{position:absolute;display:none;pointer-events:none;background:#0f2a1e;
+  opacity:.97;border-radius:8px;padding:8px 10px;z-index:50;min-width:96px;
+  font-size:10.5px;line-height:15px;color:#cfe0d7;white-space:nowrap;
+  box-shadow:0 6px 18px rgba(0,0,0,.25)}
+#fctip b{color:#fff;font-weight:700}
+#fctip .yr{font-size:11px;font-weight:700;margin-bottom:4px}
+#fctip span{display:flex;align-items:center;gap:6px}
+#fctip i{width:7px;height:7px;border-radius:50%;flex:none}
+#fctip .v{margin-left:auto;padding-left:12px;color:#fff;font-weight:700;
+  font-family:ui-monospace,Menlo,monospace}
+.hit{cursor:crosshair}
+
+.interp{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
+.interp .ititle{font-size:18px;font-weight:800;color:#15201a;padding:2px 2px 2px}
+.interp .isub{font-size:12px;color:#8b918e;padding:2px 2px 10px}
+.interp .icard{background:#fff;border:1px solid #e6ebe7;border-radius:16px;
+  padding:14px 18px;margin-top:10px;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+.interp .ih{font-size:14.5px;font-weight:800;color:#177245;margin-bottom:6px;
+  letter-spacing:.2px}
+.interp .ibody{font-size:13px;line-height:1.62;color:#3f4744}
+.interp .il{padding:5px 0 5px 16px;position:relative}
+.interp .il:before{content:"";position:absolute;left:2px;top:11px;width:5px;
+  height:5px;border-radius:50%;background:#37a06a}
+.interp .il b{color:#15201a}
+.interp .inone{font-size:12.5px;color:#8b918e;font-style:italic;padding:3px 0}
+.interp .iext{font-size:11.5px;color:#8b918e;font-style:italic;padding:6px 0 0}
+.interp .inote{font-size:13px;color:#8b918e;padding:10px 2px;line-height:1.55}
+.interp .srcs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 2px 2px}
+.interp .srcl{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+  letter-spacing:1.4px;color:#8b918e;font-weight:700}
+.interp .src{font-size:12px;font-weight:600;color:#177245;
+  background:#eef4f0;border:1px solid #cfe2d7;border-radius:20px;padding:4px 11px}
+
+/* --- page header + ask card (mirrors the Streamlit chrome) --- */
+.pg{display:flex;align-items:baseline;gap:14px;padding:2px 4px 12px;flex-wrap:wrap}
+.pg .pt{font-size:26px;font-weight:800;letter-spacing:-.7px;color:#15201a}
+.pg .ps{font-size:13.5px;color:#8b918e}
+.demo-note{background:#eef4f0;border:1px solid #cfe2d7;border-radius:12px;
+  color:#3f6b52;font-size:12.5px;line-height:1.5;padding:10px 14px;margin:2px 2px 14px}
+.demo-note b{color:#177245}
+.askcard{background:#fff;border:1px solid #e6ebe7;border-radius:18px;
+  padding:18px 20px;margin-top:14px;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+.askcard .card-title{font-size:16px;font-weight:800;color:#15201a;padding-bottom:4px}
+.askcard .cap{font-size:12.5px;color:#8b918e;line-height:1.55;padding-bottom:12px}
+.askcard .sglbl{font-size:11px;font-weight:700;letter-spacing:1.2px;color:#9aa09d;
+  text-transform:uppercase;padding:2px 2px 8px}
+.suggest{display:flex;flex-direction:column;gap:8px;padding-bottom:14px}
+.suggest .q{display:flex;align-items:center;gap:10px;font-size:13.5px;color:#3f4744;
+  background:#f6f9f7;border:1px solid #e6ebe7;border-radius:12px;padding:11px 14px;
+  cursor:pointer;transition:border-color .15s ease,background .15s ease}
+.suggest .q:hover{border-color:#37a06a;background:#eef4f0}
+.suggest .q .dot{width:7px;height:7px;border-radius:50%;background:#37a06a;flex:none}
+.askrow{display:flex;gap:10px;align-items:stretch}
+.askrow input{flex:1;font-family:inherit;font-size:14px;color:#15201a;
+  background:#fff;border:1px solid #d8e0da;border-radius:12px;padding:12px 14px;outline:none}
+.askrow input:focus{border-color:#37a06a;box-shadow:0 0 0 3px rgba(55,160,106,.15)}
+.askrow input::placeholder{color:#a7b0aa}
+.askbtn{background:linear-gradient(135deg,#2a9c62,#177245);color:#fff;border:none;
+  border-radius:12px;font-family:inherit;font-size:14px;font-weight:700;
+  padding:12px 26px;cursor:pointer;white-space:nowrap}
+.askbtn:hover{filter:brightness(1.05)}
+.answer{margin-top:14px;background:#f6f9f7;border:1px solid #e6ebe7;border-radius:14px;
+  padding:14px 16px;font-size:13.5px;line-height:1.65;color:#3f4744}
+.answer .albl{font-size:11px;font-weight:700;letter-spacing:1.2px;color:#9aa09d;
+  text-transform:uppercase;padding-bottom:6px}
+</style></head><body><script>
+// This engine script is emitted BEFORE #wrap / #fctip exist, so look them up
+// lazily -- capturing them now would leave both null and every tooltip would
+// throw. The [data-tt] binding is likewise deferred until the body is parsed.
+function _fctip(){var t=document.getElementById('fctip');
+  if(!t){t=document.createElement('div');t.id='fctip';
+    (document.getElementById('wrap')||document.body).appendChild(t);}return t;}
+function fcShow(x,y,html){var tip=_fctip(),wrap=document.getElementById('wrap')||document.body;
+  tip.innerHTML=html;tip.style.display='block';
+  let px=x+14;if(px+tip.offsetWidth>wrap.clientWidth-6)px=x-tip.offsetWidth-14;
+  tip.style.left=Math.max(2,px)+'px';
+  tip.style.top=Math.max(2,Math.min(y-tip.offsetHeight/2,wrap.clientHeight-tip.offsetHeight-2))+'px';}
+function fcHide(){var tip=document.getElementById('fctip');if(tip)tip.style.display='none';}
+function fcBindTips(){var wrap=document.getElementById('wrap')||document.body;
+  document.querySelectorAll('[data-tt]').forEach(el=>{
+    el.addEventListener('mousemove',e=>{const r=wrap.getBoundingClientRect();
+      fcShow(e.clientX-r.left,e.clientY-r.top,el.getAttribute('data-tt'));});
+    el.addEventListener('mouseleave',fcHide);});}
+if(document.readyState!=='loading')fcBindTips();
+else document.addEventListener('DOMContentLoaded',fcBindTips);
+function fcColumns(cid,Y,L,fmt){
+  const svg=document.getElementById(cid);
+  const cols=svg.querySelectorAll('.hit');
+  const xl=svg.querySelectorAll('.xline');
+  cols.forEach((el,i)=>{
+    el.addEventListener('mousemove',e=>{const r=svg.getBoundingClientRect();
+      const sc=svg.viewBox.baseVal.width/r.width;
+      const rows=L.map(l=>'<span><i style="background:'+l[1]+'"></i>'+l[0]+
+        '<span class="v">'+fmt(l[2][i])+'</span></span>').join('');
+      fcShow((e.clientX-r.left)*sc,(e.clientY-r.top)*sc,'<div class="yr">'+Y[i]+'</div>'+rows);
+      xl.forEach(x=>x.style.display='none');if(xl[i])xl[i].style.display='block';});
+    el.addEventListener('mouseleave',()=>{fcHide();xl.forEach(x=>x.style.display='none');});});
+}
+</script><div id="wrap">
+    <div class="pg"><span class="pt">Ask the analyst</span>
+      <span class="ps">Answers grounded only in the loaded model.</span></div>
+    <div class="demo-note"><b>Preview.</b> This is a static export of the
+      &ldquo;Ask the analyst&rdquo; section rendered from the bundled demo model
+      (Adani Enterprises Ltd). In the live app the interpretation
+      cards below are written by the AI analyst (Groq / Gemini) and the box is
+      interactive.</div>
+    <div class="interp"><div class="ititle">Financial Model Interpretation</div><div class="isub">Adani Enterprises Ltd · Infrastructure, Power &amp; Capital Goods · read directly from the uploaded model</div><div class="icard"><div class="ih">Growth</div><div class="ibody"><div class="il"><b>Sales</b> compounded strongly across FY17–TTM as the incubator kept spinning up new-energy, airports and logistics ventures.</div><div class="il"><b>Net profit</b> growth has been lumpier than revenue — gains from asset monetisation and associate income swing the bottom line year to year.</div></div></div><div class="icard"><div class="ih">Margins</div><div class="ibody"><div class="il"><b>EBITDA margin</b> sits below the infrastructure aggregate, consistent with a trading-and-incubation mix carrying thin gross spreads.</div><div class="il"><b>Net profit margin</b> is modest on a large revenue base; scale, not margin, drives the absolute profit line.</div></div></div><div class="icard"><div class="ih">Costs</div><div class="ibody"><div class="il">Cost of materials dominates the P&amp;L, so operating leverage is tied to commodity and freight pass-through rather than fixed-cost absorption.</div></div></div><div class="icard"><div class="ih">Returns</div><div class="ibody"><div class="il"><b>ROE</b> is middling versus the sector — heavy reinvestment into gestation-stage projects holds returns down while they scale.</div><div class="il"><b>ROCE</b> is weighed by capital work-in-progress that is not yet earning.</div></div></div><div class="icard"><div class="ih">Efficiency & Working Capital</div><div class="ibody"><div class="il">Working-capital intensity is high, typical of an EPC-and-trading footprint with long receivable and inventory cycles.</div></div></div><div class="icard"><div class="ih">Leverage & Cash Flow</div><div class="ibody"><div class="il"><b>Debt-to-equity</b> is elevated — the group funds long-dated infrastructure build-outs with a large borrowing book.</div><div class="il"><b>Cash from operations</b> must be read against heavy investing outflows; free cash flow is thin during the current capex cycle.</div></div></div><div class="icard"><div class="ih">Valuation</div><div class="ibody"><div class="il">The stock trades at a premium <b>P/E</b> and <b>P/B</b> to the infrastructure aggregate, pricing in optionality across the incubated businesses.</div></div></div><div class="icard"><div class="srcs"><span class="srcl">Sources</span><span class="src">Uploaded model</span><span class="src">Sector snapshot (IndianAPI + NSE)</span></div></div></div>
+    <div class="askcard">
+      <div class="card-title">Ask the analyst</div>
+      <div class="cap">Free-text questions about the loaded company. The model only
+        sees the scored ratios and the sector profile, so it cannot invent outside
+        facts.</div>
+      <div class="sglbl">Suggested questions</div>
+      <div class="suggest"><div class="q"><span class="dot"></span>Is the debt load sustainable given the cash flows?</div><div class="q"><span class="dot"></span>What single ratio would change the verdict fastest?</div><div class="q"><span class="dot"></span>How would this company look if it were an IT services firm instead?</div></div>
+      <div class="askrow">
+        <input type="text" placeholder="e.g. why is the return profile weak despite profit growth?">
+        <button class="askbtn" type="button">Ask</button>
+      </div>
+      <div class="answer">
+        <div class="albl">Answer</div>
+        In the live app, the analyst's grounded response appears here — written
+        only from the scored ratios and the sector profile of the loaded model.
+      </div>
+    </div>
+    <div id="fctip"></div></div></body></html>
