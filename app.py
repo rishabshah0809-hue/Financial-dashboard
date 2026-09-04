@@ -659,6 +659,42 @@ def _resolve_nse_symbol(company_name: str) -> str | None:
     return None
 
 
+@st.cache_data(show_spinner=False, ttl=86400)
+def _screener_market(symbol: str, date_key: str) -> dict | None:
+    """One cached Screener fetch per company per day (date_key busts it daily)."""
+    from core import screener as SC
+    c = SC.fetch(symbol)
+    return {"cmp": c.cmp, "market_cap": c.market_cap} if c else None
+
+
+def _enrich_market(model) -> None:
+    """Set the analysed company's Last Traded Price + Market Cap from Screener
+    (today's cached snapshot first, else one cached fetch/day). Falls back to the
+    uploaded Excel values if Screener can't resolve the company — never scrapes on
+    every rerun, and never fabricates."""
+    import datetime as _dt
+    sym = _resolve_nse_symbol(model.company)
+    if not sym:
+        return
+    scr = SNAP.load_screener()
+    if scr:
+        for s in scr.get("sectors", []):
+            for r in s.get("constituents", []):
+                if r.get("nse_symbol") == sym and r.get("cmp"):
+                    model.meta["current_price"] = r["cmp"]
+                    if r.get("market_cap"):
+                        model.meta["market_cap"] = r["market_cap"]
+                    model.meta["market_source"] = f"Screener · {scr.get('market_snapshot_date', '')}"
+                    return
+    data = _screener_market(sym, _dt.date.today().isoformat())
+    if data:
+        if data.get("cmp"):
+            model.meta["current_price"] = data["cmp"]
+        if data.get("market_cap"):
+            model.meta["market_cap"] = data["market_cap"]
+        model.meta["market_source"] = f"Screener · {_dt.date.today().isoformat()}"
+
+
 def sector_lens_tab(model, result) -> None:
     """Sector lens - niche NSE-index peer universe + company comparison."""
     fundamentals = SNAP.load_snapshot()      # IndianAPI periodic (PEG/EPS/Piotroski/ROA)
@@ -876,6 +912,7 @@ def main() -> None:
         LOGGER.info("sector detected for %s: %s (%s)", model.company, detected, why)
         st.rerun()
 
+    _enrich_market(model)          # live CMP + Market Cap from Screener (daily-cached)
     sector = get_sector(sector_key)
     try:
         result = assess(model, sector)
