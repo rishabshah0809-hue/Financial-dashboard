@@ -661,8 +661,8 @@ def _resolve_nse_symbol(company_name: str) -> str | None:
 
 def sector_lens_tab(model, result) -> None:
     """Sector lens - niche NSE-index peer universe + company comparison."""
-    snap_all = SNAP.load_snapshot()
-    meta = SNAP.snapshot_meta(snap_all) if snap_all else None
+    fundamentals = SNAP.load_snapshot()      # IndianAPI periodic (PEG/EPS/Piotroski/ROA)
+    screener = SNAP.load_screener()          # daily Screener market snapshot
 
     # Classify the analysed company into a niche NSE sectoral index by symbol.
     sym = _resolve_nse_symbol(model.company)
@@ -686,7 +686,9 @@ def sector_lens_tab(model, result) -> None:
         format_func=lambda k: f"{labels[k]}" + ("  · Broad/Proxy" if U.UNIVERSES[k].is_fallback else ""),
     )
 
-    sector_snap = SNAP.get_sector(snap_all, chosen) if snap_all else None
+    sector_snap, src_meta = SNAP.merge_sector(screener, fundamentals, chosen)
+    meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}
+    meta.update(src_meta)
     html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen, meta=meta)
     _render_shell(html, height)
 

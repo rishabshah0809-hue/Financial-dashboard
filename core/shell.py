@@ -1248,18 +1248,31 @@ def _days_ago(as_of: str | None) -> str:
 
 
 def _source_line(snap: dict, meta: dict | None) -> str:
-    """Two-line source + last-updated block. Times come from the snapshot, not now."""
-    updated = (meta or {}).get("as_of_date") or snap.get("as_of_date") or snap.get("as_of")
-    ago = _days_ago(updated)
-    src = (meta or {}).get("source") or snap.get("source") or "IndianAPI + NSE"
-    updated_txt = ""
-    if updated:
-        updated_txt = f'<div style="font-size:12px;color:#9aa09d">Last updated: {_esc(str(updated))} {ago}</div>'
-    return (
-        f'<div style="text-align:right"><span style="font-size:12px;color:#177245;'
-        f'font-weight:600">Source: {_esc(src)}</span>'
-        f'{updated_txt}</div>'
-    )
+    """Source + freshness block. Market (Screener, daily) and fundamentals
+    (IndianAPI + NSE, periodic) are shown separately and never conflated."""
+    m = meta or {}
+    lines = []
+    mkt_date = m.get("market_snapshot_date")
+    if m.get("market_source") and mkt_date:
+        stale_tag = ('<span style="color:#b8860b;font-weight:700"> · STALE (today\'s refresh unavailable)</span>'
+                     if m.get("market_stale") else "")
+        sc = m.get("market_stale_count") or 0
+        sc_tag = (f'<span style="color:#b8860b"> · {sc} co. stale</span>' if sc else "")
+        lines.append(f'<div style="font-size:12px;color:#177245;font-weight:600">'
+                     f'Market: {_esc(m["market_source"])} · {_esc(str(mkt_date))} {_days_ago(mkt_date)}'
+                     f'{stale_tag}{sc_tag}</div>')
+    period = m.get("fundamental_period") or m.get("financial_period")
+    fund_src = m.get("fundamentals_source") or m.get("source") or "IndianAPI + NSE"
+    fund_bits = f"Fundamentals: {_esc(fund_src)}"
+    if period:
+        fund_bits += f" · {_esc(str(period))}"
+    lines.append(f'<div style="font-size:12px;color:#8b918e">{fund_bits}</div>')
+    inc = snap.get("included_count")
+    if inc:
+        lines.append(f'<div style="font-size:11.5px;color:#9aa09d">Bottom-up calculation from {inc} constituents</div>')
+    if not lines:
+        return ""
+    return f'<div style="text-align:right">{"".join(lines)}</div>'
 
 
 def _sect_values(snap: dict | None) -> tuple[dict, dict]:
@@ -1484,7 +1497,7 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
     top10 = peers
 
     headers = [
-        "Rank", "Company", "Market Cap", "P/E", "P/B", "ROE %", "ROA %",
+        "Rank", "Company", "CMP", "Market Cap", "P/E", "P/B", "ROE %", "ROA %",
         "ROCE %", "Rev Gr %", "EPS Gr %", "OPM %", "NPM %", "D/E", "Asset Turn", "Int Cov"
     ]
     th_html = "".join(
@@ -1500,6 +1513,8 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
         name = r.get("name", "—")
         sym = r.get("nse_symbol", "")
         nse_url = r.get("nse_url") or f"https://www.nseindia.com/get-quotes/equity?symbol={sym}"
+        cmp_v = r.get("cmp")
+        cmp = "—" if cmp_v is None else f"₹{cmp_v:,.0f}"
         mcap = _fx(r.get("market_cap"), "mcap")
         pe = _fx(r.get("pe"), "x")
         pb = _fx(r.get("pb"), "x")
@@ -1514,16 +1529,24 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
         at = _fx(r.get("asset_turnover"), "peg")
         ic = _fx(r.get("interest_coverage"), "peg")
 
+        stale_badge = ""
+        if r.get("stale"):
+            since = r.get("stale_since")
+            stale_badge = (f'<span style="font-size:9.5px;color:#b8860b;font-weight:700" '
+                           f'title="Today\'s Screener refresh failed for this company; '
+                           f'showing last snapshot{(" from " + _esc(str(since))) if since else ""}"> '
+                           f'⚠ stale{(" " + _esc(str(since))) if since else ""}</span>')
         comp_cell = (
             f'<a href="{_esc(nse_url)}" target="_blank" rel="noopener noreferrer" '
             f'style="color:#177245;font-weight:700;text-decoration:none" '
             f'title="Open official NSE quote for {_esc(sym)}">{_esc(name)} '
-            f'<span style="font-size:10.5px;color:#9aa09d;font-weight:500">({_esc(sym)}) ↗</span></a>'
+            f'<span style="font-size:10.5px;color:#9aa09d;font-weight:500">({_esc(sym)}) ↗</span></a>{stale_badge}'
         )
 
         cells = [
             f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;color:#9aa09d">{rank}</td>',
             f'<td style="padding:10px 10px;font-size:13px">{comp_cell}</td>',
+            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{cmp}</td>',
             f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;text-align:right;font-family:ui-monospace,Menlo,monospace">{mcap}</td>',
             f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pe}</td>',
             f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pb}</td>',
