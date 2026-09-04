@@ -753,16 +753,14 @@ def _load(file_bytes: bytes | None, path: str | None):
 @st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
 def _live_quote(company: str) -> dict | None:
     """
-    Last traded price and market cap from the live daily feed (IndianAPI / NSE,
-    the same numbers Screener shows), cached for 24 hours so it refreshes once a
-    day and never hammers the API. Returns None if the feed is unavailable, so
-    the header falls back to the workbook's own figures.
+    Last traded price and market cap pulled directly from Screener.in, cached for
+    24 hours so it refreshes once a day and hits Screener at most once per
+    company per day. Returns None if Screener is unreachable, so the header falls
+    back to the workbook's own figures.
     """
     try:
-        from core.indianapi import fetch_quote
-        # IndianAPI matches better without the trailing company-form suffix.
-        name = re.sub(r"(?i)\s+(ltd|limited)\.?$", "", (company or "").strip())
-        return fetch_quote(name or company)
+        from core.screener import fetch_quote
+        return fetch_quote((company or "").strip())
     except Exception:                              # noqa: BLE001 - never block the app
         return None
 
@@ -821,9 +819,9 @@ def main() -> None:
         st.error(f"Unexpected problem reading the workbook: {exc}")
         return
 
-    # Refresh last traded price and market cap from the live daily feed so the
-    # header shows today's value, not the workbook's stale one. Done before the
-    # ratios below because the trailing P/E is priced off current_price.
+    # Refresh last traded price and market cap from Screener.in so the header
+    # shows today's value, not the workbook's stale one. Done before the ratios
+    # below because the trailing P/E is priced off current_price.
     _apply_live_quote(model)
 
     # Fill in any benchmark ratio the workbook did not supply, computed from
