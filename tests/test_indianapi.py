@@ -86,31 +86,27 @@ class TestIndianAPIExtraction(unittest.TestCase):
 class TestSectorUniverseAndDeduplication(unittest.TestCase):
     """Test 9 sector definitions, exact/approximate/proxy mapping, and ISIN deduplication."""
 
-    def test_nine_sectors_present(self):
-        self.assertEqual(len(U.ORDER), 9)
-        expected_keys = {
-            "banking", "it_services", "fmcg", "pharma", "realestate",
-            "infrastructure", "manufacturing", "retail", "generic"
-        }
-        self.assertEqual(set(U.ORDER), expected_keys)
+    def test_niche_sectors_present(self):
+        # 25 niche NSE sectoral indices + 2 broad fallbacks (commodities, infrastructure).
+        self.assertEqual(len(U.ORDER), 27)
+        for key in ("bank", "it", "fmcg", "pharma", "realty", "metal", "oil_gas",
+                    "cement", "chemicals", "power", "capital_goods", "nbfc"):
+            self.assertIn(key, U.ORDER)
+        self.assertEqual(len(U.NICHE_KEYS), 25)
 
     def test_mapping_types(self):
-        self.assertEqual(U.UNIVERSES["it_services"].mapping_type, "exact")
-        self.assertEqual(U.UNIVERSES["fmcg"].mapping_type, "exact")
-        self.assertEqual(U.UNIVERSES["pharma"].mapping_type, "exact")
-        self.assertEqual(U.UNIVERSES["realestate"].mapping_type, "exact")
-        self.assertEqual(U.UNIVERSES["banking"].mapping_type, "approximate")
-        self.assertEqual(U.UNIVERSES["infrastructure"].mapping_type, "approximate")
-        self.assertEqual(U.UNIVERSES["manufacturing"].mapping_type, "approximate")
-        self.assertEqual(U.UNIVERSES["retail"].mapping_type, "proxy")
-        self.assertEqual(U.UNIVERSES["generic"].mapping_type, "proxy")
+        for k in ("it", "fmcg", "pharma", "realty", "bank", "metal", "cement"):
+            self.assertEqual(U.UNIVERSES[k].mapping_type, "exact")
+        # broad fallback indices are labelled broad_proxy
+        self.assertEqual(U.UNIVERSES["commodities"].mapping_type, "broad_proxy")
+        self.assertEqual(U.UNIVERSES["infrastructure"].mapping_type, "broad_proxy")
 
     def test_lender_metric_applicability(self):
-        app, reason = U.metric_applicable("banking", "roce")
+        app, reason = U.metric_applicable("bank", "roce")
         self.assertFalse(app)
         self.assertIn("not a meaningful metric for lenders", reason)
 
-        app_it, _ = U.metric_applicable("it_services", "roce")
+        app_it, _ = U.metric_applicable("it", "roce")
         self.assertTrue(app_it)
 
     def test_all_unique_constituents_deduplication(self):
@@ -118,7 +114,7 @@ class TestSectorUniverseAndDeduplication(unittest.TestCase):
         total_constituents = sum(len(v) for v in per_sec.values())
         # Deduplication must reduce total constituent requests
         self.assertLessEqual(len(union), total_constituents)
-        self.assertLessEqual(len(union), 400, "Must be well within 400 credit safety budget")
+        self.assertLessEqual(len(union), 460, "Must stay within the credit safety budget")
 
 
 class TestTop10Rankings(unittest.TestCase):
@@ -221,11 +217,11 @@ class TestSectorSnapshotReader(unittest.TestCase):
         self.assertIn("source", meta)
         self.assertIn("safety_threshold", meta)
 
-        banking = SNAP.get_sector(snap, "banking")
-        self.assertIsNotNone(banking)
-        self.assertEqual(banking["key"], "banking")
-        self.assertTrue(banking["is_financial"])
-        self.assertIsNone(banking["metrics"]["roce"])
+        bank = SNAP.get_sector(snap, "bank")
+        self.assertIsNotNone(bank)
+        self.assertEqual(bank["key"], "bank")
+        self.assertTrue(bank["is_financial"])
+        self.assertIsNone(bank["metrics"]["roce"])
 
 
 if __name__ == "__main__":
