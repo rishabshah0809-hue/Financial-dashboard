@@ -263,9 +263,12 @@ def last_provider() -> str:
     return _LAST_USED
 
 
-def post(config: LLMConfig, messages: list[dict]) -> str:
+def post(config: LLMConfig, messages: list[dict], json_mode: bool = False) -> str:
     """Fallback-aware call: try `config`, then each of its `.fallbacks` in turn
-    (e.g. Groq → Gemini). Records which provider answered in `last_provider()`."""
+    (e.g. Groq → Gemini). Records which provider answered in `last_provider()`.
+
+    `json_mode` asks the provider to return a strict JSON object (used for the
+    analyst note), which stops a reasoning model from replying in prose."""
     global _LAST_USED
     chain = [config, *(config.fallbacks or [])]
     errors = []
@@ -278,7 +281,7 @@ def post(config: LLMConfig, messages: list[dict]) -> str:
                            label, ts)
             continue
         try:
-            text = _post(cfg, messages)
+            text = _post(cfg, messages, json_mode=json_mode)
             _LAST_USED = label
             LOGGER.info("llm provider=%s status=success http=200 ts=%s", label, ts)
             return text
@@ -291,7 +294,7 @@ def post(config: LLMConfig, messages: list[dict]) -> str:
     raise RuntimeError("all LLM providers failed — " + " | ".join(errors))
 
 
-def _post_gemini(config: LLMConfig, messages: list[dict]) -> str:
+def _post_gemini(config: LLMConfig, messages: list[dict], json_mode: bool = False) -> str:
     """Google Generative Language API (different shape from the OpenAI providers)."""
     spec = PROVIDERS["gemini"]
     system = "\n".join(m["content"] for m in messages if m["role"] == "system")
@@ -300,10 +303,12 @@ def _post_gemini(config: LLMConfig, messages: list[dict]) -> str:
          "parts": [{"text": m["content"]}]}
         for m in messages if m["role"] != "system"
     ]
+    gen_config = {"temperature": config.temperature, "maxOutputTokens": 4096}
+    if json_mode:
+        gen_config["responseMimeType"] = "application/json"
     payload = {
         "contents": contents,
-        "generationConfig": {"temperature": config.temperature,
-                             "maxOutputTokens": 2600},
+        "generationConfig": gen_config,
     }
     if system:
         payload["system_instruction"] = {"parts": [{"text": system}]}
@@ -332,7 +337,7 @@ def _post_gemini(config: LLMConfig, messages: list[dict]) -> str:
     raise RuntimeError(f"every Gemini key failed — last error: {last_error}")
 
 
-def _post(config: LLMConfig, messages: list[dict]) -> str:
+def _post(config: LLMConfig, messages: list[dict], json_mode: bool = False) -> str:
     """
     Call the provider, trying each key in the pool.
 
@@ -340,16 +345,23 @@ def _post(config: LLMConfig, messages: list[dict]) -> str:
     request; only when every key is exhausted does the caller fall back.
     """
     if config.provider == "gemini":
-        return _post_gemini(config, messages)
+        return _post_gemini(config, messages, json_mode=json_mode)
     spec = PROVIDERS[config.provider]
     payload = {
         "model": config.model,
         "messages": messages,
         "temperature": config.temperature,
-        "max_tokens": 2600,
+        # Reasoning models spend part of the completion budget on hidden
+        # thinking, so a small cap can leave the visible answer empty (and the
+        # note then has no JSON to parse). Give the answer room to land.
+        "max_tokens": 4096,
     }
     if config.model in REASONING_MODELS:
         payload["reasoning_effort"] = config.reasoning_effort
+    # Ask OpenAI-style providers (Groq, OpenRouter) for a strict JSON object so a
+    # reasoning model returns the note as JSON instead of prose.
+    if json_mode:
+        payload["response_format"] = {"type": "json_object"}
 
     last_error = "no API key configured"
     for key in config.api_keys:
@@ -379,8 +391,11 @@ def _post(config: LLMConfig, messages: list[dict]) -> str:
 
 
 def _extract_json(text: str) -> dict:
-    """LLMs sometimes wrap JSON in prose or code fences. Dig it out."""
-    text = text.strip()
+    """LLMs sometimes wrap JSON in prose, code fences or reasoning tags. Dig it out."""
+    text = (text or "").strip()
+    # Reasoning models occasionally leak a <think>...</think> block before the
+    # answer; drop it so it can't swallow the JSON braces.
+    text = re.sub(r"(?is)<think>.*?</think>", "", text).strip()
     if text.startswith("```"):
         text = text.split("```")[1]
         if text.lstrip().lower().startswith("json"):
@@ -521,7 +536,7 @@ def analyse(result: Assessment, config: LLMConfig) -> dict:
         {"role": "user", "content": build_user_prompt(result)},
     ]
     try:
-        note = _extract_json(post(config, messages))
+        note = _extract_json(post(config, messages, json_mode=True))
     except Exception as exc:                      # noqa: BLE001 - surfaced in the UI
         fallback = offline_note(result)
         fallback["_error"] = str(exc)

@@ -826,9 +826,11 @@ def main() -> None:
         peers = st.session_state.setdefault("peers", [])
         html, height = SH.dashboard_shell(model, result, note, peers)
         _render_shell(html, height)
+        # The rule-based note already reads as a complete analysis on its own, so
+        # a failed AI call falls back to it silently rather than printing a raw
+        # provider error over the dashboard. Details still go to the server log.
         if note.get("_error"):
-            st.caption(f"AI analyst unreachable ({note['_error']}) - showing the "
-                       "rule-based reading.")
+            LOGGER.info("AI analyst fell back to rule-based note: %s", note["_error"])
         if result.data_gaps:
             st.caption(
                 "Metrics not found in this workbook (excluded from the score): "
