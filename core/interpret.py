@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+import time
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -331,6 +332,75 @@ def _approx_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+# Substrings that mark a *transient* failure worth retrying (free-tier congestion,
+# a provider blip, a rate-limit window, or a truncated/non-JSON reply). An auth or
+# bad-request error is NOT here, so those fail fast instead of wasting retries.
+_TRANSIENT = (
+    "503", "502", "504", "429", "unavailable", "high demand", "overload",
+    "timeout", "timed out", "temporarily", "rate", "quota", "tpm", "too many",
+    "connection", "reset", "bad gateway", "no json", "json", "empty response",
+    "all llm providers failed",
+)
+# Bounded so the Streamlit spinner never hangs: 4 attempts, backing off 1s/2s/4s.
+_MAX_ATTEMPTS = 4
+
+
+def _is_transient(err: str) -> bool:
+    low = err.lower()
+    return any(token in low for token in _TRANSIENT)
+
+
+# A lighter Gemini alias that stays responsive when the standard flash model is
+# congested (free-tier 503s). Appended as a LAST-RESORT fallback only, reusing the
+# same key, so it never changes the primary provider order the app chose.
+_GEMINI_LITE_MODEL = "gemini-flash-lite-latest"
+
+
+def _augment(config: LLMConfig) -> LLMConfig:
+    """Return a config whose fallback chain also ends in a lighter Gemini model.
+
+    This widens the free-tier safety net without touching core.llm: if a Gemini
+    key is present anywhere in the chain, a final attempt on the lite model is
+    appended. The caller's config is not mutated (session-state reuse)."""
+    chain = [config, *(config.fallbacks or [])]
+    gem_keys: list[str] = []
+    for c in chain:
+        if c.provider == "gemini" and c.api_keys:
+            gem_keys = c.api_keys
+            break
+    if not gem_keys:
+        return config
+    if any(c.provider == "gemini" and c.model == _GEMINI_LITE_MODEL for c in chain):
+        return config
+    lite = LLMConfig(provider="gemini", api_keys=list(gem_keys), model=_GEMINI_LITE_MODEL)
+    primary = LLMConfig(
+        provider=config.provider, api_keys=list(config.api_keys), model=config.model,
+        temperature=config.temperature, reasoning_effort=config.reasoning_effort,
+        fallbacks=[*(config.fallbacks or []), lite],
+    )
+    return primary
+
+
+def _generate(config: LLMConfig, messages: list[dict]) -> tuple[str, dict]:
+    """Call the LLM and parse its JSON, retrying transient failures with backoff.
+
+    The whole provider chain (Groq -> Gemini) is retried, because free-tier 503s
+    and rate-limits clear on a second try; a persistent auth/format error breaks
+    out immediately. Raises the last error only when every attempt is spent."""
+    last_exc: Exception | None = None
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            raw = post(config, messages)
+            return raw, _extract_json(raw)
+        except Exception as exc:                       # noqa: BLE001
+            last_exc = exc
+            if attempt < _MAX_ATTEMPTS - 1 and _is_transient(str(exc)):
+                time.sleep(2 ** attempt)               # 1s, 2s, 4s
+                continue
+            break
+    raise last_exc if last_exc else RuntimeError("generation failed")
+
+
 # --------------------------------------------------------------------------
 # public entry point
 # --------------------------------------------------------------------------
@@ -349,8 +419,7 @@ def interpret(model: FinancialModel, sector: str, config: LLMConfig) -> Interpre
     messages = _build_messages(payload)
     prompt_chars = sum(len(m["content"]) for m in messages)
     try:
-        raw = post(config, messages)
-        data = _extract_json(raw)
+        raw, data = _generate(_augment(config), messages)
     except Exception as exc:                       # noqa: BLE001 - surfaced in UI
         result.error = ("Financial interpretation temporarily unavailable. "
                         "Your model data is available below.")
