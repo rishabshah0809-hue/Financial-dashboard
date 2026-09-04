@@ -10,10 +10,11 @@ Run it with:   streamlit run app.py
 
 from __future__ import annotations
 
+import html
 import json
 import logging
 import os
-import time
+import re
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -21,7 +22,6 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-from core import brief as BR
 from core import charts as C
 from core import design_blocks as D
 from core import report as REP
@@ -31,6 +31,9 @@ from core import shell as SH
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
 from core.derive import fill_missing_ratios
+from core.interpret import SECTIONS as INTERP_SECTIONS
+from core.interpret import fingerprint as interp_fingerprint
+from core.interpret import interpret as build_interpretation
 from core.parser import ParseError, load_model
 from core.scoring import assess, compare_sectors
 from core.sectors import (
@@ -394,25 +397,6 @@ def analyst_config() -> LLMConfig:
     return primary
 
 
-def brief_config() -> LLMConfig:
-    """Provider order for the Company Brief: Groq PRIMARY, Gemini FALLBACK.
-    The brief's document context is kept small enough to fit Groq's free-tier
-    token limit, so Groq answers reliably; Gemini catches the case where Groq
-    rate-limits or errors. Same shared secrets/detection as the analyst note."""
-    try:
-        secrets = dict(st.secrets)
-    except Exception:                       # noqa: BLE001
-        secrets = {}
-    groq = config_from_env("groq", secrets=secrets)
-    gemini = config_from_env("gemini", secrets=secrets)
-    live = [c for c in (groq, gemini) if c.is_live]
-    if not live:
-        return groq
-    primary, fallbacks = live[0], live[1:]
-    primary.fallbacks = fallbacks
-    return primary
-
-
 def step(number: int, label: str) -> None:
     st.markdown(
         f'<div class="step"><span class="n">{number}</span>{label}'
@@ -622,93 +606,116 @@ def sector_lens_tab(model, result) -> None:
     _render_shell(html, height)
 
 
-BRIEF_CSS = """<style>
-.brief{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
-.brief .bcard{background:#fff;border:1px solid #e6ebe7;border-radius:16px;
-  padding:16px 18px;margin-top:10px;
+INTERP_CSS = """<style>
+.interp{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
+.interp .ititle{font-size:18px;font-weight:800;color:#15201a;padding:2px 2px 2px}
+.interp .isub{font-size:12px;color:#8b918e;padding:2px 2px 10px}
+.interp .icard{background:#fff;border:1px solid #e6ebe7;border-radius:16px;
+  padding:14px 18px;margin-top:10px;
   box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
-.brief .bh{font-size:15px;font-weight:800;color:#15201a;margin-bottom:8px}
-.brief .bbody{font-size:13px;line-height:1.6;color:#3f4744}
-.brief .bl{padding:4px 0}
-.brief .bl b{color:#15201a}
-.brief .tagm{color:#177245;font-weight:700}
-.brief .bfoot{font-size:11.5px;color:#9aa09d;font-style:italic;padding:12px 2px 2px}
-.brief .bnote{font-size:13px;color:#8b918e;padding:10px 2px}
-.brief .srcs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-top:12px}
-.brief .srcl{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+.interp .ih{font-size:14.5px;font-weight:800;color:#177245;margin-bottom:6px;
+  letter-spacing:.2px}
+.interp .ibody{font-size:13px;line-height:1.62;color:#3f4744}
+.interp .il{padding:5px 0 5px 16px;position:relative}
+.interp .il:before{content:"";position:absolute;left:2px;top:11px;width:5px;
+  height:5px;border-radius:50%;background:#37a06a}
+.interp .il b{color:#15201a}
+.interp .inone{font-size:12.5px;color:#8b918e;font-style:italic;padding:3px 0}
+.interp .iext{font-size:11.5px;color:#8b918e;font-style:italic;padding:6px 0 0}
+.interp .inote{font-size:13px;color:#8b918e;padding:10px 2px;line-height:1.55}
+.interp .srcs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 2px 2px}
+.interp .srcl{font-family:ui-monospace,Menlo,monospace;font-size:10px;
   letter-spacing:1.4px;color:#8b918e;font-weight:700}
-.brief a.src{font-size:12px;font-weight:600;color:#177245;text-decoration:none;
-  background:#eef4f0;border:1px solid #cfe2d7;border-radius:20px;padding:5px 11px}
-.brief a.src:hover{background:#e2efe8}
+.interp .src{font-size:12px;font-weight:600;color:#177245;
+  background:#eef4f0;border:1px solid #cfe2d7;border-radius:20px;padding:4px 11px}
 </style>"""
 
+# Sections that carry their own "nothing here" wording, so a single-string body
+# is a legitimate final answer rather than a missing one.
+_INTERP_FALLBACK_PREFIXES = ("nothing material", "valuation data not available")
 
-def _company_brief_block(company: str, config: LLMConfig) -> None:
-    """COMPANY BRIEF — three grounded sections above the Ask-AI chat.
 
-    Only a *successful* brief is memoised in session_state; an offline/error
-    result is left uncached so a later visit retries (a transient LLM failure
-    must never get stuck for the session)."""
-    # Cache a *successful* brief for the whole session. A failed/offline result is
-    # reused for a short cooldown too, so revisiting the page doesn't hammer the
-    # providers in a loop — after the cooldown it retries once.
-    key = f"__brief__{company}"
+def _interp_bullets(bullets: list[str]) -> str:
+    """Render one section's bullets to HTML.
+
+    A bold **lead-in** becomes <b>…</b>; a lone "Nothing material…"/"Valuation
+    data not available…" line renders as an italic note, not a bullet."""
+    if not bullets:
+        return '<div class="inone">Nothing material changed in this area.</div>'
+    if len(bullets) == 1 and bullets[0].lower().startswith(_INTERP_FALLBACK_PREFIXES):
+        return f'<div class="inone">{html.escape(bullets[0])}</div>'
+    rows = []
+    for raw in bullets:
+        text = html.escape(raw)
+        text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+        # An "External context: X" tail is styled as a muted source line.
+        m = re.search(r"(External context:\s*.+)$", text)
+        if m:
+            head = text[: m.start()].rstrip()
+            rows.append(f'<div class="il">{head}<div class="iext">{m.group(1)}</div></div>')
+        else:
+            rows.append(f'<div class="il">{text}</div>')
+    return "".join(rows)
+
+
+def _model_interpretation_block(model, sector_key: str, config: LLMConfig) -> None:
+    """FINANCIAL MODEL INTERPRETATION — generated ONCE per loaded workbook.
+
+    Cached in session state against a fingerprint of the model's own numbers, so
+    tab switches, chat questions and Streamlit reruns all reuse the same text.
+    Only a *different* (or edited) workbook — a new fingerprint — regenerates."""
+    sector_name = get_sector(sector_key).name
+    key = "__interp__"
+    fp = f"{model.company}|{sector_name}|" + interp_fingerprint(model, sector_name)
     entry = st.session_state.get(key)
-    now = time.time()
-    if entry and not entry["b"].offline and not entry["b"].error:
-        b = entry["b"]
-    elif entry and (now - entry["ts"] < 120):
-        b = entry["b"]
+    if entry and entry.get("fp") == fp:
+        interp = entry["interp"]
     else:
-        with st.spinner("Reading the latest official filings…"):
-            b = BR.build_brief(company, config)
-        st.session_state[key] = {"b": b, "ts": now}
+        with st.spinner("Interpreting the financial model…"):
+            interp = build_interpretation(model, sector_name, config)
+        # Only memoise a usable result; a transient failure is retried next visit.
+        if not interp.error:
+            st.session_state[key] = {"fp": fp, "interp": interp}
 
-    tag = ('<span style="font-family:ui-monospace,Menlo,monospace;font-size:10px;'
-           'letter-spacing:1.6px;color:#8b918e;font-weight:700">COMPANY BRIEF</span>')
+    head = ('<div class="ititle">Financial Model Interpretation</div>'
+            f'<div class="isub">{html.escape(model.company.title())} · '
+            f'{html.escape(sector_name)} · read directly from the uploaded model</div>')
 
-    if b.unavailable:
-        vcomp(BRIEF_CSS + f'<div class="brief">{tag}<div class="bnote">{b.unavailable}</div></div>', 200)
+    if interp.offline:
+        note = ("No Groq or Gemini API key is detected in this app's Secrets, so the "
+                "written interpretation can't be generated. Your parsed model data "
+                "is available in the tabs above and the chat below still works.")
+        vcomp(INTERP_CSS + f'<div class="interp">{head}'
+              f'<div class="inote">{note}</div></div>', 220)
+        return
+    if interp.error:
+        vcomp(INTERP_CSS + f'<div class="interp">{head}'
+              f'<div class="inote">{html.escape(interp.error)}</div></div>', 220)
         return
 
-    def section(title, html_body):
-        body = html_body or ('<div class="bl">Not stated in the available '
-                             'filings.</div>')
-        return (f'<div class="bcard"><div class="bh">{title}</div>'
-                f'<div class="bbody">{body}</div></div>')
+    cards = []
+    for skey, heading in INTERP_SECTIONS:
+        body = _interp_bullets(interp.sections.get(skey, []))
+        cards.append(f'<div class="icard"><div class="ih">{heading}</div>'
+                     f'<div class="ibody">{body}</div></div>')
+    body_html = "".join(cards)
 
-    if b.offline:
-        note = ("No Groq or Gemini API key is detected in this app's Secrets, so "
-                "the written brief can't be generated. The official source "
-                "documents are shown below.")
-        body = f'<div class="bnote">{note}</div>'
-    elif b.error and not (b.core_focus or b.key_initiatives or b.why_care):
-        body = f'<div class="bnote">{b.error}</div>'
+    if interp.sources:
+        chips = "".join(f'<span class="src">{html.escape(s)}</span>'
+                        for s in interp.sources)
+        srcs = f'<div class="srcs"><span class="srcl">Sources</span>{chips}</div>'
     else:
-        body = (section("Core Focus", b.core_focus)
-                + section("Key Initiatives", b.key_initiatives)
-                + section("Why Investors Should Care", b.why_care)
-                + '<div class="bfoot">Generated from the latest public filings, '
-                  'investor presentations and earnings-call disclosures.</div>')
+        srcs = ('<div class="srcs"><span class="srcl">Sources</span>'
+                '<span class="inone">Uploaded model only — no external sources used.</span></div>')
+    body_html += f'<div class="icard">{srcs}</div>'
 
-    # sources with real "View source" links to the official documents
-    if b.docs:
-        chips = "".join(
-            f'<a class="src" href="{d.url}" target="_blank" rel="noopener">'
-            f'{d.kind} · {d.date}'
-            + ("" if d.readable else " (not machine-readable)")
-            + "</a>"
-            for d in b.docs)
-        body += f'<div class="srcs"><span class="srcl">Sources</span>{chips}</div>'
-
-    height = 200 if b.offline else 640
-    vcomp(BRIEF_CSS + f'<div class="brief">{tag}{body}</div>', height)
+    vcomp(INTERP_CSS + f'<div class="interp">{head}{body_html}</div>', 1500)
 
 
-def qa_tab(result, config: LLMConfig) -> None:
+def qa_tab(model, result, config: LLMConfig) -> None:
     _page_header("Ask the analyst",
                  "Answers grounded only in the loaded model.")
-    _company_brief_block(result.company, brief_config())
+    _model_interpretation_block(model, st.session_state.get("sector_pref", "generic"), config)
     with card("Ask the analyst"):
         st.caption(
             "Free-text questions about the loaded company. The model only sees the "
@@ -834,7 +841,7 @@ def main() -> None:
     elif page == "statements":
         statements_tab(model)
     else:
-        qa_tab(result, config)
+        qa_tab(model, result, config)
 
 
 if __name__ == "__main__":
