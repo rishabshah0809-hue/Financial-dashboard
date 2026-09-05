@@ -1851,10 +1851,17 @@ def _con_card(r: dict, is_financial: bool) -> str:
         ("D/E", _fx(r.get("debt_to_equity"), "peg")),
         ("Int Cov", _fx(r.get("interest_coverage"), "x")),
     ]
-    mcells = "".join(
-        f'<div class="mc"><div class="mc-l">{lab}</div><div class="mc-v">{val}</div></div>'
-        for lab, val in metrics
-    )
+    if all(val == "—" for _, val in metrics):
+        # No market ratios for this constituent in the latest snapshot — show an
+        # honest note rather than a grid of empty dashes.
+        grid = ('<div style="font-size:12.5px;color:#9aa09d;padding:14px 2px 2px">'
+                'Market ratios not in the latest snapshot — tap the name for live data on Screener.</div>')
+    else:
+        mcells = "".join(
+            f'<div class="mc"><div class="mc-l">{lab}</div><div class="mc-v">{val}</div></div>'
+            for lab, val in metrics
+        )
+        grid = f'<div class="con-metrics">{mcells}</div>'
     return (
         '<div class="con"><div class="con-h">'
         f'<span class="con-rank">{rank_s}</span>'
@@ -1863,7 +1870,7 @@ def _con_card(r: dict, is_financial: bool) -> str:
         f'<div class="con-tk">{_esc(sym)} · Screener ↗</div></div>'
         f'<div class="con-mc"><div class="con-mc-l">MARKET CAP</div><div class="con-mc-v">{mcap}</div></div>'
         '</div>'
-        f'<div class="con-metrics">{mcells}</div></div>'
+        f'{grid}</div>'
     )
 
 
