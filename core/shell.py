@@ -208,13 +208,13 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
   minmax(min(280px,100%),1fr));gap:14px;align-items:stretch}
 .grid-300{display:grid;grid-template-columns:repeat(auto-fit,
   minmax(min(300px,100%),1fr));gap:14px;align-items:stretch}
-/* Masonry via CSS multi-column: chart cards vary a lot in height, and a grid
-   makes every card in a row as tall as the tallest, leaving big empty gaps under
-   the short ones. Columns let each card take its own height and pack tightly,
-   with no row-based gap. column-width keeps it responsive (1 column when narrow). */
-.grid-440{column-width:430px;column-gap:14px}
-.grid-440>.card{break-inside:avoid;-webkit-column-break-inside:avoid;
-  page-break-inside:avoid;margin:0 0 14px;width:100%}
+/* Two-column grid with equal-height rows: align-items:stretch makes both cards in
+   a row take the taller one's height, so the boxes stay uniform and every row
+   lines up cleanly with no ragged offset or gap between rows. Any spare space
+   sits inside the shorter card rather than as a gap beside it. */
+.grid-440{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(430px,100%),1fr));
+  gap:14px;align-items:stretch}
+.grid-440>.card{height:100%}
 .ct{font-size:17px;font-weight:700;color:#15201a;white-space:nowrap}
 .ct-row{display:flex;align-items:baseline;justify-content:space-between}
 .csub{font-size:12.5px;color:#9aa09d;padding:4px 0 8px}
