@@ -496,6 +496,11 @@ function fcBindInfo(){
 function fcGoto(pg){try{var d=window.parent.document;
   var b=d.querySelector('[class*="st-key-nav-'+pg+'"] button');
   if(b){b.click();}}catch(e){}}
+// Deep-link a KPI card to its row in the Statements > Ratio Analysis table:
+// stash the target ratio on the shared parent window, then switch page. The
+// statements iframe reads it on load (see SHELL_JS), opens Ratio Analysis and
+// scrolls to the row.
+function fcGotoRatio(rn){try{window.parent.__fcGotoRatio=rn;}catch(e){}fcGoto('statements');}
 function fcBindTips(){
   document.querySelectorAll('[data-tt]').forEach(el=>{
     el.addEventListener('mousemove',e=>{
@@ -582,6 +587,26 @@ if(pa)pa.addEventListener('click',()=>{
   ['p-name','p-pe','p-roe','p-de'].forEach(id=>
     document.getElementById(id).value='');
   toast(nm+' added to comparison');});
+// Deep-link target from a KPI card: on the Statements page, open Ratio Analysis
+// and scroll to the requested ratio row. Runs only where the tabs exist.
+(function(){
+  var tabs=document.querySelectorAll('.stmttab');
+  if(!tabs.length)return;
+  var target=null;try{target=window.parent.__fcGotoRatio;}catch(e){}
+  if(!target)return;
+  try{window.parent.__fcGotoRatio=null;}catch(e){}
+  var ra=document.querySelector('.stmttab[data-tab="ra"]');if(ra)ra.click();
+  setTimeout(function(){
+    var row=null;
+    document.querySelectorAll('#tbl-ra tr[data-name]').forEach(function(r){
+      if(r.getAttribute('data-name')===target)row=r;});
+    if(!row)return;
+    row.scrollIntoView({behavior:'smooth',block:'center'});
+    var cells=row.querySelectorAll('td');
+    cells.forEach(function(c){c.style.transition='background .4s';c.style.background='#fff6cf';});
+    setTimeout(function(){cells.forEach(function(c){c.style.background='';});},1900);
+  },300);
+})();
 """
 
 
@@ -756,12 +781,22 @@ def _kpi_cards(model, result) -> list[str]:
         f'<div class="big">{result.total_score:.0f}<small>/100</small></div>'
         f'<div class="ft"><span class="chip">{result.verdict}</span>sector adjusted'
         f"</div></div>")
-    mk = lambda name, big, ft: (
-        f'<div class="kpi"><div class="hd"><span class="name">{name}</span>{circ}</div>'
+    def circ_for(goto: str) -> str:
+        # Clickable arrow that jumps to this ratio's row in Ratio Analysis.
+        if goto:
+            return ('<div class="circ" style="cursor:pointer" '
+                    'title="Show this in Ratio Analysis" '
+                    f"onclick=\"fcGotoRatio('{goto}')\">&#8599;</div>")
+        return circ
+
+    mk = lambda name, big, ft, goto="": (
+        f'<div class="kpi"><div class="hd"><span class="name">{name}</span>'
+        f'{circ_for(goto)}</div>'
         f'<div class="big">{big}</div><div class="ft">{ft}</div></div>')
-    return [score_card, mk("P/E Ratio", pe_big, pe_ft),
-            mk("Return on Equity", roe_big, roe_ft),
-            mk("Debt / Equity", de_big, de_ft)]
+    return [score_card,
+            mk("P/E Ratio", pe_big, pe_ft, "pe ratio"),
+            mk("Return on Equity", roe_big, roe_ft, "return on equity (roe) %"),
+            mk("Debt / Equity", de_big, de_ft, "debt to equity ratio")]
 
 
 def _score_rationale(result) -> str:
@@ -1068,11 +1103,10 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
         '<div class="card"><div class="ct-row">' + _ct("Revenue Trend")
         + "</div>"
         f"{rev_html}</div>",
-        f'<div class="card"><div class="ct-row">{_ct("Valuation")}'
-        f'<span style="font-size:15px;color:#9aa09d">\u203a</span></div>'
+        f'<div class="card"><div class="ct-row">{_ct("Valuation")}</div>'
         f'<div class="csub">Fundamental metrics to determine fair value</div>'
         f"{_valuation(model)}</div>",
-        '<div class="card"><div class="ct-row">' + _ct("Key Ratios") + ""
+        '<div class="card"><div class="ct-row"><span class="ct">Key Ratios</span>'
         '<span class="pilltag">All</span></div>' + _key_ratios(model) + "</div>",
         "</div>",
         '<div class="grid-300">'

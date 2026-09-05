@@ -731,6 +731,11 @@ def spark(vals: list[float], colour_line: str = AMBER_TXT) -> tuple[str, int]:
 
 # --- turnover rows --------------------------------------------------------------------------
 def turnover_rows(rows: list[tuple[str, float, float]]) -> tuple[str, int]:
+    # Scale the bars to the data, not a fixed 13x: with one low-turnover row (e.g.
+    # a 0.9x fixed-asset turnover) a hardcoded scale left the bar a tiny sliver.
+    # Use the largest value on show plus headroom so every bar reads clearly.
+    peak = max((max(latest, mean) for name, latest, mean in rows), default=1.0)
+    scale = max(peak * 1.15, 1.0)
     out = ['<div style="display:flex;flex-direction:column;gap:16px;padding-top:10px">']
     for name, latest, mean in rows:
         colour = MID if latest >= mean else AMBER
@@ -742,9 +747,9 @@ def turnover_rows(rows: list[tuple[str, float, float]]) -> tuple[str, int]:
             f'<span style="color:{FAINT}">  mean {mean:.2f}x</span></span></div>'
             f'<div style="position:relative;height:11px;border-radius:11px;background:#f1f3f1">'
             f'<div{_tt(f"{name}: {latest:.2f}x vs mean {mean:.2f}x")} '
-            f'style="width:{min(100, latest / 13 * 100):.1f}%;height:100%;border-radius:11px;'
+            f'style="width:{min(100, max(2, latest / scale * 100)):.1f}%;height:100%;border-radius:11px;'
             f'background:{colour};cursor:pointer"></div>'
-            f'<div style="position:absolute;left:{min(100, mean / 13 * 100):.1f}%;'
+            f'<div style="position:absolute;left:{min(100, mean / scale * 100):.1f}%;'
             f'top:-3px;width:2px;height:17px;background:#0f3d27"></div></div></div>')
     out.append("</div>")
     return "".join(out), len(rows) * 44 + 20
