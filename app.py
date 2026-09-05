@@ -688,10 +688,15 @@ def sector_lens_tab(model, result) -> None:
     # lacking ratios) is fetched live from Screener. IndianAPI is never used here.
     members = list(U.all_unique_symbols()[0].get(chosen, []))
     is_fin = bool(U.UNIVERSES[chosen].is_financial) if chosen in U.UNIVERSES else False
+    # Rows come from the SCREENER snapshot only — never the IndianAPI fallback
+    # (which lacks per-company ROE). Anything missing is live-fetched below.
+    scr_sector = SNAP.get_sector(screener, chosen) if screener else None
     snap_rows = {r.get("nse_symbol"): dict(r)
-                 for r in ((sector_snap or {}).get("constituents") or []) if r.get("nse_symbol")}
+                 for r in ((scr_sector or {}).get("constituents") or []) if r.get("nse_symbol")}
     need = tuple(sorted({s for s in members
-                         if s not in snap_rows or snap_rows[s].get("pe") is None}))
+                         if s not in snap_rows
+                         or snap_rows[s].get("pe") is None
+                         or snap_rows[s].get("roe") is None}))
     live = {}
     if need:
         with st.spinner("Fetching latest data from Screener…"):
