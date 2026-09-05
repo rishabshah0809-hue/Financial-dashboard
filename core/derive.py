@@ -72,6 +72,11 @@ def derived_ratios(model: FinancialModel) -> dict[str, pd.Series]:
     inventory = _row(model, "Inventory", "Inventories")
     cfo = _row(model, "Cash from Operating Activity", "Cash from Operations")
     eps = _row(model, "Earnings per Share", "EPS")
+    gross = _row(model, "Gross Profit", "Gross Margin")
+    sga = _row(model, "Selling & General Expenses")
+    depreciation = _row(model, "Depreciation")
+    ebt = _row(model, "Earnings Before Tax", "Profit before tax", "Profit Before Tax")
+    tax = _row(model, "Tax")
 
     equity = capital.add(reserves, fill_value=0.0) if not reserves.empty else capital
     # Capital employed = what the business is funded with, debt included.
@@ -85,19 +90,39 @@ def derived_ratios(model: FinancialModel) -> dict[str, pd.Series]:
         "Net Profit Growth": _growth(profit),
         "EBITDA Growth": _growth(ebitda),
         "EPS Growth": _growth(eps),
+        # Profitability & margins
+        "Gross Margin": _safe_div(gross, sales),
         "EBITDA Margin": _safe_div(ebitda, sales),
+        "EBIT Margin": _safe_div(ebit, sales),
+        "EBT Margin": _safe_div(ebt, sales),
         "Net Profit Margin": _safe_div(profit, sales),
+        # Cost & payout (% of sales)
+        "Selling & General Expenses % Sales": _safe_div(sga, sales),
+        "Depreciation % Sales": _safe_div(depreciation, sales),
+        "Interest % Sales": _safe_div(interest, sales),
+        "Tax Payout %": _safe_div(tax, ebt),
+        # Return ratios
         "Return on Equity (ROE) %": _safe_div(profit, equity),
         "Return on Capital Employed (ROCE) %": _safe_div(ebit, capital_employed),
         "Return on Assets (ROA) %": _safe_div(profit, assets),
-        "Debt to Equity Ratio": _safe_div(borrowings, equity),
-        "Interest Coverage Ratio": _safe_div(ebit, interest),
+        # Turnover & efficiency
+        "Debtor Turnover Ratio": _safe_div(sales, receivables),
+        "Creditor Turnover Ratio": _safe_div(cogs, payables),
+        "Inventory Turnover": _safe_div(sales, inventory),
         "Fixed Asset Turnover": _safe_div(sales, net_block),
-        "CFO / Sales": _safe_div(cfo, sales),
-        "CFO / PAT": _safe_div(cfo, profit),
+        "Capital Turnover Ratio": _safe_div(sales, capital_employed),
         "Debtor Days": _safe_div(receivables, sales) * 365,
         "Inventory Days": _safe_div(inventory, cogs) * 365,
         "Payable Days": _safe_div(payables, cogs) * 365,
+        # Solvency & leverage
+        "Debt to Equity Ratio": _safe_div(borrowings, equity),
+        "Debt to Asset Ratio": _safe_div(borrowings, assets),
+        "Interest Coverage Ratio": _safe_div(ebit, interest),
+        # Cash flow
+        "CFO / Sales": _safe_div(cfo, sales),
+        "CFO / PAT": _safe_div(cfo, profit),
+        "CFO / Total Assets": _safe_div(cfo, assets),
+        "CFO / Total Debt": _safe_div(cfo, borrowings),
     }
 
     cycle = pd.DataFrame({
@@ -116,6 +141,11 @@ def derived_ratios(model: FinancialModel) -> dict[str, pd.Series]:
         # Only the latest year has a meaningful P/E — today's price against each
         # historical EPS is the standard trailing view.
         out["PE Ratio"] = (price / eps.replace(0, np.nan)).dropna()
+
+    market_cap = model.meta.get("market_cap")
+    if market_cap and not sales.empty:
+        # Today's market cap against each year's sales — the trailing P/S view.
+        out["Price to Sales"] = (market_cap / sales.replace(0, np.nan)).dropna()
 
     return {name: series for name, series in out.items() if not series.empty}
 
