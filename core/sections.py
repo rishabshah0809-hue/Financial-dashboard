@@ -477,9 +477,9 @@ def bench_table(result: Assessment) -> str:
 # --------------------------------------------------------------------------
 # statements
 # --------------------------------------------------------------------------
-STMT_HEADS = {"Sales", "Gross Profit", "EBITDA", "Profit Before Tax",
+STMT_HEADS = {"Sales", "Gross Profit", "EBITDA", "EBIT (OPM)", "Profit Before Tax",
               "Earnings Before Tax", "Net Profit", "Operating Cash Flow",
-              "Net Change in Cash"}
+              "Net Change in Cash", "Total Assets", "Total Liabilities & Equity"}
 
 STMT_ORDER = [
     ("Sales", ["Sales"]), ("COGS", ["COGS"]),
@@ -490,6 +490,25 @@ STMT_ORDER = [
     ("Other Income", ["Other Income"]), ("Interest", ["Interest"]),
     ("Profit Before Tax", ["Earnings Before Tax"]),
     ("Tax", ["Tax"]), ("Net Profit", ["Net Profit"]),
+]
+
+# Balance sheet, split into the two sides a reader expects. Each line lists the
+# names it may appear under so it works across workbooks. "Total Assets" and the
+# equity+liabilities total are rendered as bold subtotal rows (see STMT_HEADS).
+BS_LIABILITIES = [
+    ("Equity Share Capital", ["Equity Share Capital", "Share Capital"]),
+    ("Reserves", ["Reserves", "Reserves and Surplus"]),
+    ("Borrowings", ["Borrowings", "Total Debt"]),
+    ("Other Liabilities", ["Other Liabilities"]),
+]
+BS_ASSETS = [
+    ("Net Block", ["Net Block", "Fixed Assets"]),
+    ("Capital Work in Progress", ["Capital Work in Progress"]),
+    ("Investments", ["Investments"]),
+    ("Other Assets", ["Other Assets"]),
+    ("Receivables", ["Receivables", "Trade Receivables", "Debtors"]),
+    ("Inventory", ["Inventory", "Inventories"]),
+    ("Cash & Bank", ["Cash & Bank", "Cash and Bank"]),
 ]
 
 
@@ -504,7 +523,7 @@ def _fmt_n(v: float) -> str:
 # plain). The parser flattens that away, so re-derive it from the row name and
 # tab and render each value the way the Excel sheet would.
 def _value_kind(tab: str, name: str) -> str:
-    if tab == "Income Statement":
+    if tab in ("Income Statement", "Balance Sheet"):
         return "currency"
     if tab == "Common Size":
         return "percent"                       # every line is a % of sales/total
@@ -546,18 +565,22 @@ def _delta_text(kind: str, v, prev) -> tuple[str, str] | None:
     """
     if v is None or prev is None:
         return None
+    # Colour every delta green when it rose and red when it fell, matching the
+    # income statement — a rise is green, a fall is red, across all tabs.
+    up, down = "#2f9e63", "#d0554a"
     if kind == "currency":
         if not prev:
             return None
         ch = (v - prev) / abs(prev) * 100
-        return (f"{ch:+.1f} %", "#2f9e63" if ch >= 0 else "#d0554a")
+        return (f"{ch:+.1f} %", up if ch >= 0 else down)
+    col = up if v >= prev else down
     if kind == "percent":
-        return (f"{(v - prev) * 100:+.1f} pp", "#9aa09d")
+        return (f"{(v - prev) * 100:+.1f} pp", col)
     if kind == "days":
-        return (f"{v - prev:+.1f} d", "#9aa09d")
+        return (f"{v - prev:+.1f} d", col)
     if kind == "times":
-        return (f"{v - prev:+.2f}x", "#9aa09d")
-    return (f"{v - prev:+.2f}", "#9aa09d")
+        return (f"{v - prev:+.2f}x", col)
+    return (f"{v - prev:+.2f}", col)
 
 
 # Ratio Analysis is shown grouped by the kind of ratio. First keyword match wins,
@@ -644,9 +667,33 @@ def stmt_source(model, tab: str) -> list[tuple[str, list[float | None], object]]
                 rows.append((name, vals, head))
                 return
 
+    def vals_for(aliases):
+        for a in aliases:
+            s = pd.to_numeric(model.series(a), errors="coerce")
+            s = s.reindex([y for y in model.years]).dropna(how="all")
+            if not s.empty:
+                return [float(s[y]) if y in s.index and pd.notna(s[y]) else None
+                        for y in years]
+        return None
+
     if tab == "Income Statement":
         for name, aliases in STMT_ORDER:
             pull(name, aliases, name in STMT_HEADS)
+    elif tab == "Balance Sheet":
+        def section(title, items):
+            block = [(n, v, False) for n, v in
+                     ((n, vals_for(a)) for n, a in items) if v is not None]
+            if block:
+                rows.append((title, [], "section"))
+                rows.extend(block)
+        section("Liabilities & equity", BS_LIABILITIES)
+        total = vals_for(["Total Liabilities", "Total Asset", "Total Assets"])
+        if total is not None:
+            rows.append(("Total Liabilities & Equity", total, True))
+        section("Assets", BS_ASSETS)
+        total_a = vals_for(["Total Asset", "Total Assets"])
+        if total_a is not None:
+            rows.append(("Total Assets", total_a, True))
     elif tab == "Ratio Analysis":
         rows = _grouped(model.ratios, model, _ratio_cat, _RATIO_ORDER)
     else:  # Common size
