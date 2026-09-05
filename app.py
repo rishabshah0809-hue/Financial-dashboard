@@ -26,6 +26,7 @@ from core import charts as C
 from core import design_blocks as D
 from core import report as REP
 from core import sections as S
+from core import screener as SC
 from core import sector_snapshot as SNAP
 from core import sector_universe as U
 from core import shell as SH
@@ -643,6 +644,30 @@ def _resolve_nse_symbol(company_name: str) -> str | None:
     return None
 
 
+@st.cache_data(ttl=60 * 60 * 6, show_spinner=False)
+def _screener_live_rows(symbols: tuple[str, ...]) -> dict:
+    """Live-fetch constituents absent from the daily snapshot, straight from
+    Screener.in (cached ~6h). Fills the core ratios Screener exposes: P/E, P/B,
+    ROE, ROCE, CMP, market cap (+ D/E when borrowings & equity are reported)."""
+    import requests
+    out: dict = {}
+    if not symbols:
+        return out
+    sess = requests.Session()
+    for sym in symbols:
+        try:
+            c = SC.fetch(sym, sess)
+        except Exception:                     # noqa: BLE001 - never break the page
+            c = None
+        if not c:
+            continue
+        row = SC.constituent_row(c)
+        if c.borrowings is not None and c.equity_reported:
+            row["debt_to_equity"] = round(c.borrowings / c.equity_reported, 2)
+        out[sym] = row
+    return out
+
+
 def sector_lens_tab(model, result) -> None:
     """Sector lens - niche NSE-index peer universe + company comparison."""
     fundamentals = SNAP.load_snapshot()      # IndianAPI periodic (PEG/EPS/Piotroski/ROA)
@@ -661,6 +686,23 @@ def sector_lens_tab(model, result) -> None:
     chosen = default_key
 
     sector_snap, src_meta = SNAP.merge_sector(screener, fundamentals, chosen)
+
+    # Fill any constituent missing from the daily snapshot with a live Screener
+    # fetch, so its card shows real ratios instead of dashes.
+    cons = sector_snap.get("constituents") or []
+    missing = tuple(sorted({r.get("nse_symbol") for r in cons
+                            if r.get("nse_symbol") and r.get("pe") is None}))
+    if missing:
+        with st.spinner("Fetching latest data from Screener…"):
+            live = _screener_live_rows(missing)
+        for r in cons:
+            lr = live.get(r.get("nse_symbol"))
+            if not lr:
+                continue
+            for k, v in lr.items():
+                if v is not None and r.get(k) is None:
+                    r[k] = v
+
     meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}
     meta.update(src_meta)
     html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen, meta=meta)
