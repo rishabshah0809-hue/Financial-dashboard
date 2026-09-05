@@ -1,0 +1,60 @@
+name: Live Screener market snapshot (IST trading hours)
+
+# Refreshes the company market snapshot from public Screener.in pages every ~5
+# minutes while the NSE cash market is open (09:15-15:30 IST, Mon-Fri) and
+# commits data/screener_snapshot.json (+ a dated history copy). The Streamlit app
+# only READS the snapshot — it never scrapes. Personal, non-commercial use.
+#
+# NOTE: GitHub's scheduled runs are best-effort (often delayed/skipped under
+# load), so "every 5 min" is a target, not a guarantee. Scraping ~410 companies
+# this often can also be rate-limited by Screener; widen the interval if it is.
+
+on:
+  schedule:
+    # IST = UTC+5:30. NSE cash session 09:15-15:30 IST = 03:45-10:00 UTC.
+    - cron: "45,50,55 3 * * 1-5"   # 09:15-09:25 IST
+    - cron: "*/5 4-9 * * 1-5"      # 09:30-15:25 IST
+    - cron: "0 10 * * 1-5"         # 15:30 IST (close)
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-screener-refresh
+  cancel-in-progress: true          # a fresher intraday run supersedes a slow one
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests beautifulsoup4
+
+      - name: Refresh Screener snapshot
+        # --force so intraday runs refresh even though today's snapshot exists.
+        # Faster pacing keeps a full-universe pass inside the ~5-min cadence.
+        run: python scripts/refresh_screener.py --force --pacing 0.6
+
+      - name: Commit snapshot if changed
+        run: |
+          if [[ -n "$(git status --porcelain data/screener_snapshot.json data/screener_history)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data/screener_snapshot.json data/screener_history
+            git commit -m "chore(screener): daily market snapshot [skip ci]"
+            git push
+          else
+            echo "No change in Screener snapshot."
+          fi

@@ -47,6 +47,13 @@ METHODOLOGY: dict[str, str] = {
             "OperatingIncome (== EBIT) is taken directly from IndianAPI; EBIT "
             "is NOT reconstructed from EBITDA − D&A when OperatingIncome exists. "
             "Not meaningful for lenders — Banking & Finance ROCE is '—'.",
+    "eps_growth": "Sector EPS growth = market-cap-weighted average of each "
+                  "constituent's YoY diluted-EPS growth (latest vs prior FY).",
+    "piotroski": "Sector Piotroski = simple average of constituents' Piotroski "
+                 "F-scores (0-9). Not computed for lenders (banks/NBFCs lack the "
+                 "current-asset / cost-of-revenue structure the score assumes).",
+    "peg": "Sector PEG = Sector P/E / pooled earnings-growth %, only when "
+           "earnings growth is positive.",
     "period": "All aggregates use the latest annual period common to the "
               "constituents. Values are ₹ crore from the statement map.",
     "units": "Absolute values are ₹ crore from financials[].stockFinancialMap "
@@ -99,6 +106,7 @@ class Company:
     period_end: str | None
     # pooled-aggregate inputs (₹ crore, year-end / annual)
     net_income: float | None
+    prev_net_income: float | None
     total_equity: float | None
     total_assets: float | None
     total_debt: float | None
@@ -112,6 +120,9 @@ class Company:
     # per-company display ratios (Top 10), each a clean float or None
     ratios: dict[str, float | None] = field(default_factory=dict)
     raw_industry: str | None = None
+    # per-company derived scores, computed at parse time
+    eps_growth: float | None = None          # YoY diluted-EPS growth, %
+    piotroski: int | None = None             # Piotroski F-score 0-9 (None for lenders)
 
     @property
     def profitable(self) -> bool:
@@ -136,6 +147,46 @@ def _annual_periods(raw: dict) -> list[dict]:
     return annual
 
 
+def _piotroski_fscore(inc, bal, cas, pinc, pbal, pcas) -> int | None:
+    """Piotroski F-score (0-9) from latest vs prior annual statements.
+
+    Returns None when the firm lacks the current-asset / cost-of-revenue
+    structure the score assumes (banks & other lenders), matching how ROCE is
+    treated as not-meaningful for financials.
+    """
+    ni,   ni_p   = _f(inc.get("NetIncome")),        _f(pinc.get("NetIncome"))
+    ta,   ta_p   = _f(bal.get("TotalAssets")),      _f(pbal.get("TotalAssets"))
+    cfo          = _f(cas.get("CashfromOperatingActivities"))
+    ltd   = _f(bal.get("TotalLongTermDebt"))  or _f(bal.get("LongTermDebt"))
+    ltd_p = _f(pbal.get("TotalLongTermDebt")) or _f(pbal.get("LongTermDebt"))
+    ca,   ca_p   = _f(bal.get("TotalCurrentAssets")),      _f(pbal.get("TotalCurrentAssets"))
+    cl,   cl_p   = _f(bal.get("TotalCurrentLiabilities")), _f(pbal.get("TotalCurrentLiabilities"))
+    rev   = _f(inc.get("Revenue"))  or _f(inc.get("TotalRevenue"))
+    rev_p = _f(pinc.get("Revenue")) or _f(pinc.get("TotalRevenue"))
+    cogs, cogs_p = _f(inc.get("CostofRevenueTotal")), _f(pinc.get("CostofRevenueTotal"))
+    sh,   sh_p   = _f(bal.get("TotalCommonSharesOutstanding")), _f(pbal.get("TotalCommonSharesOutstanding"))
+
+    essential = [ni, ni_p, ta, ta_p, cfo, rev, rev_p, ca, ca_p, cl, cl_p, cogs, cogs_p]
+    if any(v is None for v in essential) or 0 in (ta, ta_p, rev, rev_p, cl, cl_p):
+        return None
+
+    roa, roa_p = ni / ta, ni_p / ta_p
+    score = 0
+    if roa > 0:                                    score += 1   # 1  positive ROA
+    if cfo > 0:                                     score += 1   # 2  positive operating cash flow
+    if roa > roa_p:                                 score += 1   # 3  rising ROA
+    if cfo > ni:                                     score += 1   # 4  CFO exceeds net income (quality)
+    if ltd is not None and ltd_p is not None and (ltd / ta) < (ltd_p / ta_p):
+                                                     score += 1   # 5  lower long-term leverage
+    if (ca / cl) > (ca_p / cl_p):                    score += 1   # 6  higher current ratio
+    if sh is not None and sh_p is not None and sh <= sh_p:
+                                                     score += 1   # 7  no share dilution
+    if ((rev - cogs) / rev) > ((rev_p - cogs_p) / rev_p):
+                                                     score += 1   # 8  higher gross margin
+    if (rev / ta) > (rev_p / ta_p):                  score += 1   # 9  higher asset turnover
+    return score
+
+
 def parse_company(raw: dict, default_symbol: str | None = None, isin: str | None = None) -> Company | None:
     if not isinstance(raw, dict):
         return None
@@ -152,8 +203,9 @@ def parse_company(raw: dict, default_symbol: str | None = None, isin: str | None
     latest = periods[0] if periods else {}
     prior = periods[1] if len(periods) > 1 else {}
     smap = latest.get("stockFinancialMap") or {}
-    inc, bal = _map(smap.get("INC")), _map(smap.get("BAL"))
-    prior_inc = _map((prior.get("stockFinancialMap") or {}).get("INC"))
+    psmap = prior.get("stockFinancialMap") or {}
+    inc, bal, cas = _map(smap.get("INC")), _map(smap.get("BAL")), _map(smap.get("CAS"))
+    prior_inc, prior_bal, prior_cas = _map(psmap.get("INC")), _map(psmap.get("BAL")), _map(psmap.get("CAS"))
 
     val = _km(raw, "valuation")
     margins = _km(raw, "margins")
@@ -174,6 +226,12 @@ def parse_company(raw: dict, default_symbol: str | None = None, isin: str | None
         "roe": _f(mgmt.get("returnOnAverageEquityTrailing12Month")),
     }
 
+    eps_now = _f(inc.get("DilutedEPSExcludingExtraOrdItems"))
+    eps_prev = _f(prior_inc.get("DilutedEPSExcludingExtraOrdItems"))
+    eps_growth = (round((eps_now / eps_prev - 1) * 100.0, 2)
+                  if eps_now is not None and eps_prev is not None and eps_prev > 0 else None)
+    fscore = _piotroski_fscore(inc, bal, cas, prior_inc, prior_bal, prior_cas)
+
     return Company(
         name=name,
         nse_symbol=nse,
@@ -181,6 +239,7 @@ def parse_company(raw: dict, default_symbol: str | None = None, isin: str | None
         fiscal_year=str(latest.get("FiscalYear")) if latest.get("FiscalYear") else None,
         period_end=latest.get("EndDate"),
         net_income=_f(inc.get("NetIncome")),
+        prev_net_income=_f(prior_inc.get("NetIncome")),
         total_equity=_f(bal.get("TotalEquity")),
         total_assets=_f(bal.get("TotalAssets")),
         total_debt=_f(bal.get("TotalDebt")),
@@ -193,6 +252,8 @@ def parse_company(raw: dict, default_symbol: str | None = None, isin: str | None
         isin=isin,
         ratios=ratios,
         raw_industry=raw.get("industry"),
+        eps_growth=eps_growth,
+        piotroski=fscore,
     )
 
 
@@ -270,7 +331,15 @@ def top_metrics(c: Company, *, is_financial: bool) -> dict:
         "market_cap": _round(c.market_cap, 2),
         "pe": c.ratios.get("pe_ttm"),
         "pb": c.ratios.get("pb"),
-        "roe": c.ratios.get("roe"),
+        # ROE derived from raw net income / year-end equity (same basis as the
+        # ROA column and the pooled sector ROE). IndianAPI's per-company
+        # returnOnAverageEquityTrailing12Month is empty for most names, so
+        # reading it alone left the whole column blank; the raw ingredients are
+        # already extracted. Only derive on positive equity — a negative book
+        # value makes NI/equity misleading, so fall back to the API figure.
+        "roe": (_round(c.net_income / c.total_equity * 100.0, 2)
+                if (c.net_income is not None and c.total_equity and c.total_equity > 0)
+                else c.ratios.get("roe")),
         "roa": _round(c.net_income / c.total_assets * 100.0, 2) if (c.net_income is not None and c.total_assets and c.total_assets > 0) else None,
         "roce": roce,
         "revenue_growth_yoy": rev_growth,
@@ -278,7 +347,15 @@ def top_metrics(c: Company, *, is_financial: bool) -> dict:
         "opm": c.ratios.get("opm"),
         "npm": c.ratios.get("npm"),
         "debt_to_equity": c.ratios.get("debt_to_equity"),
-        "asset_turnover": c.ratios.get("asset_turnover"),
+        # Asset turnover: prefer IndianAPI's TTM figure; where it is missing
+        # (common) derive Revenue / Total Assets for non-financials. Not
+        # meaningful for lenders, so left blank for financial sectors.
+        "asset_turnover": (c.ratios.get("asset_turnover")
+                           if c.ratios.get("asset_turnover") is not None
+                           else (_round(c.revenue / c.total_assets, 2)
+                                 if (not is_financial and c.revenue is not None
+                                     and c.total_assets and c.total_assets > 0)
+                                 else None)),
         "interest_coverage": c.ratios.get("interest_coverage"),
         "op_rev_growth_ttm": c.ratios.get("op_rev_growth_ttm"),
     }
@@ -305,7 +382,9 @@ class IndianAPIError(Exception):
 
 
 _TIMEOUT = 20
-_PACING_DELAY = 0.20
+_PACING_DELAY = 0.70          # ~85 req/min — stays under IndianAPI per-minute cap
+_MAX_429_RETRIES = 4          # back off and retry on rate-limit before giving up
+_BACKOFF_429 = 65             # seconds — wait out a per-minute rate window
 
 
 def _api_config() -> dict:
@@ -334,26 +413,34 @@ class Fetcher:
         self.outcomes: list[dict] = []
 
     def fetch(self, name: str, expected_symbol: str = "") -> dict | None:
-        time.sleep(_PACING_DELAY)
         url = f"{self.base}{self.path}"
         headers = {"X-Api-Key": self.key, "Accept": "application/json"}
         params = {self.param: name}
 
-        try:
-            resp = self.session.get(url, headers=headers, params=params, timeout=_TIMEOUT)
-        except requests.Timeout as e:
-            self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": "timeout"})
-            return None
-        except requests.RequestException as e:
-            self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": f"network:{type(e).__name__}"})
-            return None
+        for attempt in range(_MAX_429_RETRIES + 1):
+            time.sleep(_PACING_DELAY)
+            try:
+                resp = self.session.get(url, headers=headers, params=params, timeout=_TIMEOUT)
+            except requests.Timeout:
+                self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": "timeout"})
+                return None
+            except requests.RequestException as e:
+                self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": f"network:{type(e).__name__}"})
+                return None
 
-        if resp.status_code in (401, 403):
-            self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": f"auth_{resp.status_code}"})
-            raise IndianAPIError("auth", f"HTTP {resp.status_code} — check INDIANAPI_KEY")
-        if resp.status_code == 429:
-            self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": "rate_limited"})
-            raise IndianAPIError("rate_limited", "HTTP 429 — rate limit or credit ceiling reached")
+            if resp.status_code in (401, 403):
+                self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": f"auth_{resp.status_code}"})
+                raise IndianAPIError("auth", f"HTTP {resp.status_code} — check INDIANAPI_KEY")
+            if resp.status_code == 429:
+                if attempt < _MAX_429_RETRIES:
+                    LOGGER.warning("HTTP 429 rate limit — backing off %ss then retrying (%d/%d) [%s]",
+                                   _BACKOFF_429, attempt + 1, _MAX_429_RETRIES, expected_symbol)
+                    time.sleep(_BACKOFF_429)
+                    continue
+                self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": "rate_limited"})
+                raise IndianAPIError("rate_limited", "HTTP 429 — persistent after retries (likely monthly credit ceiling)")
+            break  # non-429 response — proceed to parse
+
         if resp.status_code >= 400:
             self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": f"http_{resp.status_code}"})
             return None
@@ -362,6 +449,14 @@ class Fetcher:
             data = resp.json()
         except ValueError:
             self.outcomes.append({"symbol": expected_symbol, "status": "failed", "reason": "invalid_json"})
+            return None
+
+        # IndianAPI returns HTTP 200 with an {"error": "..."} body (e.g. "Stock
+        # not found") instead of a 4xx. Treat that as a genuine failure so it is
+        # not miscounted as a successful fetch.
+        if isinstance(data, dict) and data.get("error") and not data.get("companyName"):
+            self.outcomes.append({"symbol": expected_symbol, "status": "failed",
+                                  "reason": f"not_found:{str(data.get('error'))[:40]}"})
             return None
 
         got_sym = ((data.get("companyProfile") or {}).get("exchangeCodeNse") or "").strip().upper()

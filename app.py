@@ -26,7 +26,10 @@ from core import charts as C
 from core import design_blocks as D
 from core import report as REP
 from core import sections as S
+from core import screener as SC
+from core import market_context as MC
 from core import sector_snapshot as SNAP
+from core import sector_universe as U
 from core import shell as SH
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
@@ -607,39 +610,251 @@ def statements_tab(model) -> None:
     html, height = SH.statements_shell(model, query)
     _render_shell(html, height)
 
+@st.cache_data(show_spinner=False)
+def _company_name_index() -> dict[str, str]:
+    """normalized company name -> NSE symbol, from data/company_master.csv."""
+    import csv
+    from pathlib import Path
+    path = Path(__file__).resolve().parent / "data" / "company_master.csv"
+    out: dict[str, str] = {}
+    if not path.exists():
+        return out
+    try:
+        with path.open(newline="", encoding="utf-8-sig") as fh:
+            for row in csv.DictReader(fh):
+                sym = (row.get("nse_symbol") or row.get("symbol") or "").strip().upper()
+                name = (row.get("name") or row.get("company") or "").strip()
+                if sym and name:
+                    out[_norm_name(name)] = sym
+    except Exception:
+        return {}
+    return out
+
+
+def _norm_name(s: str) -> str:
+    s = (s or "").lower()
+    for junk in (" ltd.", " ltd", " limited", " the ", "&", ".", ","):
+        s = s.replace(junk, " ")
+    return " ".join(s.split())
+
+
+def _resolve_nse_symbol(company_name: str) -> str | None:
+    """Best-effort resolve an uploaded company name to its NSE symbol."""
+    idx = _company_name_index()
+    if not idx:
+        return None
+    key = _norm_name(company_name)
+    if key in idx:
+        return idx[key]
+    try:
+        from rapidfuzz import process, fuzz
+        match = process.extractOne(key, idx.keys(), scorer=fuzz.WRatio, score_cutoff=90)
+        if match:
+            return idx[match[0]]
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(ttl=60 * 60 * 6, show_spinner=False)
+def _screener_live_rows(symbols: tuple[str, ...], is_financial: bool = False) -> dict:
+    """Live-fetch constituents straight from Screener.in (cached ~6h). Returns a
+    full constituent row per symbol — P/E, P/B, ROE, ROA, ROCE, growth, OPM, NPM,
+    D/E, interest cover, CMP, market cap — all computed by core.screener."""
+    import requests
+    out: dict = {}
+    if not symbols:
+        return out
+    sess = requests.Session()
+    for sym in symbols:
+        try:
+            c = SC.fetch(sym, sess)
+        except Exception:                     # noqa: BLE001 - never break the page
+            c = None
+        if c:
+            out[sym] = SC.constituent_row(c, is_financial=is_financial)
+    return out
+
+
 def sector_lens_tab(model, result) -> None:
-    """Sector lens - sector benchmarks from the monthly snapshot + company comparison."""
-    snap_all = SNAP.load_snapshot()
-    key = st.session_state.get("sector_pref", "generic")
-    sector_snap = SNAP.get_sector(snap_all, key) if snap_all else None
-    meta = SNAP.snapshot_meta(snap_all) if snap_all else None
-    html, height = SH.sector_shell(model, result, sector_snap, sector_key=key, meta=meta)
+    """Sector lens - niche NSE-index peer universe + company comparison."""
+    fundamentals = SNAP.load_snapshot()      # IndianAPI periodic (PEG/EPS/Piotroski/ROA)
+    screener = SNAP.load_screener()          # daily Screener market snapshot
+
+    # Classify the analysed company into a niche NSE sectoral index by symbol.
+    sym = _resolve_nse_symbol(model.company)
+    auto_key, auto_type = U.classify_symbol(sym) if sym else (None, "unclassified")
+
+    options = list(U.ORDER)  # 25 niche + 2 broad fallbacks
+    labels = {k: U.UNIVERSES[k].sector_name for k in options}
+    default_key = auto_key if auto_key in options else options[0]
+
+    # Peer universe is auto-detected from the company's NSE symbol; the manual
+    # override banner + selector are intentionally hidden per user preference.
+    chosen = default_key
+
+    sector_snap, src_meta = SNAP.merge_sector(screener, fundamentals, chosen)
+
+    # Constituents table = full NSE-index membership, every row sourced from
+    # Screener. Rows in the daily snapshot are used as-is; any member missing (or
+    # lacking ratios) is fetched live from Screener. IndianAPI is never used here.
+    members = list(U.all_unique_symbols()[0].get(chosen, []))
+    is_fin = bool(U.UNIVERSES[chosen].is_financial) if chosen in U.UNIVERSES else False
+    # Rows come from the SCREENER snapshot only — never the IndianAPI fallback
+    # (which lacks per-company ROE). Anything missing is live-fetched below.
+    scr_sector = SNAP.get_sector(screener, chosen) if screener else None
+    snap_rows = {r.get("nse_symbol"): dict(r)
+                 for r in ((scr_sector or {}).get("constituents") or []) if r.get("nse_symbol")}
+    need = tuple(sorted({s for s in members
+                         if s not in snap_rows
+                         or snap_rows[s].get("pe") is None
+                         or snap_rows[s].get("roe") is None}))
+    live = {}
+    if need:
+        with st.spinner("Fetching latest data from Screener…"):
+            live = _screener_live_rows(need, is_fin)
+    rows = []
+    for s in members:
+        row = snap_rows.get(s) or {"nse_symbol": s}
+        lr = live.get(s)
+        if lr:
+            for k, v in lr.items():
+                if v is not None and row.get(k) is None:
+                    row[k] = v
+        if row.get("market_cap") is not None or row.get("pe") is not None:
+            rows.append(row)
+    rows.sort(key=lambda r: (r.get("market_cap") or 0), reverse=True)
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+    if sector_snap is not None:
+        sector_snap["constituents"] = rows
+
+    meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}
+    meta.update(src_meta)
+    context = _sector_market_context(chosen, labels.get(chosen, chosen))
+    html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen,
+                                   meta=meta, context=context)
     _render_shell(html, height)
 
 
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def _sector_market_context(sector_key: str, sector_name: str) -> dict | None:
+    """Current-cycle context for the selected sector. core.market_context caches
+    to disk per sector per day; this st.cache_data wrapper additionally avoids
+    re-entering it on every Streamlit rerun within the session. Fails soft to
+    None so the Sector Lens still renders if news/LLM are unavailable."""
+    try:
+        return MC.get_context(sector_key, sector_name, config=analyst_config())
+    except Exception:                                   # noqa: BLE001 — never break the page
+        LOGGER.warning("market context unavailable for %s", sector_key, exc_info=True)
+        return None
+
+
 INTERP_CSS = """<style>
+*{box-sizing:border-box}
 .interp{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
 .interp .ititle{font-size:18px;font-weight:800;color:#15201a;padding:2px 2px 2px}
-.interp .isub{font-size:12px;color:#8b918e;padding:2px 2px 10px}
-.interp .icard{background:#fff;border:1px solid #e6ebe7;border-radius:16px;
-  padding:14px 18px;margin-top:10px;
-  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
-.interp .ih{font-size:14.5px;font-weight:800;color:#177245;margin-bottom:6px;
-  letter-spacing:.2px}
-.interp .ibody{font-size:13px;line-height:1.62;color:#3f4744}
-.interp .il{padding:5px 0 5px 16px;position:relative}
-.interp .il:before{content:"";position:absolute;left:2px;top:11px;width:5px;
-  height:5px;border-radius:50%;background:#37a06a}
-.interp .il b{color:#15201a}
+.interp .isub{font-size:12px;color:#8b918e;padding:2px 2px 12px}
 .interp .inone{font-size:12.5px;color:#8b918e;font-style:italic;padding:3px 0}
 .interp .iext{font-size:11.5px;color:#8b918e;font-style:italic;padding:6px 0 0}
 .interp .inote{font-size:13px;color:#8b918e;padding:10px 2px;line-height:1.55}
-.interp .srcs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 2px 2px}
+/* ===== two-column layout: interpretation grid + AI rail ===== */
+#layout{display:flex;gap:18px;align-items:flex-start}
+#main{flex:1;min-width:0}
+#aside{flex:0 0 306px;max-width:306px;position:sticky;top:8px}
+@media(max-width:900px){#layout{flex-direction:column}#aside{flex:1 1 auto;max-width:100%;width:100%;position:static}}
+.hero2{text-align:left;padding:6px 2px 2px}
+.hero2 h1{font-size:34px;font-weight:800;letter-spacing:-1px;color:#15201a}
+.hero2 p{font-size:14.5px;color:#8b918e;padding-top:7px;max-width:640px}
+.mainlbl{font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+  color:#9aa09d;padding:14px 2px 10px;font-family:ui-monospace,Menlo,monospace}
+/* ===== feature-card grid (icon top-right · corner deco) ===== */
+.interp .igrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:16px;align-items:stretch}
+.interp .icard{position:relative;overflow:hidden;background:#fff;border:1px solid #e6ebe7;
+  border-radius:16px;padding:20px 22px 22px;min-height:172px;display:flex;flex-direction:column;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+  transition:transform .18s ease,box-shadow .18s ease}
+.interp .icard:hover{transform:translateY(-3px);
+  box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 32px rgba(21,32,26,.11)}
+.interp .icard.wide{grid-column:1/-1;min-height:0}
+.interp .icard.srccard{grid-column:1/-1;min-height:0;padding:14px 18px;overflow:visible;margin-top:16px}
+.interp .cIcon{position:absolute;top:18px;right:18px;width:40px;height:40px;border-radius:12px;
+  background:var(--tint,#e9efec);border:1px solid rgba(21,32,26,.05);display:flex;
+  align-items:center;justify-content:center;z-index:2}
+.interp .cIcon svg{width:22px;height:22px;fill:none;stroke:var(--hue,#2f5545);stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.interp .ih{font-size:16.5px;font-weight:800;letter-spacing:-.3px;color:#15201a;
+  padding-right:56px;min-height:40px;display:flex;align-items:flex-start;margin-bottom:2px}
+.interp .ibody{font-size:13px;line-height:1.66;color:#3f4744;padding-top:4px;position:relative;z-index:1}
+.interp .il{padding:6px 0 6px 16px;position:relative}
+.interp .il:before{content:"";position:absolute;left:2px;top:13px;width:5px;height:5px;
+  border-radius:50%;background:#37a06a}
+.interp .il b{color:#15201a}
+.interp .cDeco{position:absolute;right:-4px;bottom:-6px;width:120px;height:90px;
+  pointer-events:none;z-index:0}
+.interp .srcs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:2px}
 .interp .srcl{font-family:ui-monospace,Menlo,monospace;font-size:10px;
   letter-spacing:1.4px;color:#8b918e;font-weight:700}
 .interp .src{font-size:12px;font-weight:600;color:#177245;
   background:#eef4f0;border:1px solid #cfe2d7;border-radius:20px;padding:4px 11px}
+/* ===== right AI rail ===== */
+.airail .aicard{background:#fff;border:1px solid #e6ebe7;border-radius:18px;padding:20px 18px;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);text-align:center}
+.airail .aiav{width:58px;height:58px;border-radius:17px;margin:0 auto;
+  background:radial-gradient(130% 130% at 20% 0%,#2a9c62,#0d4a2c);
+  display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(13,74,44,.28)}
+.airail .aiav svg{width:30px;height:30px;stroke:#fff;stroke-width:1.6;fill:none;
+  stroke-linecap:round;stroke-linejoin:round}
+.airail .ainame{font-size:16.5px;font-weight:800;color:#15201a;padding-top:12px}
+.airail .airole{font-size:11.5px;color:#8b918e;padding-top:3px;line-height:1.4}
+.airail .aibar{height:5px;border-radius:4px;background:#eef1ee;margin:14px 6px 6px;overflow:hidden}
+.airail .aibar i{display:block;height:100%;width:66%;border-radius:4px;
+  background:linear-gradient(90deg,#37a06a,#177245)}
+.airail .aihint{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:#a4a9a6;
+  font-weight:700;font-family:ui-monospace,Menlo,monospace}
+.airail .sechead{font-size:18px;font-weight:800;color:#177245;letter-spacing:-.3px;padding:20px 4px 1px}
+.airail .sesub{font-size:12px;color:#8b918e;padding:0 4px 6px}
+.airail .qitem{display:flex;gap:13px;align-items:center;padding:13px 6px;
+  border-top:1px solid #eef0ed;border-radius:10px}
+.airail .qn{font-size:27px;font-weight:800;color:#d3e2da;line-height:1;flex:none;width:36px;
+  font-family:ui-monospace,Menlo,monospace}
+.airail .qt{font-size:13px;font-weight:600;color:#15201a;line-height:1.42}
+.airail .ans{margin-top:14px;background:#f6f9f7;border:1px solid #e6ebe7;border-radius:14px;
+  padding:13px 15px;font-size:12.5px;line-height:1.62;color:#3f4744}
+.airail .ans .albl{font-size:10.5px;font-weight:700;letter-spacing:1.2px;color:#9aa09d;
+  text-transform:uppercase;padding-bottom:6px}
 </style>"""
+
+# Per-section feature-card icon + colour (hue = stroke, tint = icon-chip bg),
+# matched to the ask_ai.html reference. Keyed by core.interpret SECTION key.
+INTERP_CARD_STYLE = {
+    "growth": ("#2F9E63", "#E7F2EC",
+               '<polyline points="3 16 9 10 13 14 21 6"/><polyline points="15 6 21 6 21 12"/>'),
+    "margins": ("#177245", "#E6F0EA",
+                '<line x1="5" y1="21" x2="5" y2="12"/><line x1="12" y1="21" x2="12" y2="4"/><line x1="19" y1="21" x2="19" y2="15"/>'),
+    "costs": ("#B5761F", "#FBF1DF",
+              '<path d="M6 3h12v18l-2-1.4-2 1.4-2-1.4-2 1.4-2-1.4L6 21Z"/><line x1="9" y1="8.5" x2="15" y2="8.5"/><line x1="9" y1="12.5" x2="15" y2="12.5"/>'),
+    "returns": ("#2F9E63", "#E7F2EC",
+                '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.7"/>'),
+    "efficiency": ("#3D9E6B", "#E7F2EC",
+                   '<path d="M20 11a8 8 0 0 0-13.3-4.5L4 9"/><polyline points="4 4 4 9 9 9"/><path d="M4 13a8 8 0 0 0 13.3 4.5L20 15"/><polyline points="20 20 20 15 15 15"/>'),
+    "leverage_cashflow": ("#B4483C", "#FBEDEB",
+                          '<line x1="3" y1="21" x2="21" y2="21"/><path d="M12 3 21 8H3Z"/><line x1="6.5" y1="10.5" x2="6.5" y2="18"/><line x1="12" y1="10.5" x2="12" y2="18"/><line x1="17.5" y1="10.5" x2="17.5" y2="18"/>'),
+    "valuation": ("#C68A2E", "#FBF1DF",
+                  '<path d="M20.5 12.5 12 21l-9-9V3h9z"/><circle cx="7.4" cy="7.4" r="1.5"/>'),
+}
+
+
+def _interp_deco(hue: str) -> str:
+    """Corner decoration circles echoing the card's hue (ask_ai.html reference)."""
+    return (
+        '<svg class="cDeco" viewBox="0 0 130 100" preserveAspectRatio="xMaxYMax meet">'
+        f'<circle cx="95" cy="80" r="40" fill="none" stroke="{hue}" stroke-width="1.5" opacity=".15"/>'
+        f'<circle cx="101" cy="73" r="25" fill="{hue}" opacity=".10"/>'
+        f'<circle cx="79" cy="82" r="16" fill="{hue}" opacity=".13"/>'
+        f'<circle cx="105" cy="88" r="8" fill="{hue}" opacity=".20"/></svg>'
+    )
 
 # Sections that carry their own "nothing here" wording, so a single-string body
 # is a legitimate final answer rather than a missing one.
@@ -669,6 +884,39 @@ def _interp_bullets(bullets: list[str]) -> str:
     return "".join(rows)
 
 
+# Suggested questions — shown in the AI rail (visual) and the functional ask box.
+_SUGGESTED_QS = [
+    "Is the debt load sustainable given the cash flows?",
+    "What single ratio would change the verdict fastest?",
+    "How would this company look if it were an IT services firm instead?",
+]
+
+
+def _ai_rail_html() -> str:
+    """Right-hand AI Analyst rail (identity + suggested questions), design-exact."""
+    qitems = "".join(
+        f'<div class="qitem"><span class="qn">{i:02d}</span>'
+        f'<div class="qt">{html.escape(q)}</div></div>'
+        for i, q in enumerate(_SUGGESTED_QS, 1)
+    )
+    return (
+        '<aside id="aside" class="airail"><div class="aicard"><div class="aiav">'
+        '<svg viewBox="0 0 24 24"><path d="M12 3l1.7 4.6L18.3 9l-4.6 1.4L12 15l-1.7-4.6L5.7 9l4.6-1.4z"/>'
+        '<circle cx="18.2" cy="17.4" r="1.5"/><circle cx="6.4" cy="16.6" r="1.1"/></svg></div>'
+        '<div class="ainame">AI Analyst</div>'
+        '<div class="airole">Groq · Gemini — grounded in your model</div>'
+        '<div class="aibar"><i></i></div>'
+        '<div class="aihint">Reads scored ratios only</div></div>'
+        '<div class="sechead">Suggested</div>'
+        '<div class="sesub">Pick one in the ask box below</div>'
+        f'{qitems}'
+        '<div class="ans"><div class="albl">Answer</div>'
+        'Type a question in the ask box beneath this panel — the analyst’s grounded '
+        'reply is written only from the scored ratios and the sector profile of the loaded '
+        'model.</div></aside>'
+    )
+
+
 def _ensure_interpretation(model, sector_key: str, config: LLMConfig,
                            spinner: bool = True):
     """Generate (or reuse) the model interpretation, cached in session state
@@ -692,34 +940,53 @@ def _ensure_interpretation(model, sector_key: str, config: LLMConfig,
     return interp
 
 
-def _model_interpretation_block(model, sector_key: str, config: LLMConfig) -> None:
+def _model_interpretation_block(model, sector_key: str, config: LLMConfig,
+                                with_rail: bool = True) -> None:
     """FINANCIAL MODEL INTERPRETATION — generated ONCE per loaded workbook (see
-    _ensure_interpretation); this only renders it."""
+    _ensure_interpretation); this only renders it. `with_rail` draws the visual
+    AI rail on the right; the qa page turns it off because it puts a *working*
+    ask box in a real Streamlit column on the right instead."""
     sector_name = get_sector(sector_key).name
     interp = _ensure_interpretation(model, sector_key, config)
 
+    hero = ('<div class="hero2"><h1>Financial model interpretation</h1>'
+            '<p>Written once from the uploaded model — grounded only in its scored '
+            'ratios and sector profile.</p></div>'
+            '<div class="mainlbl">Model interpretation</div>')
     head = ('<div class="ititle">Financial Model Interpretation</div>'
             f'<div class="isub">{html.escape(model.company.title())} · '
             f'{html.escape(sector_name)} · read directly from the uploaded model</div>')
+    rail = _ai_rail_html() if with_rail else ""
+
+    def _layout(main_inner: str, height: int) -> None:
+        vcomp(INTERP_CSS
+              + f'<div id="layout"><div id="main">{hero}{main_inner}</div>{rail}</div>',
+              height)
 
     if interp.offline:
         note = ("No Groq or Gemini API key is detected in this app's Secrets, so the "
                 "written interpretation can't be generated. Your parsed model data "
-                "is available in the tabs above and the chat below still works.")
-        vcomp(INTERP_CSS + f'<div class="interp">{head}'
-              f'<div class="inote">{note}</div></div>', 220)
+                "is available in the tabs above and the ask box below still works.")
+        _layout(f'<div class="interp">{head}<div class="inote">{note}</div></div>', 560)
         return
     if interp.error:
-        vcomp(INTERP_CSS + f'<div class="interp">{head}'
-              f'<div class="inote">{html.escape(interp.error)}</div></div>', 220)
+        _layout(f'<div class="interp">{head}'
+                f'<div class="inote">{html.escape(interp.error)}</div></div>', 560)
         return
 
     cards = []
     for skey, heading in INTERP_SECTIONS:
         body = _interp_bullets(interp.sections.get(skey, []))
-        cards.append(f'<div class="icard"><div class="ih">{heading}</div>'
-                     f'<div class="ibody">{body}</div></div>')
-    body_html = "".join(cards)
+        hue, tint, glyph = INTERP_CARD_STYLE.get(skey, ("#2f5545", "#e9efec", ""))
+        icon = (f'<span class="cIcon"><svg viewBox="0 0 24 24">{glyph}</svg></span>'
+                if glyph else "")
+        wide = " wide" if skey == "valuation" else ""
+        cards.append(
+            f'<div class="icard{wide}" style="--hue:{hue};--tint:{tint}">{icon}'
+            f'<div class="ih">{heading}</div>'
+            f'<div class="ibody">{body}{_interp_deco(hue)}</div></div>'
+        )
+    grid = f'<div class="igrid">{"".join(cards)}</div>'
 
     if interp.sources:
         chips = "".join(f'<span class="src">{html.escape(s)}</span>'
@@ -728,26 +995,29 @@ def _model_interpretation_block(model, sector_key: str, config: LLMConfig) -> No
     else:
         srcs = ('<div class="srcs"><span class="srcl">Sources</span>'
                 '<span class="inone">Uploaded model only — no external sources used.</span></div>')
-    body_html += f'<div class="icard">{srcs}</div>'
+    srccard = f'<div class="icard srccard">{srcs}</div>'
 
-    vcomp(INTERP_CSS + f'<div class="interp">{head}{body_html}</div>', 1500)
+    _layout(f'<div class="interp">{head}{grid}{srccard}</div>', 1600)
 
 
 def qa_tab(model, result, config: LLMConfig) -> None:
-    _page_header("Ask the analyst",
-                 "Answers grounded only in the loaded model.")
-    _model_interpretation_block(model, st.session_state.get("sector_pref", "generic"), config)
-    with card("Ask the analyst"):
-        st.caption(
-            "Free-text questions about the loaded company. The model only sees the "
-            "scored ratios and the sector profile, so it cannot invent outside facts."
+    sector_key = st.session_state.get("sector_pref", "generic")
+    # Interpretation on the left, the working "Ask the analyst" box on the right —
+    # instead of a full-width ask box stranded at the bottom of the page.
+    left, right = st.columns([2, 1], gap="large")
+    with left:
+        _model_interpretation_block(model, sector_key, config, with_rail=False)
+    with right:
+        st.markdown(
+            '<div style="background:linear-gradient(135deg,#0d1d16,#0a1610);'
+            'border-radius:16px;padding:16px 18px;color:#eaf3ee">'
+            '<div style="font-size:16px;font-weight:800">Ask the analyst</div>'
+            '<div style="font-size:11.5px;color:#9fb4a8;padding-top:3px;line-height:1.5">'
+            'Groq · Gemini — grounded only in the scored ratios and sector profile of '
+            'the loaded model, so it cannot invent outside facts.</div></div>',
+            unsafe_allow_html=True,
         )
-        suggestions = [
-            "Is the debt load sustainable given the cash flows?",
-            "What single ratio would change the verdict fastest?",
-            "How would this company look if it were an IT services firm instead?",
-        ]
-        picked = st.radio("Suggested questions", suggestions, horizontal=False, index=None,
+        picked = st.radio("Suggested questions", _SUGGESTED_QS, index=None,
                           label_visibility="collapsed")
         question = st.text_input(
             "Your question", value=picked or "",
@@ -757,8 +1027,14 @@ def qa_tab(model, result, config: LLMConfig) -> None:
         if st.button("Ask", type="primary") and question.strip():
             with st.spinner("Analysing…"):
                 answer = answer_question(result, question.strip(), config)
-                vcomp(f'<div style="font-size:13.5px;line-height:1.65;'
-                      f'color:#3f4744;padding:4px 2px">{answer}</div>', 180)
+            safe = html.escape(answer).replace("\n", "<br>")
+            st.markdown(
+                '<div style="background:#fff;border:1px solid #e6ebe7;border-radius:14px;'
+                'padding:14px 16px;margin-top:12px;font-size:13.5px;line-height:1.65;'
+                f'color:#3f4744"><div style="font-size:11px;font-weight:700;letter-spacing:.6px;'
+                f'color:#177245;padding-bottom:6px">ANSWER</div>{safe}</div>',
+                unsafe_allow_html=True,
+            )
 
 
 # SPLICE_END
