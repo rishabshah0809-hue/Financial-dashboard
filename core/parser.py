@@ -381,7 +381,7 @@ DATA_SHEET_ALIASES: dict[str, str] = {
     "tax": "Tax",
     "interest": "Interest",
     "depreciation": "Depreciation",
-    "otherincome": "Other Income ",
+    "otherincome": "Other Income",
     "equitysharecapital": "Equity Share Capital",
     "reserves": "Reserves",
     "borrowings": "Borrowings",
@@ -399,10 +399,20 @@ DATA_SHEET_ALIASES: dict[str, str] = {
     "noofequityshares": "No of Equity Shares",
 }
 
-# Everything that sits above EBITDA in an Indian P&L.
+# Everything that sits above EBITDA in an Indian P&L. Split into the two groups
+# Screener's own HistoricalFS template uses, so the rebuilt statement shows the
+# same lines the workbook would. Grouping is by ROW LABEL (never by cell
+# position), so it holds for every Screener model regardless of row order.
+#   COGS  = Raw Material + Power & Fuel + Other Mfr + Employee − Change in Inventory
+#   S&G   = Selling & admin + Other Expenses
+# "Change in Inventory" is a contra-expense (a stock build is production not yet
+# sold), so it is SUBTRACTED from the cost base, not added.
+COGS_COST_KEYS = ("rawmaterialcost", "powerandfuel", "othermfrexp",
+                  "employeecost", "expenses")
+SGA_COST_KEYS = ("sellingandadmin", "otherexpenses")
+CHANGE_IN_INVENTORY_KEY = "changeininventory"
 OPERATING_COST_KEYS = (
-    "rawmaterialcost", "changeininventory", "powerandfuel", "othermfrexp",
-    "employeecost", "sellingandadmin", "otherexpenses", "expenses",
+    *COGS_COST_KEYS, *SGA_COST_KEYS, CHANGE_IN_INVENTORY_KEY,
 )
 
 
@@ -465,21 +475,35 @@ def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
     frame = frame.reindex(sorted(frame.columns, key=lambda c: (len(c), c)), axis=1)
 
     # EBITDA is not reported directly: it is sales less the operating cost lines.
+    # Rebuild COGS and Selling & General Expenses as separate lines (the same
+    # split the Screener HistoricalFS template makes) so every input line is
+    # preserved, then derive Gross Profit, EBITDA and EBIT from them.
     if costs and "Sales" in frame.index:
         cost_frame = pd.DataFrame.from_dict(costs, orient="index").reindex(
             columns=frame.columns
         )
-        # "Change in Inventory" is a contra-expense in this template: a stock
-        # build is production not yet sold, so it *reduces* the cost of what was
-        # actually sold. It must be subtracted from the cost base, not added,
-        # otherwise EBITDA (and every margin/return derived from it) is wrong —
-        # e.g. FY26 flips from a real +2.2% margin to a spurious -5.1%.
-        for label in list(cost_frame.index):
-            if _norm(label) == "changeininventory":
-                cost_frame.loc[label] = -cost_frame.loc[label]
-        total_cost = cost_frame.sum(axis=0, min_count=1)
-        frame.loc["COGS"] = total_cost
-        frame.loc["EBITDA"] = frame.loc["Sales"] - total_cost
+        cogs_rows, sga_rows, change = [], [], None
+        for label in cost_frame.index:
+            key = _norm(label)
+            if key == CHANGE_IN_INVENTORY_KEY:
+                change = cost_frame.loc[label]
+            elif key in SGA_COST_KEYS:
+                sga_rows.append(label)
+            else:                                   # every other operating cost is COGS
+                cogs_rows.append(label)
+
+        zero = pd.Series(0.0, index=cost_frame.columns)
+        cogs = cost_frame.loc[cogs_rows].sum(axis=0, min_count=1) if cogs_rows else zero.copy()
+        if change is not None:                       # contra-expense: subtract it
+            cogs = cogs.sub(change, fill_value=0.0)
+        sga = cost_frame.loc[sga_rows].sum(axis=0, min_count=1) if sga_rows else None
+
+        frame.loc["COGS"] = cogs
+        if sga is not None:
+            frame.loc["Selling & General Expenses"] = sga
+        total_cost = cogs.add(sga, fill_value=0.0) if sga is not None else cogs
+        frame.loc["Gross Profit"] = frame.loc["Sales"].sub(cogs, fill_value=0.0)
+        frame.loc["EBITDA"] = frame.loc["Sales"].sub(total_cost, fill_value=0.0)
         if "Depreciation" in frame.index:
             frame.loc["EBIT (OPM)"] = frame.loc["EBITDA"] - frame.loc["Depreciation"]
 

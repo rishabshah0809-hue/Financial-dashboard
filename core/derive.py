@@ -123,9 +123,9 @@ def derived_ratios(model: FinancialModel) -> dict[str, pd.Series]:
 # Common-size lines and the base each is expressed against. Income-statement
 # lines are shown as a % of Sales; balance-sheet lines as a % of Total Assets —
 # the standard common-size convention (and what the Excel sheet does).
-_CS_PNL = ("Sales", "COGS", "EBITDA", "Depreciation", "EBIT (OPM)",
-           "Other Income ", "Other Income", "Interest", "Earnings Before Tax",
-           "Tax", "Net Profit")
+_CS_PNL = ("Sales", "COGS", "Gross Profit", "Selling & General Expenses",
+           "EBITDA", "Depreciation", "EBIT (OPM)", "Other Income ", "Other Income",
+           "Interest", "Earnings Before Tax", "Tax", "Net Profit")
 _CS_BS = ("Equity Share Capital", "Reserves", "Borrowings", "Other Liabilities",
           "Net Block", "Capital Work in Progress", "Investments", "Receivables",
           "Inventory", "Cash & Bank")
