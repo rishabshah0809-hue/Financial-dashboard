@@ -2091,12 +2091,21 @@ def sector_shell(model, result, snap: dict | None,
 
     # Source + freshness (right side of the header card)
     m = meta or {}
-    fund_src = (m.get("fundamentals_source") or m.get("source")
-                or (snap or {}).get("source") or "IndianAPI + NSE Indices")
+    # Honest attribution: the market data on screen (CMP, the comparison table,
+    # P/E, P/B, ROE, ROCE) comes from Screener.in, fetched daily. IndianAPI is
+    # NOT called at runtime — it only supplies the periodic fundamentals overlay
+    # (PEG, EPS growth, Piotroski, ROA) via a committed monthly snapshot. Credit
+    # the primary market source first, then the fundamentals overlay when present.
+    srcs = []
+    if m.get("market_source"):
+        srcs.append(str(m["market_source"]))
+    if m.get("fundamentals_source"):
+        srcs.append(f'{m["fundamentals_source"]} · fundamentals')
+    src_label = " + ".join(srcs) or ((snap or {}).get("source") or "Screener.in")
     mkt_date = m.get("market_snapshot_date") or (snap or {}).get("snapshot_date")
     upd_html = (f'<div class="sl-upd">Updated {_esc(str(mkt_date))} {_days_ago(mkt_date)}</div>'
                 if mkt_date else "")
-    src_html = (f'<div class="sl-src"><a href="#" style="cursor:default">Source: {_esc(fund_src)}</a>'
+    src_html = (f'<div class="sl-src"><a href="#" style="cursor:default">Source: {_esc(src_label)}</a>'
                 f'{upd_html}</div>')
 
     # ---- Header card: title + tag + reference index, and the 5 KPI cards ----
@@ -2197,7 +2206,8 @@ def sector_shell(model, result, snap: dict | None,
 
     body = "".join([
         '<div class="pghead"><span class="pt">Sector lens</span>'
-        '<span class="ps">Sector benchmarks from IndianAPI + NSE, refreshed monthly.'
+        '<span class="ps">Market data from Screener.in (daily) · fundamentals overlay '
+        'from IndianAPI + NSE (periodic).'
         '</span></div>',
         header_card,
         seasonality_card,
