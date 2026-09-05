@@ -656,19 +656,9 @@ def sector_lens_tab(model, result) -> None:
     labels = {k: U.UNIVERSES[k].sector_name for k in options}
     default_key = auto_key if auto_key in options else options[0]
 
-    if auto_key:
-        tag = {"exact": "niche match", "broad_proxy": "Broad / Proxy fallback"}.get(auto_type, auto_type)
-        st.caption(f"Detected peer universe for **{model.company.title()}** "
-                   f"({sym}): **{labels[auto_key]}** — {tag}. Override below if needed.")
-    else:
-        st.caption(f"Could not map **{model.company.title()}** to an NSE sectoral index "
-                   f"automatically — pick the closest peer universe below.")
-
-    chosen = st.selectbox(
-        "Peer universe (NSE sectoral index)", options,
-        index=options.index(default_key),
-        format_func=lambda k: f"{labels[k]}" + ("  · Broad/Proxy" if U.UNIVERSES[k].is_fallback else ""),
-    )
+    # Peer universe is auto-detected from the company's NSE symbol; the manual
+    # override banner + selector are intentionally hidden per user preference.
+    chosen = default_key
 
     sector_snap, src_meta = SNAP.merge_sector(screener, fundamentals, chosen)
     meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}

@@ -1834,7 +1834,9 @@ def _con_card(r: dict, is_financial: bool) -> str:
     rank_s = f"{int(rank):02d}" if isinstance(rank, (int, float)) else _esc(str(rank or "—"))
     name = r.get("name", "—")
     sym = r.get("nse_symbol", "")
-    nse_url = r.get("nse_url") or f"https://www.nseindia.com/get-quotes/equity?symbol={sym}"
+    # Link constituents to their Screener.in company page (user preference).
+    screener_url = r.get("screener_url") or (
+        f"https://www.screener.in/company/{sym}/" if sym else "https://www.screener.in/")
     mcap = _fx(r.get("market_cap"), "mcap")
     metrics = [
         ("P/E", _fx(r.get("pe"), "x")),
@@ -1857,8 +1859,8 @@ def _con_card(r: dict, is_financial: bool) -> str:
         '<div class="con"><div class="con-h">'
         f'<span class="con-rank">{rank_s}</span>'
         '<div class="con-id">'
-        f'<a href="{_esc(nse_url)}" target="_blank" rel="noopener noreferrer" class="con-name">{_esc(name)}</a>'
-        f'<div class="con-tk">{_esc(sym)} · NSE ↗</div></div>'
+        f'<a href="{_esc(screener_url)}" target="_blank" rel="noopener noreferrer" class="con-name">{_esc(name)}</a>'
+        f'<div class="con-tk">{_esc(sym)} · Screener ↗</div></div>'
         f'<div class="con-mc"><div class="con-mc-l">MARKET CAP</div><div class="con-mc-v">{mcap}</div></div>'
         '</div>'
         f'<div class="con-metrics">{mcells}</div></div>'
