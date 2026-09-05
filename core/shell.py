@@ -27,6 +27,7 @@ from . import sections as S
 from . import viz
 from .scoring import Assessment
 from .sector_universe import UNIVERSE
+from . import seasonality as _SEASON
 from . import tilt as TILT
 
 
@@ -1755,6 +1756,138 @@ def _sl_sechead(icon: str, title: str, tags: str = "") -> str:
     )
 
 
+def _season_hdr(text: str) -> str:
+    return (f'<div style="font-size:11px;font-weight:700;letter-spacing:.4px;'
+            f'color:#8b918e;text-transform:uppercase;padding:2px 0 6px">{_esc(text)}</div>')
+
+
+def _season_strip(season: dict) -> str:
+    """TYPICAL BUSINESS SEASONALITY — a 12-cell Apr..Mar qualitative strip of the
+    sector's structural operating pattern. Strong / Neutral / Weak only; never a
+    percentage and never a claim about historical stock returns (rule §1/§5)."""
+    if not season:
+        return ""
+    tiles = []
+    for c in season.get("cells", []):
+        tiles.append(
+            f'<div title="{_esc(c["month"] + ": " + c["state"])}" '
+            f'style="flex:1;min-width:0;text-align:center">'
+            f'<div style="height:24px;border-radius:6px;background:{c["colour"]}"></div>'
+            f'<div style="font-size:10px;color:#8b918e;font-weight:600;padding-top:3px">'
+            f'{_esc(c["month"])}</div></div>')
+    legend = "".join(
+        f'<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px">'
+        f'<i style="width:9px;height:9px;border-radius:2px;background:{col};'
+        f'display:inline-block"></i>{s}</span>'
+        for s, col in (("Strong", "#1b7f4f"), ("Neutral", "#c7d3cc"), ("Weak", "#d09a8f")))
+    return (
+        _season_hdr("Typical business seasonality")
+        + '<div style="font-size:11px;color:#9aa09d;font-style:italic;padding-bottom:6px">'
+          'Structural pattern — not a price backtest</div>'
+        + f'<div style="display:flex;gap:4px;align-items:flex-end">{"".join(tiles)}</div>'
+        + f'<div style="font-size:11px;color:#9aa09d;padding-top:6px">{legend}</div>'
+        + (f'<div style="font-size:10.5px;color:#9aa09d;font-style:italic;'
+           f'padding-top:4px">{_esc(season.get("methodology", ""))}</div>'
+           if season.get("flat") else ""))
+
+
+def _quant_seasonality(q: dict | None) -> str:
+    """HISTORICAL MARKET SEASONALITY — real observed monthly performance from
+    FundaCheck's accumulated daily Screener history. Shows a clear 'building'
+    state (observation count + date range, no fake numbers) until the
+    configurable threshold is met, then the actual per-month statistics."""
+    if not q:
+        return ""
+    head = (_season_hdr("Historical market seasonality")
+            + '<div style="font-size:11px;color:#9aa09d;font-style:italic;'
+              'padding-bottom:6px">Based on FundaCheck\'s actual historical market '
+              'observations</div>')
+    if not q.get("sufficient"):
+        obs, days = q.get("observations", 0), q.get("days", 0)
+        rng = (f'{q.get("earliest")} → {q.get("latest")}'
+               if q.get("earliest") else "no observations yet")
+        need = (f'need ≥ {q.get("min_months")} monthly observations across '
+                f'≥ {q.get("min_years")} years')
+        return (head +
+            '<div style="background:#f7f9f7;border:1px dashed #d6ddd7;border-radius:12px;'
+            'padding:12px 14px;font-size:12.5px;color:#5f6663">'
+            '<b style="color:#3f4744">Building historical dataset…</b><br>'
+            f'{obs} monthly observation{"s" if obs != 1 else ""} '
+            f'({days} daily snapshot{"s" if days != 1 else ""}) currently available · '
+            f'{_esc(rng)}<br>'
+            f'<span style="color:#9aa09d">Insufficient observations for a reliable '
+            f'backtest ({need}). Accumulating from the daily Screener snapshots.</span>'
+            '</div>')
+    # sufficient: real stats
+    tiles = []
+    for c in q.get("cells", []):
+        val, pf, n = c.get("value"), c.get("pos_freq"), c.get("n")
+        num = f'{val:+.1f}%' if isinstance(val, (int, float)) else "—"
+        tip = (f'{c["month"]}: avg {num}'
+               + (f' · median {c["median"]:+.1f}% · {pf}% positive · n={n}'
+                  if isinstance(val, (int, float)) else ' · no observation'))
+        colour = c["colour"] if isinstance(val, (int, float)) else "#eef0ee"
+        tiles.append(
+            f'<div title="{_esc(tip)}" style="flex:1;min-width:0;text-align:center">'
+            f'<div style="height:26px;border-radius:6px;background:{colour};display:flex;'
+            f'align-items:center;justify-content:center;font-size:9.5px;font-weight:700;'
+            f'color:#0f2a1e">{_esc(num)}</div>'
+            f'<div style="font-size:10px;color:#8b918e;font-weight:600;padding-top:3px">'
+            f'{_esc(c["month"])}</div>'
+            + (f'<div style="font-size:8.5px;color:#9aa09d">{pf}%+</div>'
+               if isinstance(pf, (int, float)) else "")
+            + '</div>')
+    return (head
+            + f'<div style="display:flex;gap:4px;align-items:flex-end">{"".join(tiles)}</div>'
+            + '<div style="font-size:10px;color:#8b918e;padding-top:4px">Cell = average '
+              'monthly change · sub-label = share of positive months</div>'
+            + f'<div style="font-size:10.5px;color:#9aa09d;font-style:italic;'
+              f'padding-top:4px">{_esc(q.get("methodology", ""))}</div>')
+
+
+def _current_cycle(ctx: dict | None) -> str:
+    """CURRENT CYCLE block: data-driven cycle label, a short sector-specific
+    narrative, current-volatility drivers, tilt, and dated clickable sources."""
+    if not ctx:
+        return ""
+    label = ctx.get("label") or "Mixed / Transitional"
+    lines = ctx.get("lines") or []
+    drivers = ctx.get("drivers") or []
+    tilt = ctx.get("tilt") or ""
+    updated = ctx.get("updated_display") or ctx.get("news_snapshot_date") or ""
+    stale = ctx.get("stale")
+    body = "".join(f'<div style="padding:2px 0">{_esc(l)}</div>' for l in lines)
+    drv = ("".join(
+        f'<span style="font-size:11px;font-weight:700;color:#5f5326;background:#fbf3dd;'
+        f'border:1px solid #ecdfbf;border-radius:20px;padding:2px 9px;margin:0 6px 6px 0;'
+        f'display:inline-block">{_esc(d)}</span>' for d in drivers))
+    src = ctx.get("sources") or []
+    src_links = " · ".join(
+        f'<a href="{_esc(s.get("url") or "#")}" target="_blank" rel="noopener" '
+        f'style="color:#177245;text-decoration:none;font-weight:600">'
+        f'{_esc(s.get("source") or "source")}</a>' for s in src if s.get("title"))
+    tilt_html = (f'<div class="tilt" style="margin-top:8px"><span class="tilt-chip">'
+                 f'CURRENT TILT</span>{_esc(tilt)}</div>' if tilt else "")
+    stale_note = (' <span style="color:#b5761f">(latest available — live refresh '
+                  'unavailable)</span>' if stale else "")
+    return (
+        '<div style="margin-top:14px;border-top:1px solid #eef0ee;padding-top:12px">'
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+        '<span style="font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;'
+        'text-transform:uppercase">Current cycle</span>'
+        f'<span style="font-size:11.5px;font-weight:700;color:#0f5b34;background:#e2efe8;'
+        f'border:1px solid #cfe2d7;border-radius:20px;padding:2px 10px">{_esc(label)}</span>'
+        '</div>'
+        f'<div style="font-size:13px;line-height:1.6;color:#3f4744;padding-top:8px">{body}</div>'
+        + (f'<div style="padding-top:8px">{drv}</div>' if drv else "")
+        + tilt_html
+        + (f'<div style="font-size:11px;color:#9aa09d;padding-top:10px">'
+           f'Sources: {src_links or "—"}</div>' if src else "")
+        + (f'<div style="font-size:11px;color:#9aa09d;padding-top:3px">'
+           f'Updated: {_esc(updated)}{stale_note}</div>' if updated else "")
+        + '</div>')
+
+
 def _month_chart(shape: dict) -> str:
     """Typical-activity-by-month SVG bar chart from a tilt seasonal shape."""
     act = shape["activity"]
@@ -1917,7 +2050,8 @@ def _con_card(r: dict, is_financial: bool) -> str:
 
 
 def sector_shell(model, result, snap: dict | None,
-                 sector_key: str | None = None, meta: dict | None = None) -> tuple[str, int]:
+                 sector_key: str | None = None, meta: dict | None = None,
+                 context: dict | None = None) -> tuple[str, int]:
     """
     Unified Sector Lens shell.
     Renders header, badges, benchmarks, seasonality & tilt, MoM diffs,
@@ -2004,20 +2138,26 @@ def sector_shell(model, result, snap: dict | None,
     tilt_state = (snap or {}).get("current_tilt") or "Stable"
     tilt_reason = ((snap or {}).get("tilt_reason")
                    or "Baseline established from snapshot fundamentals.")
-    shape = TILT.seasonal(sector_key)
-    chart_html = ""
-    if shape:
-        chart_html = ('<div class="season-lbl">Typical activity by month · fiscal year</div>'
-                      + _month_chart(shape))
+    # Two permanent, separate layers (never one-or-the-other):
+    #  • qualitative — the sector's structural business seasonality (always on)
+    #  • quantitative — real observed market seasonality from the accumulating
+    #    daily Screener history ('building' until enough real observations exist)
+    qual_html = _season_strip(_SEASON.qualitative(sector_key))
+    quant_html = _quant_seasonality(_SEASON.quantitative(sector_key))
+    # Current cycle (dynamic, news-driven) block, when context was fetched.
+    cycle_html = _current_cycle(context)
+    _rule = '<div style="border-top:1px solid #eef0ee;margin:14px 0 12px"></div>'
     cyc_tags = (f'<span class="tag-amber sl-secsp">{_esc(prof["nature"])}</span>'
                 f'<span class="tag-green">{_esc(tilt_state)} tilt</span>')
     seasonality_card = (
         '<div class="card">'
         + _sl_sechead("cycle", "Sector cycle & seasonality", cyc_tags)
-        + '<div class="csub">Structural long-run behavior · monthly tilt recalculated from fundamentals</div>'
+        + '<div class="csub">Structural business seasonality · historical market seasonality · current cycle — kept separate</div>'
         + f'<div class="sl-para">{_esc(prof["text"])}</div>'
-        + chart_html
-        + f'<div class="tilt"><span class="tilt-chip">CURRENT TILT</span>{_esc(tilt_reason)}</div>'
+        + qual_html
+        + _rule + quant_html
+        + cycle_html
+        + f'<div class="tilt" style="margin-top:12px"><span class="tilt-chip">FUNDAMENTAL TILT</span>{_esc(tilt_reason)}</div>'
         + "</div>"
     )
 

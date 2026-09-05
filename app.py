@@ -27,6 +27,7 @@ from core import design_blocks as D
 from core import report as REP
 from core import sections as S
 from core import screener as SC
+from core import market_context as MC
 from core import sector_snapshot as SNAP
 from core import sector_universe as U
 from core import shell as SH
@@ -719,8 +720,23 @@ def sector_lens_tab(model, result) -> None:
 
     meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}
     meta.update(src_meta)
-    html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen, meta=meta)
+    context = _sector_market_context(chosen, labels.get(chosen, chosen))
+    html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen,
+                                   meta=meta, context=context)
     _render_shell(html, height)
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def _sector_market_context(sector_key: str, sector_name: str) -> dict | None:
+    """Current-cycle context for the selected sector. core.market_context caches
+    to disk per sector per day; this st.cache_data wrapper additionally avoids
+    re-entering it on every Streamlit rerun within the session. Fails soft to
+    None so the Sector Lens still renders if news/LLM are unavailable."""
+    try:
+        return MC.get_context(sector_key, sector_name, config=analyst_config())
+    except Exception:                                   # noqa: BLE001 — never break the page
+        LOGGER.warning("market context unavailable for %s", sector_key, exc_info=True)
+        return None
 
 
 INTERP_CSS = """<style>
