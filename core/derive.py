@@ -120,6 +120,62 @@ def derived_ratios(model: FinancialModel) -> dict[str, pd.Series]:
     return {name: series for name, series in out.items() if not series.empty}
 
 
+# Common-size lines and the base each is expressed against. Income-statement
+# lines are shown as a % of Sales; balance-sheet lines as a % of Total Assets —
+# the standard common-size convention (and what the Excel sheet does).
+_CS_PNL = ("Sales", "COGS", "EBITDA", "Depreciation", "EBIT (OPM)",
+           "Other Income ", "Other Income", "Interest", "Earnings Before Tax",
+           "Tax", "Net Profit")
+_CS_BS = ("Equity Share Capital", "Reserves", "Borrowings", "Other Liabilities",
+          "Net Block", "Capital Work in Progress", "Investments", "Receivables",
+          "Inventory", "Cash & Bank")
+
+
+def fill_missing_common_size(model: FinancialModel) -> list[str]:
+    """
+    Build a common-size statement from the raw statements when the workbook did
+    not supply one (its Common Size sheet is a grid of formulas that reads empty
+    when the export cached no results).
+
+    Every line is stored as a fraction (0.83 == 83%), which is what the UI
+    expects — the statements table and the "₹100 of sales" card both multiply by
+    100. Does nothing when the workbook already has a common-size sheet.
+    """
+    if not model.common_size.empty or model.historical.empty:
+        return []
+    h = model.historical
+    if "Sales" not in h.index:
+        return []
+
+    sales = pd.to_numeric(h.loc["Sales"], errors="coerce").replace(0, np.nan)
+    assets = (pd.to_numeric(h.loc["Total Asset"], errors="coerce").replace(0, np.nan)
+              if "Total Asset" in h.index else None)
+
+    rows: dict[str, pd.Series] = {}
+    seen: set[str] = set()
+    for name in _CS_PNL:
+        if name in h.index and name not in seen:
+            rows[name] = pd.to_numeric(h.loc[name], errors="coerce") / sales
+            seen.add(name)
+    if assets is not None:
+        for name in _CS_BS:
+            if name in h.index and name not in seen:
+                rows[name] = pd.to_numeric(h.loc[name], errors="coerce") / assets
+                seen.add(name)
+    if not rows:
+        return []
+
+    cs = pd.DataFrame(rows).T.reindex(columns=list(h.columns))
+    cs = cs.replace([np.inf, -np.inf], np.nan).dropna(axis=0, how="all")
+    if cs.empty:
+        return []
+
+    model.common_size = cs
+    for name in cs.index:
+        model.sections.setdefault(name, "COMMON SIZE (DERIVED)")
+    return list(cs.index)
+
+
 def fill_missing_ratios(model: FinancialModel) -> list[str]:
     """
     Add any ratio the workbook did not provide into `model.ratios`.
