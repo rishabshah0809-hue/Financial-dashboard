@@ -15,7 +15,10 @@ import json
 import logging
 import os
 import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
+from dataclasses import replace as dc_replace
 from pathlib import Path
 
 import pandas as pd
@@ -543,36 +546,78 @@ def _export_report(model, result) -> bytes:
         return "\n".join(lines).encode()
 
 
-def _get_note(model, result, sector_key: str, config: LLMConfig) -> dict:
-    """
-    The analyst note is written once per loaded workbook: it is cached in
-    session state against a fingerprint of the model, so reruns and page
-    switches never re-call the LLM. Upload a different file (or change the
-    sector lens) and it writes a fresh one.
-    """
-    fingerprint = "|".join([
-        model.company, sector_key, f"{result.total_score:.1f}",
-        str(len(result.metrics)), str(model.years[0]), str(model.latest_year),
+# The analyst note and the model interpretation are written in parallel, in
+# background threads, the moment a workbook loads — so a page that needs no LLM
+# text (Statements, Ratio deep dive, Sector lens) never waits for them, and the
+# two texts are produced at the same time instead of one after the other. The
+# pool has four workers to line up with the four configured API keys; the two
+# jobs run concurrently and each rotates into a different key so they don't
+# queue behind one another.
+_LLM_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="fundacheck-llm")
+_LLM_LOCK = threading.Lock()
+_LLM_JOBS: dict[str, dict] = {}          # fingerprint -> {"note": Future, "interp": Future}
+
+
+def _llm_fingerprint(model, result, sector_key: str) -> str:
+    sector_name = get_sector(sector_key).name
+    return "|".join([
+        model.company, sector_name, f"{result.total_score:.1f}",
+        str(model.years[0] if model.years else ""), str(model.latest_year),
+        interp_fingerprint(model, sector_name),
     ])
-    if st.session_state.get("note_fp") == fingerprint \
-            and isinstance(st.session_state.get("note"), dict):
-        return st.session_state["note"]
+
+
+def _rotate_keys(config: LLMConfig) -> LLMConfig:
+    """A copy of the config whose key pool starts one key later, so a second
+    parallel call reaches for a different API key first."""
+    if len(config.api_keys) > 1:
+        return dc_replace(config, api_keys=config.api_keys[1:] + config.api_keys[:1])
+    return config
+
+
+def _kickoff_llm(model, result, sector_key: str, config: LLMConfig) -> str:
+    """Submit the analyst note and the interpretation to the pool (once per
+    workbook/sector) and return their fingerprint. Non-blocking: it starts both
+    jobs and returns immediately, so the calling page renders without waiting."""
+    fp = _llm_fingerprint(model, result, sector_key)
+    with _LLM_LOCK:
+        if fp not in _LLM_JOBS:
+            sector_name = get_sector(sector_key).name
+            _LLM_JOBS.clear()            # only the current workbook's jobs matter
+            _LLM_JOBS[fp] = {
+                "note": _LLM_POOL.submit(analyse, result, config),
+                "interp": _LLM_POOL.submit(
+                    build_interpretation, model, sector_name, _rotate_keys(config)),
+            }
+    st.session_state["__llm_fp__"] = fp
+    return fp
+
+
+def _llm_future(fp: str | None, kind: str):
+    if not fp:
+        return None
+    with _LLM_LOCK:
+        return _LLM_JOBS.get(fp, {}).get(kind)
+
+
+def _get_note(model, result, sector_key: str, config: LLMConfig) -> dict:
+    """Return the analyst note, waiting on the background job started at upload.
+    Only this (LLM) page shows a spinner; if the job is already done it returns
+    instantly, and any failure falls back to an inline write."""
+    fp = _kickoff_llm(model, result, sector_key, config)
+    fut = _llm_future(fp, "note")
+    if fut is None:
+        return analyse(result, config)
+    if fut.done():
+        try:
+            return fut.result()
+        except Exception:                # noqa: BLE001
+            return analyse(result, config)
     with st.spinner("Writing the analyst note…"):
-        note = analyse(result, config)
-    st.session_state["note"] = note
-    st.session_state["note_fp"] = fingerprint
-    return note
-
-
-def _precompute_llm(model, result, sector_key: str, config: LLMConfig) -> None:
-    """Write all LLM text (analyst note + model interpretation) eagerly on upload.
-
-    Both calls are fingerprint-cached, so the actual generation happens once per
-    workbook/sector and every later rerun or page switch reuses the stored text.
-    Calling it from main() — before the page is chosen — means whichever section
-    the user opens first already has its text ready instead of waiting for it."""
-    _get_note(model, result, sector_key, config)
-    _ensure_interpretation(model, sector_key, config)
+        try:
+            return fut.result()
+        except Exception:                # noqa: BLE001
+            return analyse(result, config)
 
 
 def _render_shell(html: str, height: int) -> None:
@@ -919,25 +964,23 @@ def _ai_rail_html() -> str:
 
 def _ensure_interpretation(model, sector_key: str, config: LLMConfig,
                            spinner: bool = True):
-    """Generate (or reuse) the model interpretation, cached in session state
-    against a fingerprint of the model's own numbers. No rendering — so it can be
-    called eagerly on upload as well as by the section that displays it. Only a
-    different or edited workbook (a new fingerprint) regenerates."""
+    """Return the model interpretation from the background job started at upload.
+    No rendering. Only the page that shows it waits (with a spinner); if the job
+    is done it returns instantly, and a failure falls back to an inline build."""
     sector_name = get_sector(sector_key).name
-    key = "__interp__"
-    fp = f"{model.company}|{sector_name}|" + interp_fingerprint(model, sector_name)
-    entry = st.session_state.get(key)
-    if entry and entry.get("fp") == fp:
-        return entry["interp"]
-    if spinner:
-        with st.spinner("Interpreting the financial model…"):
-            interp = build_interpretation(model, sector_name, config)
-    else:
-        interp = build_interpretation(model, sector_name, config)
-    # Only memoise a usable result; a transient failure is retried next visit.
-    if not interp.error:
-        st.session_state[key] = {"fp": fp, "interp": interp}
-    return interp
+    fut = _llm_future(st.session_state.get("__llm_fp__"), "interp")
+    if fut is None:
+        return build_interpretation(model, sector_name, config)
+    if fut.done() or not spinner:
+        try:
+            return fut.result()
+        except Exception:                # noqa: BLE001
+            return build_interpretation(model, sector_name, config)
+    with st.spinner("Interpreting the financial model…"):
+        try:
+            return fut.result()
+        except Exception:                # noqa: BLE001
+            return build_interpretation(model, sector_name, config)
 
 
 def _model_interpretation_block(model, sector_key: str, config: LLMConfig,
@@ -1155,12 +1198,10 @@ def main() -> None:
         st.error(str(exc))
         return
 
-    # Write every LLM text once, up front — as soon as the file is loaded — so the
-    # analyst note and the model interpretation are ready no matter which section
-    # the user opens first, instead of being generated (and waited on) only when
-    # that section is visited. Both are fingerprint-cached, so this runs a single
-    # time per workbook/sector and every later rerun and page switch reuses it.
-    _precompute_llm(model, result, sector_key, config)
+    # Start writing the analyst note and the interpretation in parallel, in the
+    # background, the moment the file loads — WITHOUT blocking. Pages that need no
+    # LLM text render immediately; the page that needs one waits only for that one.
+    _kickoff_llm(model, result, sector_key, config)
 
     page = st.session_state.get("page", "overview")
 
