@@ -214,7 +214,10 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
    sits inside the shorter card rather than as a gap beside it. */
 .grid-440{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(430px,100%),1fr));
   gap:14px;align-items:stretch}
-.grid-440>.card{height:100%}
+.grid-440>.card{height:100%;display:flex;flex-direction:column}
+/* The chart body grows to fill the stretched card, so a short chart (e.g. the
+   turnover meter) expands to use the space instead of sitting congested up top. */
+.grid-440 .cardbody{flex:1;display:flex;flex-direction:column;min-height:0}
 .ct{font-size:17px;font-weight:700;color:#15201a;white-space:nowrap}
 .ct-row{display:flex;align-items:baseline;justify-content:space-between}
 .csub{font-size:12.5px;color:#9aa09d;padding:4px 0 8px}
@@ -1097,7 +1100,7 @@ def ratios_shell(model, result) -> tuple[str, int]:
     }
     chart_cards = "".join(
         f'<div class="card"><div class="ct-row">{_ct(t)}</div>'
-        f'<div class="csub">{s2}</div>{html}</div>'
+        f'<div class="csub">{s2}</div><div class="cardbody">{html}</div></div>'
         for key, (t, s2) in titles.items() if key in charts
         for html, _h in [charts[key]])
 

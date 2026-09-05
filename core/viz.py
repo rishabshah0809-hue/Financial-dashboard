@@ -736,7 +736,8 @@ def turnover_rows(rows: list[tuple[str, float, float]]) -> tuple[str, int]:
     # Use the largest value on show plus headroom so every bar reads clearly.
     peak = max((max(latest, mean) for name, latest, mean in rows), default=1.0)
     scale = max(peak * 1.15, 1.0)
-    out = ['<div style="display:flex;flex-direction:column;gap:16px;padding-top:10px">']
+    out = ['<div style="display:flex;flex-direction:column;justify-content:space-between;'
+           'gap:18px;padding-top:12px;height:100%;min-height:200px">']
     for name, latest, mean in rows:
         colour = MID if latest >= mean else AMBER
         out.append(
