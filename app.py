@@ -564,6 +564,17 @@ def _get_note(model, result, sector_key: str, config: LLMConfig) -> dict:
     return note
 
 
+def _precompute_llm(model, result, sector_key: str, config: LLMConfig) -> None:
+    """Write all LLM text (analyst note + model interpretation) eagerly on upload.
+
+    Both calls are fingerprint-cached, so the actual generation happens once per
+    workbook/sector and every later rerun or page switch reuses the stored text.
+    Calling it from main() — before the page is chosen — means whichever section
+    the user opens first already has its text ready instead of waiting for it."""
+    _get_note(model, result, sector_key, config)
+    _ensure_interpretation(model, sector_key, config)
+
+
 def _render_shell(html: str, height: int) -> None:
     """
     One design-exact page, top to bottom, in a single frame.
@@ -906,24 +917,34 @@ def _ai_rail_html() -> str:
     )
 
 
-def _model_interpretation_block(model, sector_key: str, config: LLMConfig) -> None:
-    """FINANCIAL MODEL INTERPRETATION — generated ONCE per loaded workbook.
-
-    Cached in session state against a fingerprint of the model's own numbers, so
-    tab switches, chat questions and Streamlit reruns all reuse the same text.
-    Only a *different* (or edited) workbook — a new fingerprint — regenerates."""
+def _ensure_interpretation(model, sector_key: str, config: LLMConfig,
+                           spinner: bool = True):
+    """Generate (or reuse) the model interpretation, cached in session state
+    against a fingerprint of the model's own numbers. No rendering — so it can be
+    called eagerly on upload as well as by the section that displays it. Only a
+    different or edited workbook (a new fingerprint) regenerates."""
     sector_name = get_sector(sector_key).name
     key = "__interp__"
     fp = f"{model.company}|{sector_name}|" + interp_fingerprint(model, sector_name)
     entry = st.session_state.get(key)
     if entry and entry.get("fp") == fp:
-        interp = entry["interp"]
-    else:
+        return entry["interp"]
+    if spinner:
         with st.spinner("Interpreting the financial model…"):
             interp = build_interpretation(model, sector_name, config)
-        # Only memoise a usable result; a transient failure is retried next visit.
-        if not interp.error:
-            st.session_state[key] = {"fp": fp, "interp": interp}
+    else:
+        interp = build_interpretation(model, sector_name, config)
+    # Only memoise a usable result; a transient failure is retried next visit.
+    if not interp.error:
+        st.session_state[key] = {"fp": fp, "interp": interp}
+    return interp
+
+
+def _model_interpretation_block(model, sector_key: str, config: LLMConfig) -> None:
+    """FINANCIAL MODEL INTERPRETATION — generated ONCE per loaded workbook (see
+    _ensure_interpretation); this only renders it."""
+    sector_name = get_sector(sector_key).name
+    interp = _ensure_interpretation(model, sector_key, config)
 
     hero = ('<div class="hero2"><h1>Ask the analyst</h1>'
             '<p>Ask anything about the loaded model — answers are grounded only in its '
@@ -1114,6 +1135,13 @@ def main() -> None:
     except ValueError as exc:
         st.error(str(exc))
         return
+
+    # Write every LLM text once, up front — as soon as the file is loaded — so the
+    # analyst note and the model interpretation are ready no matter which section
+    # the user opens first, instead of being generated (and waited on) only when
+    # that section is visited. Both are fingerprint-cached, so this runs a single
+    # time per workbook/sector and every later rerun and page switch reuses it.
+    _precompute_llm(model, result, sector_key, config)
 
     page = st.session_state.get("page", "overview")
 
