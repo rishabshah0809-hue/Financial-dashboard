@@ -940,20 +940,23 @@ def _ensure_interpretation(model, sector_key: str, config: LLMConfig,
     return interp
 
 
-def _model_interpretation_block(model, sector_key: str, config: LLMConfig) -> None:
+def _model_interpretation_block(model, sector_key: str, config: LLMConfig,
+                                with_rail: bool = True) -> None:
     """FINANCIAL MODEL INTERPRETATION — generated ONCE per loaded workbook (see
-    _ensure_interpretation); this only renders it."""
+    _ensure_interpretation); this only renders it. `with_rail` draws the visual
+    AI rail on the right; the qa page turns it off because it puts a *working*
+    ask box in a real Streamlit column on the right instead."""
     sector_name = get_sector(sector_key).name
     interp = _ensure_interpretation(model, sector_key, config)
 
-    hero = ('<div class="hero2"><h1>Ask the analyst</h1>'
-            '<p>Ask anything about the loaded model — answers are grounded only in its '
-            'scored ratios and sector profile.</p></div>'
+    hero = ('<div class="hero2"><h1>Financial model interpretation</h1>'
+            '<p>Written once from the uploaded model — grounded only in its scored '
+            'ratios and sector profile.</p></div>'
             '<div class="mainlbl">Model interpretation</div>')
     head = ('<div class="ititle">Financial Model Interpretation</div>'
             f'<div class="isub">{html.escape(model.company.title())} · '
             f'{html.escape(sector_name)} · read directly from the uploaded model</div>')
-    rail = _ai_rail_html()
+    rail = _ai_rail_html() if with_rail else ""
 
     def _layout(main_inner: str, height: int) -> None:
         vcomp(INTERP_CSS
@@ -998,13 +1001,23 @@ def _model_interpretation_block(model, sector_key: str, config: LLMConfig) -> No
 
 
 def qa_tab(model, result, config: LLMConfig) -> None:
-    _model_interpretation_block(model, st.session_state.get("sector_pref", "generic"), config)
-    with card("Ask the analyst"):
-        st.caption(
-            "Free-text questions about the loaded company. The model only sees the "
-            "scored ratios and the sector profile, so it cannot invent outside facts."
+    sector_key = st.session_state.get("sector_pref", "generic")
+    # Interpretation on the left, the working "Ask the analyst" box on the right —
+    # instead of a full-width ask box stranded at the bottom of the page.
+    left, right = st.columns([2, 1], gap="large")
+    with left:
+        _model_interpretation_block(model, sector_key, config, with_rail=False)
+    with right:
+        st.markdown(
+            '<div style="background:linear-gradient(135deg,#0d1d16,#0a1610);'
+            'border-radius:16px;padding:16px 18px;color:#eaf3ee">'
+            '<div style="font-size:16px;font-weight:800">Ask the analyst</div>'
+            '<div style="font-size:11.5px;color:#9fb4a8;padding-top:3px;line-height:1.5">'
+            'Groq · Gemini — grounded only in the scored ratios and sector profile of '
+            'the loaded model, so it cannot invent outside facts.</div></div>',
+            unsafe_allow_html=True,
         )
-        picked = st.radio("Suggested questions", _SUGGESTED_QS, horizontal=False, index=None,
+        picked = st.radio("Suggested questions", _SUGGESTED_QS, index=None,
                           label_visibility="collapsed")
         question = st.text_input(
             "Your question", value=picked or "",
@@ -1014,8 +1027,14 @@ def qa_tab(model, result, config: LLMConfig) -> None:
         if st.button("Ask", type="primary") and question.strip():
             with st.spinner("Analysing…"):
                 answer = answer_question(result, question.strip(), config)
-                vcomp(f'<div style="font-size:13.5px;line-height:1.65;'
-                      f'color:#3f4744;padding:4px 2px">{answer}</div>', 180)
+            safe = html.escape(answer).replace("\n", "<br>")
+            st.markdown(
+                '<div style="background:#fff;border:1px solid #e6ebe7;border-radius:14px;'
+                'padding:14px 16px;margin-top:12px;font-size:13.5px;line-height:1.65;'
+                f'color:#3f4744"><div style="font-size:11px;font-weight:700;letter-spacing:.6px;'
+                f'color:#177245;padding-bottom:6px">ANSWER</div>{safe}</div>',
+                unsafe_allow_html=True,
+            )
 
 
 # SPLICE_END
