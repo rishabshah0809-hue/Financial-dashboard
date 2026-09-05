@@ -730,27 +730,43 @@ def spark(vals: list[float], colour_line: str = AMBER_TXT) -> tuple[str, int]:
 
 
 # --- turnover rows --------------------------------------------------------------------------
+def _turnover_colour(latest: float, median: float) -> str:
+    """Colour a turnover bar by how far the latest reading is from its own
+    10-year median (higher turnover is better): well above -> deep green, around
+    the median -> green, a little below -> amber, well below -> red."""
+    if median is None or median <= 0:
+        return MID
+    r = latest / median
+    if r >= 1.10:
+        return GREEN_DARK
+    if r >= 0.95:
+        return MID
+    if r >= 0.80:
+        return AMBER
+    return RED
+
+
 def turnover_rows(rows: list[tuple[str, float, float]]) -> tuple[str, int]:
     # Scale the bars to the data, not a fixed 13x: with one low-turnover row (e.g.
     # a 0.9x fixed-asset turnover) a hardcoded scale left the bar a tiny sliver.
     # Use the largest value on show plus headroom so every bar reads clearly.
-    peak = max((max(latest, mean) for name, latest, mean in rows), default=1.0)
+    peak = max((max(latest, median) for name, latest, median in rows), default=1.0)
     scale = max(peak * 1.15, 1.0)
     out = ['<div style="display:flex;flex-direction:column;justify-content:space-between;'
            'gap:18px;padding-top:12px;height:100%;min-height:200px">']
-    for name, latest, mean in rows:
-        colour = MID if latest >= mean else AMBER
+    for name, latest, median in rows:
+        colour = _turnover_colour(latest, median)
         out.append(
             f'<div><div style="display:flex;justify-content:space-between;gap:10px;'
             f'font-size:14px;color:#3f4744;padding-bottom:7px"><span>{name}</span>'
             f'<span style="font-size:13px;flex:none;font-family:{MONO}">'
             f'<b style="color:{INK}">{latest:.2f}x</b>'
-            f'<span style="color:{FAINT}">  mean {mean:.2f}x</span></span></div>'
+            f'<span style="color:{FAINT}">  median {median:.2f}x</span></span></div>'
             f'<div style="position:relative;height:11px;border-radius:11px;background:#f1f3f1">'
-            f'<div{_tt(f"{name}: {latest:.2f}x vs mean {mean:.2f}x")} '
+            f'<div{_tt(f"{name}: {latest:.2f}x vs median {median:.2f}x")} '
             f'style="width:{min(100, max(2, latest / scale * 100)):.1f}%;height:100%;border-radius:11px;'
             f'background:{colour};cursor:pointer"></div>'
-            f'<div style="position:absolute;left:{min(100, mean / scale * 100):.1f}%;'
+            f'<div style="position:absolute;left:{min(100, median / scale * 100):.1f}%;'
             f'top:-3px;width:2px;height:17px;background:#0f3d27"></div></div></div>')
     out.append("</div>")
     return "".join(out), len(rows) * 44 + 20
