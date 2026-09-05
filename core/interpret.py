@@ -242,15 +242,18 @@ out the single biggest structural shift, what it drove, and what it leaves expos
 ("the root cause of nearly every downstream profitability gain"; "a leading sign \
 the company invested heavily and is now absorbing the cost").
 
+LENGTH — keep every card SHORT: 2 to 4 lines total that a reader can absorb at a \
+glance. State plainly WHAT CHANGED and WHY. Do not pad.
+
 STYLE — every bullet MUST follow this shape:
-  **<Metric> — <short descriptor> (<the key figures or moves>):** <one or two \
-sentences of causal explanation>.
+  **<Metric> — <short descriptor> (<the key figures or moves>):** <ONE sentence \
+of causal explanation>.
 The bold lead-in (between ** **) carries the label, a terse descriptor and the \
-numbers in parentheses; the sentence after the colon explains the WHY and the \
-relationship. Example of the required voice:
+numbers in parentheses; the ONE sentence after the colon explains the WHY and the \
+relationship — no second sentence. Example of the required voice:
   "**Net Margin still rose in FY26 (7.7% -> 9.6%) despite the EBIT dip:** the gap \
-is filled by Other Income jumping to 11.6% of sales, so the record bottom line is \
-propped up by non-operating income, not the core business."
+is filled by Other Income jumping to 11.6% of sales, so the bottom line leans on \
+non-operating income, not the core business."
 - GROWTH section specifically: express the trajectory as year-on-year PERCENT \
 moves that you compute from the figures given (e.g. "-8.9% FY21 -> +75.6% FY22 -> \
 +83.7% FY23 -> -24.4% FY24 -> ~flat FY25-26"), then explain what each swing \
@@ -263,9 +266,9 @@ leverage-as-model and working-capital days are near meaningless; an IT firm on \
 margins, asset-light returns and employee cost; a capital-intensive industrial on \
 depreciation, capex, asset turnover, ROCE and leverage.
 - Do not force bullets. If a section has nothing material, return the single \
-string "Nothing material changed in this area." Target counts: Growth 2-3, \
-Margins 2-3, Costs 1-3, Returns 1-3, Efficiency 1-3, Leverage & Cash Flow 2-4, \
-Valuation 1-2. If valuation lines are absent, return \
+string "Nothing material changed in this area." Keep it tight — ONE bullet per \
+section is the target; use a second only when there is a genuinely distinct \
+material shift (never more than two). If valuation lines are absent, return \
 "Valuation data not available in the model."
 - This is analysis, not advice. Never say buy/sell/guaranteed. Use analytical \
 language: supports, indicates, could suggest, raises a concern, worth monitoring.
