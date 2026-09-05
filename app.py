@@ -1001,12 +1001,14 @@ def _model_interpretation_block(model, sector_key: str, config: LLMConfig,
 
 
 def qa_tab(model, result, config: LLMConfig) -> None:
+    _page_header("Ask the analyst",
+                 "Answers grounded only in the loaded model.")
     sector_key = st.session_state.get("sector_pref", "generic")
-    # Interpretation on the left, the working "Ask the analyst" box on the right —
-    # instead of a full-width ask box stranded at the bottom of the page.
+    # Interpretation on the left, the working ask box on the right — instead of a
+    # full-width ask box stranded at the bottom of the page.
     left, right = st.columns([2, 1], gap="large")
     with left:
-        _model_interpretation_block(model, sector_key, config, with_rail=False)
+        _model_interpretation_block(model, sector_key, config)
     with right:
         st.markdown(
             '<div style="background:linear-gradient(135deg,#0d1d16,#0a1610);'
@@ -1017,7 +1019,12 @@ def qa_tab(model, result, config: LLMConfig) -> None:
             'the loaded model, so it cannot invent outside facts.</div></div>',
             unsafe_allow_html=True,
         )
-        picked = st.radio("Suggested questions", _SUGGESTED_QS, index=None,
+        suggestions = [
+            "Is the debt load sustainable given the cash flows?",
+            "What single ratio would change the verdict fastest?",
+            "How would this company look if it were an IT services firm instead?",
+        ]
+        picked = st.radio("Suggested questions", suggestions, index=None,
                           label_visibility="collapsed")
         question = st.text_input(
             "Your question", value=picked or "",
