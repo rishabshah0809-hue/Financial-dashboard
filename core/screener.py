@@ -102,6 +102,11 @@ class ScreenerCompany:
     depreciation_ttm: float | None = None
     equity_reported: float | None = None      # Equity Capital + Reserves (latest)
     borrowings: float | None = None
+    sales_ttm: float | None = None            # Sales/Revenue (TTM) ₹ crore
+    interest_ttm: float | None = None         # Interest expense (TTM) ₹ crore
+    total_assets: float | None = None         # Balance-sheet Total (latest) ₹ crore
+    revenue_growth: float | None = None       # YoY %, latest annual vs prior
+    eps_growth: float | None = None           # YoY %, latest annual vs prior
     fundamental_period: str | None = None     # e.g. "Mar 2026 (annual) + TTM P&L"
     source_url: str = ""
 
@@ -115,6 +120,37 @@ class ScreenerCompany:
     def ebit(self) -> float | None:
         if self.operating_profit_ttm is not None and self.depreciation_ttm is not None:
             return round(self.operating_profit_ttm - self.depreciation_ttm, 2)
+        return None
+
+    @property
+    def opm(self) -> float | None:
+        if self.operating_profit_ttm is not None and self.sales_ttm:
+            return round(self.operating_profit_ttm / self.sales_ttm * 100, 2)
+        return None
+
+    @property
+    def npm(self) -> float | None:
+        if self.net_profit_ttm is not None and self.sales_ttm:
+            return round(self.net_profit_ttm / self.sales_ttm * 100, 2)
+        return None
+
+    @property
+    def roa(self) -> float | None:
+        if self.net_profit_ttm is not None and self.total_assets:
+            return round(self.net_profit_ttm / self.total_assets * 100, 2)
+        return None
+
+    @property
+    def debt_to_equity(self) -> float | None:
+        if self.borrowings is not None and self.equity_reported:
+            return round(self.borrowings / self.equity_reported, 2)
+        return None
+
+    @property
+    def interest_coverage(self) -> float | None:
+        e = self.ebit
+        if e is not None and self.interest_ttm:
+            return round(e / self.interest_ttm, 2)
         return None
 
     @property
@@ -159,6 +195,28 @@ def parse(html: str, symbol: str) -> ScreenerCompany | None:
     reserves = _last(bs["rows"].get("reserves"))
     equity = (eq_cap + reserves) if (eq_cap is not None and reserves is not None) else None
 
+    # Balance-sheet total assets — for ROA. Screener labels it "Total Assets"
+    # (older layouts used a bare "Total" that got overwritten by the assets row).
+    total_assets = _last(bs["rows"].get("total assets") or bs["rows"].get("total"))
+
+    # Sales/Revenue and Interest (TTM) for margins and interest cover.
+    sales_row = pl["rows"].get("sales") or pl["rows"].get("revenue")
+    sales_ttm = _last(sales_row)
+    interest_ttm = _last(pl["rows"].get("interest"))
+
+    def _yoy(vals: list | None) -> float | None:
+        """YoY % from the annual series (drop the TTM column if present)."""
+        if not vals:
+            return None
+        annual = vals[:-1] if ttm_flag else vals
+        a = [v for v in annual if v is not None]
+        if len(a) < 2 or not a[-2]:
+            return None
+        return round((a[-1] - a[-2]) / abs(a[-2]) * 100, 2)
+
+    revenue_growth = _yoy(sales_row)
+    eps_growth = _yoy(pl["rows"].get("eps in rs") or pl["rows"].get("eps"))
+
     comp = ScreenerCompany(
         symbol=symbol.upper(),
         name=name,
@@ -174,6 +232,11 @@ def parse(html: str, symbol: str) -> ScreenerCompany | None:
         depreciation_ttm=pl_ttm("depreciation"),
         equity_reported=equity,
         borrowings=_last(bs["rows"].get("borrowings")),
+        sales_ttm=sales_ttm,
+        interest_ttm=interest_ttm,
+        total_assets=total_assets,
+        revenue_growth=revenue_growth,
+        eps_growth=eps_growth,
         fundamental_period=(f"{latest_annual} (annual)" + (" + TTM P&L" if ttm_flag else "")
                             if latest_annual else None),
         source_url=f"https://www.screener.in/company/{symbol.upper()}/",
@@ -304,6 +367,13 @@ def constituent_row(c: ScreenerCompany, *, is_financial: bool = False) -> dict:
         "pb": c.pb_display,
         "roe": c.roe_reported,
         "roce": None if is_financial else c.roce_reported,
+        "roa": None if is_financial else c.roa,
+        "opm": c.opm,
+        "npm": c.npm,
+        "debt_to_equity": c.debt_to_equity,
+        "interest_coverage": c.interest_coverage,
+        "revenue_growth_yoy": c.revenue_growth,
+        "eps_ttm_growth": c.eps_growth,
         "book_value": c.book_value,
         "dividend_yield": c.dividend_yield,
         "net_profit_ttm": c.net_profit_ttm,

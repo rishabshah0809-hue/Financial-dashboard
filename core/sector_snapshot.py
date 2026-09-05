@@ -103,13 +103,10 @@ def merge_sector(screener_snap: dict | None, fundamentals_snap: dict | None,
         merged_metrics[k] = sm.get(k)          # Screener daily bottom-up wins
     merged_metrics["methodology"] = sm.get("methodology")
 
-    # constituents: Screener row (daily CMP + core) overlaid with IndianAPI extras
-    fund_rows = {r.get("nse_symbol"): r for r in fund.get("constituents", [])}
-    merged_rows = []
-    for r in scr.get("constituents", []):
-        base = dict(fund_rows.get(r.get("nse_symbol"), {}))   # roa/opm/npm/de/... if present
-        base.update({k: v for k, v in r.items() if v is not None or k not in base})
-        merged_rows.append(base)
+    # constituents: Screener ONLY — every ratio (P/E, P/B, ROE, ROA, ROCE, growth,
+    # OPM, NPM, D/E, interest cover) is now computed by core.screener, so the
+    # comparison table never draws on the IndianAPI fundamentals snapshot.
+    merged_rows = [dict(r) for r in scr.get("constituents", [])]
     for i, r in enumerate(sorted(merged_rows, key=lambda x: (x.get("market_cap") or 0), reverse=True), 1):
         r["rank"] = i
 

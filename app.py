@@ -645,10 +645,10 @@ def _resolve_nse_symbol(company_name: str) -> str | None:
 
 
 @st.cache_data(ttl=60 * 60 * 6, show_spinner=False)
-def _screener_live_rows(symbols: tuple[str, ...]) -> dict:
-    """Live-fetch constituents absent from the daily snapshot, straight from
-    Screener.in (cached ~6h). Fills the core ratios Screener exposes: P/E, P/B,
-    ROE, ROCE, CMP, market cap (+ D/E when borrowings & equity are reported)."""
+def _screener_live_rows(symbols: tuple[str, ...], is_financial: bool = False) -> dict:
+    """Live-fetch constituents straight from Screener.in (cached ~6h). Returns a
+    full constituent row per symbol — P/E, P/B, ROE, ROA, ROCE, growth, OPM, NPM,
+    D/E, interest cover, CMP, market cap — all computed by core.screener."""
     import requests
     out: dict = {}
     if not symbols:
@@ -659,12 +659,8 @@ def _screener_live_rows(symbols: tuple[str, ...]) -> dict:
             c = SC.fetch(sym, sess)
         except Exception:                     # noqa: BLE001 - never break the page
             c = None
-        if not c:
-            continue
-        row = SC.constituent_row(c)
-        if c.borrowings is not None and c.equity_reported:
-            row["debt_to_equity"] = round(c.borrowings / c.equity_reported, 2)
-        out[sym] = row
+        if c:
+            out[sym] = SC.constituent_row(c, is_financial=is_financial)
     return out
 
 
@@ -687,21 +683,34 @@ def sector_lens_tab(model, result) -> None:
 
     sector_snap, src_meta = SNAP.merge_sector(screener, fundamentals, chosen)
 
-    # Fill any constituent missing from the daily snapshot with a live Screener
-    # fetch, so its card shows real ratios instead of dashes.
-    cons = sector_snap.get("constituents") or []
-    missing = tuple(sorted({r.get("nse_symbol") for r in cons
-                            if r.get("nse_symbol") and r.get("pe") is None}))
-    if missing:
+    # Constituents table = full NSE-index membership, every row sourced from
+    # Screener. Rows in the daily snapshot are used as-is; any member missing (or
+    # lacking ratios) is fetched live from Screener. IndianAPI is never used here.
+    members = list(U.all_unique_symbols()[0].get(chosen, []))
+    is_fin = bool(U.UNIVERSES[chosen].is_financial) if chosen in U.UNIVERSES else False
+    snap_rows = {r.get("nse_symbol"): dict(r)
+                 for r in ((sector_snap or {}).get("constituents") or []) if r.get("nse_symbol")}
+    need = tuple(sorted({s for s in members
+                         if s not in snap_rows or snap_rows[s].get("pe") is None}))
+    live = {}
+    if need:
         with st.spinner("Fetching latest data from Screener…"):
-            live = _screener_live_rows(missing)
-        for r in cons:
-            lr = live.get(r.get("nse_symbol"))
-            if not lr:
-                continue
+            live = _screener_live_rows(need, is_fin)
+    rows = []
+    for s in members:
+        row = snap_rows.get(s) or {"nse_symbol": s}
+        lr = live.get(s)
+        if lr:
             for k, v in lr.items():
-                if v is not None and r.get(k) is None:
-                    r[k] = v
+                if v is not None and row.get(k) is None:
+                    row[k] = v
+        if row.get("market_cap") is not None or row.get("pe") is not None:
+            rows.append(row)
+    rows.sort(key=lambda r: (r.get("market_cap") or 0), reverse=True)
+    for i, r in enumerate(rows, 1):
+        r["rank"] = i
+    if sector_snap is not None:
+        sector_snap["constituents"] = rows
 
     meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}
     meta.update(src_meta)

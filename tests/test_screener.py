@@ -68,13 +68,14 @@ class TestMerge(unittest.TestCase):
         # Screener wins headline valuation/returns
         self.assertEqual(merged["metrics"]["pe"], 10)
         self.assertEqual(merged["metrics"]["roce"], 15)
-        # IndianAPI fills the depth tiles
+        # IndianAPI still fills the sector-level depth tiles
         self.assertEqual(merged["metrics"]["peg"], 1.5)
         self.assertEqual(merged["metrics"]["piotroski"], 6)
-        # merged row has Screener CMP + IndianAPI extras
+        # constituents are Screener-ONLY now: the Screener row is used as-is and
+        # IndianAPI constituent extras (opm/roa/de) never leak into the table.
         row = merged["constituents"][0]
         self.assertEqual(row["cmp"], 100)
-        self.assertEqual(row["opm"], 25)
+        self.assertNotIn("opm", row)
         # dates never conflated
         self.assertEqual(meta["market_snapshot_date"], "2026-09-04")
         self.assertEqual(meta["fundamentals_date"], "2026-09-03")
