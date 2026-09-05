@@ -343,8 +343,8 @@ def deepdive_charts(model) -> dict[str, tuple[str, int]]:
                        ("Capital turnover", "Capital Turnover Ratio")):
         s = ser(model, key).tail(10)
         if len(s) >= 4:
-            mean = float(s.mean())
-            turn_rows.append((label, float(s.iloc[-1]), mean))
+            median = float(s.median())
+            turn_rows.append((label, float(s.iloc[-1]), median))
     if turn_rows:
         charts["turnover"] = viz.turnover_rows(turn_rows)
     asset_layers = _bs_layers(model, True)

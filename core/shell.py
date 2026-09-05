@@ -1094,7 +1094,7 @@ def ratios_shell(model, result) -> tuple[str, int]:
         "leverage": ("Leverage & solvency", "Debt/equity bars \u00b7 interest cover line"),
         "wc": ("Working capital cycle", "Debtor + inventory \u2212 payable days"),
         "cash": ("Cash flow mix", "Operating \u00b7 investing \u00b7 financing, \u20b9 cr"),
-        "turnover": ("Turnover & efficiency", "Times per year, latest vs 10-yr mean"),
+        "turnover": ("Turnover & efficiency", "Times per year, latest vs 10-yr median"),
         "assets": ("Total assets, by component", "Stacked, \u20b9 crore"),
         "liab": ("Total liabilities & equity", "Stacked, \u20b9 crore"),
     }
