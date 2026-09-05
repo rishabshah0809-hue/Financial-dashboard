@@ -388,6 +388,79 @@ tr.head .val{font-weight:800}
 main [style*="background:#fff"][style*="border-radius:18px"],
 main [style*="background:#fff"][style*="border-radius:20px"]{
   box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
+
+/* ===== sector lens redesign (matches sector_lens.html reference) ===== */
+.sl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:18px}
+.sl-title{font-size:19px;font-weight:800;letter-spacing:-.3px;color:#15201a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sl-meta{font-size:12.5px;color:#8b918e;padding-top:5px}.sl-meta b{color:#4a5350;font-weight:700}
+.sl-src{text-align:right}.sl-src a{font-size:12.5px;font-weight:700;color:#177245}
+.sl-upd{font-size:11.5px;color:#9aa09d;padding-top:3px}
+.tag-amber{background:#fbf1df;color:#b5761f;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
+.tag-green{background:#eef4f0;color:#177245;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
+.tag-grey{background:#f1f3f1;color:#8b918e;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
+.slk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:14px}
+.slk{position:relative;background:#fff;border:1px solid #e6ebe7;border-radius:16px;padding:16px 18px;
+  box-shadow:0 1px 2px rgba(21,32,26,.04);transition:transform .18s ease,box-shadow .18s ease}
+.slk:hover{transform:translateY(-3px);box-shadow:0 2px 4px rgba(21,32,26,.05),0 12px 28px rgba(21,32,26,.10)}
+.slk-ic{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:10px;display:flex;
+  align-items:center;justify-content:center}
+.slk-ic svg{width:18px;height:18px;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.slk-l{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#8b918e;padding-right:38px}
+.slk-v{font-size:27px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:8px}
+.slk-s{font-size:11.5px;color:#9aa09d;padding-top:4px}
+/* section header row with icon */
+.sl-secrow{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding-bottom:2px}
+.sl-secrow>.tag-amber,.sl-secrow>.tag-green,.sl-secrow>.tag-grey{margin-left:0}
+.sl-secrow .sl-secsp{margin-left:auto}
+.secic{width:34px;height:34px;border-radius:10px;background:#e9efec;border:1px solid #dce5df;flex:none;
+  display:flex;align-items:center;justify-content:center}
+.secic svg{width:19px;height:19px;fill:none;stroke:#2f5545;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.sl-para{font-size:14px;line-height:1.66;color:#3f4744;padding:10px 2px 6px}
+.season-lbl{font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#9aa09d;
+  padding:12px 2px 8px;font-family:ui-monospace,Menlo,monospace}
+.tilt{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;font-size:13.5px;line-height:1.6;color:#26332c;
+  background:#f4f8f5;border:1px solid #dcebe1;border-radius:13px;padding:13px 15px;margin-top:14px}
+.tilt-chip{font-size:10px;font-weight:800;letter-spacing:.8px;color:#177245;background:#e6f2ec;
+  border-radius:20px;padding:3px 10px;font-family:ui-monospace,Menlo,monospace;flex:none}
+/* bullet bars: bar = company, tick = sector median */
+.bb-sec{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#9aa09d;
+  font-family:ui-monospace,Menlo,monospace;padding:14px 2px 4px}
+.bb{padding:9px 2px 11px;border-top:1px solid #f1f3f1}
+.bb-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:8px}
+.bb-n{font-size:14px;font-weight:700;color:#15201a}
+.bb-delta{font-size:12px;font-weight:700;border-radius:20px;padding:3px 11px;font-family:ui-monospace,Menlo,monospace}
+.bb-track{position:relative;height:14px;background:#eef1ee;border-radius:7px}
+.bb-fill{position:absolute;left:0;top:0;height:100%;background:#33443d;border-radius:7px}
+.bb-tick{position:absolute;top:-3px;height:20px;width:2.5px;background:#7d847f;border-radius:2px;transform:translateX(-50%)}
+.bb-f{display:flex;justify-content:space-between;font-size:11px;color:#9aa09d;padding-top:6px;font-family:ui-monospace,Menlo,monospace}
+.bb-f b{color:#15201a}
+/* verdict reading */
+.verdict2{background:#fff;border:1px solid #e6ebe7;border-left:4px solid #d9a441;border-radius:18px;
+  padding:20px 24px;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+  transition:transform .18s ease,box-shadow .18s ease}
+.verdict2:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 30px rgba(21,32,26,.11)}
+.v2-h{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding-bottom:9px}
+.v2-chip{font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#b5761f;background:#fbf1df;
+  border-radius:20px;padding:4px 11px;font-family:ui-monospace,Menlo,monospace}
+.v2-title{font-size:18px;font-weight:800;letter-spacing:-.3px;color:#15201a}
+.v2-body{font-size:14.5px;line-height:1.62;color:#3f4744}.v2-body b{color:#15201a}
+/* constituents */
+.con{border:1px solid #e6ebe7;border-radius:16px;padding:16px 18px;margin-top:12px;background:#fbfcfb;
+  transition:transform .18s ease,box-shadow .18s ease}
+.con:hover{transform:translateY(-3px);box-shadow:0 2px 4px rgba(21,32,26,.05),0 12px 28px rgba(21,32,26,.10)}
+.con-h{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid #eef0ed}
+.con-rank{font-size:24px;font-weight:800;color:#d3e2da;font-family:ui-monospace,Menlo,monospace;flex:none}
+.con-id{flex:1;min-width:150px}
+.con-name{font-size:16px;font-weight:800;color:#177245;letter-spacing:-.2px}
+.con-tk{font-size:11.5px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace;padding-top:2px}
+.con-mc{text-align:right}
+.con-mc-l{font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:#a4a9a6;font-family:ui-monospace,Menlo,monospace}
+.con-mc-v{font-size:19px;font-weight:800;letter-spacing:-.5px;color:#15201a;padding-top:2px}
+.con-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:2px 4px;padding-top:14px}
+.mc{padding:8px 10px}
+.mc-l{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9aa09d}
+.mc-v{font-size:16px;font-weight:800;color:#15201a;letter-spacing:-.3px;padding-top:3px;font-family:ui-monospace,Menlo,monospace}
+.uni-note{font-size:12px;color:#9aa09d;line-height:1.5;padding-top:16px}
 """
 
 FC_DEFS = """
@@ -1604,6 +1677,194 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
     )
 
 
+# ---- Sector Lens redesign renderers (match sector_lens.html reference) ----
+
+# icon glyph markup for the five KPI tiles + section headers (stroke set inline)
+_SL_ICONS = {
+    "constituents": '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="5" rx="1.5"/><rect x="3" y="12" width="18" height="5" rx="1.5"/></svg>',
+    "pe": '<svg viewBox="0 0 24 24"><path d="M20.5 12.5 12 21l-9-9V3h9z"/><circle cx="7.4" cy="7.4" r="1.5"/></svg>',
+    "pb": '<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><line x1="4" y1="10" x2="20" y2="10"/><line x1="10" y1="10" x2="10" y2="20"/></svg>',
+    "roe": '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="0.7"/></svg>',
+    "roce": '<svg viewBox="0 0 24 24"><polyline points="3 16 9 10 13 14 21 6"/><polyline points="15 6 21 6 21 12"/></svg>',
+    "cycle": '<svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 0 0-13.3-4.5L4 9"/><polyline points="4 4 4 9 9 9"/><path d="M4 13a8 8 0 0 0 13.3 4.5L20 15"/><polyline points="20 20 20 15 15 15"/></svg>',
+    "compare": '<svg viewBox="0 0 24 24"><line x1="3" y1="21" x2="21" y2="21"/><path d="M12 3 21 8H3Z"/><line x1="6.5" y1="10.5" x2="6.5" y2="18"/><line x1="12" y1="10.5" x2="12" y2="18"/><line x1="17.5" y1="10.5" x2="17.5" y2="18"/></svg>',
+    "grid": '<svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
+}
+
+
+def _slk(icon: str, tint: str, stroke: str, label: str, value: str, sub: str) -> str:
+    """One Sector-Lens KPI card (icon top-right, big value, sub-label)."""
+    return (
+        '<div class="slk">'
+        f'<span class="slk-ic" style="background:{tint}"><span style="stroke:{stroke};'
+        f'display:flex">{_SL_ICONS.get(icon, "")}</span></span>'
+        f'<div class="slk-l">{_esc(label)}</div>'
+        f'<div class="slk-v">{value}</div>'
+        f'<div class="slk-s">{_esc(sub)}</div></div>'
+    )
+
+
+def _sl_sechead(icon: str, title: str, tags: str = "") -> str:
+    """Card section header: icon chip + title + optional trailing tag chips."""
+    return (
+        '<div class="sl-secrow">'
+        f'<span class="secic">{_SL_ICONS.get(icon, "")}</span>'
+        f'<div class="ct">{_esc(title)}</div>{tags}</div>'
+    )
+
+
+def _month_chart(shape: dict) -> str:
+    """Typical-activity-by-month SVG bar chart from a tilt seasonal shape."""
+    act = shape["activity"]
+    slow = shape.get("slow")
+    peak = shape.get("peak")
+    n = len(act)
+    W, H = 720, 144
+    top, base = 14.0, 96.0            # bar area (px) — value 100 -> y=top
+    slot = W / n
+    bw = min(34.0, slot - 12.0)
+    peak_idx = set(range(peak[0], peak[1] + 1)) if peak else set()
+    slow_idx = set(range(slow[0], slow[1] + 1)) if slow else set()
+    parts = []
+    for i, v in enumerate(act):
+        h = (base - top) * (v / 100.0)
+        x = slot * i + (slot - bw) / 2
+        y = base - h
+        fill = "#2f9e63" if i in peak_idx else ("#e0b4ab" if i in slow_idx else "#bcd9c8")
+        cx = x + bw / 2
+        parts.append(
+            f'<rect x="{x:.1f}" y="{y:.1f}" width="{bw:.0f}" height="{h:.1f}" rx="5" fill="{fill}">'
+            f'<title>{TILT.FISCAL_MONTHS[i]}: activity {v}/100</title></rect>'
+            f'<text x="{cx:.1f}" y="112" text-anchor="middle" font-size="10.5" fill="#8b918e" '
+            f'font-weight="600">{TILT.FISCAL_MONTHS[i]}</text>'
+        )
+
+    def band(bnd, colour):
+        s, e, lab = bnd
+        x1 = slot * s + (slot - bw) / 2
+        x2 = slot * e + (slot - bw) / 2 + bw
+        xm = (x1 + x2) / 2
+        return (
+            f'<line x1="{x1:.1f}" y1="124" x2="{x2:.1f}" y2="124" stroke="{colour}" stroke-width="1.5"/>'
+            f'<text x="{xm:.1f}" y="136" text-anchor="middle" font-size="10.5" fill="{colour}" '
+            f'font-weight="700">{_esc(lab)}</text>'
+        )
+    if slow:
+        parts.append(band(slow, "#b07a70"))
+    if peak:
+        parts.append(band(peak, "#1b6f50"))
+    return (f'<svg viewBox="0 0 {W} {H}" style="width:100%;height:auto">' + "".join(parts) + "</svg>")
+
+
+def _bb_row(label: str, comp, sect, kind: str, applicable: bool = True) -> str:
+    """One bullet-bar row: dark fill = company, grey tick = sector median."""
+    lower_better = kind in ("x", "peg")
+    # scale bars/tick to a shared max so bar and tick are comparable
+    vals = [v for v in (comp, sect) if v is not None]
+    maxv = max(vals) * 1.2 if vals else 1.0
+    if maxv <= 0:
+        maxv = 1.0
+    cw = None if comp is None else max(2.0, min(100.0, comp / maxv * 100))
+    sw = None if sect is None else max(0.0, min(100.0, sect / maxv * 100))
+
+    if not applicable:
+        delta = '<span class="bb-delta" style="color:#8b918e;background:#eef0ed">— n/a</span>'
+    elif comp is not None and sect is not None:
+        if lower_better:
+            pct = (comp - sect) / sect * 100 if sect else 0.0
+            good = comp < sect
+            arrow, word = ("▼", "cheaper") if good else ("▲", "pricier")
+            col = ("#177245", "#eef4f0") if good else ("#b4483c", "#fbeeec")
+            delta = f'<span class="bb-delta" style="color:{col[0]};background:{col[1]}">{arrow} {abs(pct):.1f}% {word}</span>'
+        else:
+            pp = comp - sect
+            good = pp >= 0
+            arrow = "▲" if good else "▼"
+            col = ("#177245", "#eef4f0") if good else ("#b4483c", "#fbeeec")
+            delta = f'<span class="bb-delta" style="color:{col[0]};background:{col[1]}">{arrow} {pp:+.2f} pp</span>'
+    else:
+        delta = '<span class="bb-delta" style="color:#8b918e;background:#eef0ed">— n/a</span>'
+
+    fill = f'<div class="bb-fill" style="width:{cw:.1f}%"></div>' if cw is not None else ""
+    tick = f'<div class="bb-tick" style="left:{sw:.1f}%"></div>' if sw is not None else ""
+    tt = f"{label}: company {_fx(comp, kind)} vs sector {_fx(sect, kind)}"
+    return (
+        f'<div class="bb" data-tt="{_esc(tt)}">'
+        f'<div class="bb-h"><span class="bb-n">{label}</span>{delta}</div>'
+        f'<div class="bb-track">{fill}{tick}</div>'
+        f'<div class="bb-f"><span>you <b>{_fx(comp, kind)}</b></span>'
+        f'<span>sector {_fx(sect, kind)}</span></div></div>'
+    )
+
+
+def _sl_verdict(comp: dict, sect: dict, roce_applicable: bool) -> str:
+    """Reading card (verdict2): a headline + plain-English body, or ''."""
+    reading = _interpretation(comp, sect)
+    if not reading:
+        return ""
+    # Headline from valuation vs returns posture
+    pe_c, pe_s = comp.get("pe"), sect.get("pe")
+    cheap = pe_c is not None and pe_s and pe_c < pe_s
+    pricey = pe_c is not None and pe_s and pe_c > pe_s
+    rets = [(comp.get(k), sect.get(k)) for k in ("roe", "roce", "roa")]
+    rets = [(c, s) for c, s in rets if c is not None and s is not None]
+    above = sum(1 for c, s in rets if c >= s)
+    below = len(rets) - above
+    if rets and above and below:
+        rword = "mixed returns"
+    elif rets and above and not below:
+        rword = "above-average returns"
+    elif rets and below and not above:
+        rword = "below-average returns"
+    else:
+        rword = "an in-line return profile"
+    vword = "Cheap on price" if cheap else "Priced at a premium" if pricey else "Fairly priced"
+    rtitle = "average on returns" if rword == "mixed returns" else rword
+    title = f"{vword}, {rtitle}"
+    return (
+        '<div class="verdict2"><div class="v2-h"><span class="v2-chip">READING</span>'
+        f'<span class="v2-title">{_esc(title)}</span></div>'
+        f'<div class="v2-body">{_esc(reading)}</div></div>'
+    )
+
+
+def _con_card(r: dict, is_financial: bool) -> str:
+    """One constituent card: rank, name→NSE, market cap, metric grid."""
+    rank = r.get("rank")
+    rank_s = f"{int(rank):02d}" if isinstance(rank, (int, float)) else _esc(str(rank or "—"))
+    name = r.get("name", "—")
+    sym = r.get("nse_symbol", "")
+    nse_url = r.get("nse_url") or f"https://www.nseindia.com/get-quotes/equity?symbol={sym}"
+    mcap = _fx(r.get("market_cap"), "mcap")
+    metrics = [
+        ("P/E", _fx(r.get("pe"), "x")),
+        ("P/B", _fx(r.get("pb"), "x")),
+        ("ROE", _fx(r.get("roe"), "pct")),
+        ("ROA", _fx(r.get("roa"), "pct")),
+        ("ROCE", "—" if is_financial else _fx(r.get("roce"), "pct")),
+        ("Rev Gr", _fx(r.get("revenue_growth_yoy"), "pct")),
+        ("EPS Gr", _fx(r.get("eps_ttm_growth"), "pct")),
+        ("OPM", _fx(r.get("opm"), "pct")),
+        ("NPM", _fx(r.get("npm"), "pct")),
+        ("D/E", _fx(r.get("debt_to_equity"), "peg")),
+        ("Int Cov", _fx(r.get("interest_coverage"), "x")),
+    ]
+    mcells = "".join(
+        f'<div class="mc"><div class="mc-l">{lab}</div><div class="mc-v">{val}</div></div>'
+        for lab, val in metrics
+    )
+    return (
+        '<div class="con"><div class="con-h">'
+        f'<span class="con-rank">{rank_s}</span>'
+        '<div class="con-id">'
+        f'<a href="{_esc(nse_url)}" target="_blank" rel="noopener noreferrer" class="con-name">{_esc(name)}</a>'
+        f'<div class="con-tk">{_esc(sym)} · NSE ↗</div></div>'
+        f'<div class="con-mc"><div class="con-mc-l">MARKET CAP</div><div class="con-mc-v">{mcap}</div></div>'
+        '</div>'
+        f'<div class="con-metrics">{mcells}</div></div>'
+    )
+
+
 def sector_shell(model, result, snap: dict | None,
                  sector_key: str | None = None, meta: dict | None = None) -> tuple[str, int]:
     """
@@ -1632,131 +1893,127 @@ def sector_shell(model, result, snap: dict | None,
         map_type = uni.mapping_type
         map_note = uni.mapping_note
 
-    # Badge styling
-    badge_colors = {
-        "exact": ("#eef5f0", "#177245"),
-        "approximate": ("#fcf6e8", "#b8860b"),
-        "proxy": ("#faeeed", "#a55"),
-    }
-    bg, fg = badge_colors.get(map_type, ("#f1f3f1", "#8b918e"))
-    map_badge = (
-        f'<span style="background:{bg};color:{fg};font-size:11px;'
-        'font-weight:700;letter-spacing:.3px;border-radius:20px;'
-        f'padding:3px 10px;text-transform:capitalize">{_esc(map_type or "standard")}</span>'
-    )
+    # Mapping-quality tag (green = exact, amber = approximate/proxy)
+    tag_cls = {"exact": "tag-green", "approximate": "tag-amber",
+               "proxy": "tag-amber"}.get(map_type, "tag-grey")
+    tag_txt = {"exact": "Exact match", "approximate": "Approximate",
+               "proxy": "Proxy"}.get(map_type, "Standard")
+    sector_tag = f'<span class="{tag_cls}">{_esc(tag_txt)}</span>'
 
-    # Sector pulse
+    idx_display = _esc(idx_name or "—")
+    period = (snap or {}).get("financial_period") or (snap or {}).get("data_period")
+    period_txt = f' · Data period <b>{_esc(period)}</b>' if period else ""
+
+    # Source + freshness (right side of the header card)
+    m = meta or {}
+    fund_src = (m.get("fundamentals_source") or m.get("source")
+                or (snap or {}).get("source") or "IndianAPI + NSE Indices")
+    mkt_date = m.get("market_snapshot_date") or (snap or {}).get("snapshot_date")
+    upd_html = (f'<div class="sl-upd">Updated {_esc(str(mkt_date))} {_days_ago(mkt_date)}</div>'
+                if mkt_date else "")
+    src_html = (f'<div class="sl-src"><a href="#" style="cursor:default">Source: {_esc(fund_src)}</a>'
+                f'{upd_html}</div>')
+
+    # ---- Header card: title + tag + reference index, and the 5 KPI cards ----
     if have:
         inc = snap.get("included_count")
         att = snap.get("constituent_count")
         skp = snap.get("skipped_count", 0)
-        cov = f"{inc} of {att} constituents" + (f" · {skp} skipped" if skp else "")
-        top_list = snap.get("constituents", [])
-        tot_mcap = sum(r.get("market_cap", 0) for r in top_list if r.get("market_cap")) if top_list else None
-        avg_mcap = (tot_mcap / len(top_list)) if (tot_mcap and top_list) else None
-
-        pulse = (
-            '<div style="display:flex;gap:14px;flex-wrap:wrap">'
-            + _tile("Constituents", _fx(inc, "int"), cov)
-            + _tile("Sector P/E", _fx(sect.get("pe"), "x"), "Excl. loss-makers")
-            + _tile("Sector P/B", _fx(sect.get("pb"), "x"), "Year-end equity")
-            + _tile("Sector ROE", _fx(sect.get("roe"), "pct"), "Pooled aggregate")
-            + _tile("Sector ROCE", "—" if not roce_applicable else _fx(sect.get("roce"), "pct"),
-                    "Lenders n/a" if not roce_applicable else "Pooled aggregate")
-            + _tile("Sector PEG", _fx(sect.get("peg"), "peg"), "P/E ÷ earnings growth")
-            + _tile("EPS Growth", _fx(sect.get("eps_growth"), "pct"), "Cap-weighted YoY")
-            + _tile("Piotroski",
-                    "—" if sect.get("piotroski") is None else f"{sect.get('piotroski'):.1f}/9",
-                    "Lenders n/a" if sect.get("piotroski") is None else "Avg F-score (0-9)")
+        cov = f"{inc} of {att} in universe" + (f" · {skp} skipped" if skp else "")
+        slk_row = (
+            '<div class="slk-row">'
+            + _slk("constituents", "#E6F0EA", "#177245", "Constituents", _fx(inc, "int"), cov)
+            + _slk("pe", "#FBF1DF", "#C68A2E", "Sector P/E", _fx(sect.get("pe"), "x"), "excl. loss-makers")
+            + _slk("pb", "#FBF1DF", "#B5761F", "Sector P/B", _fx(sect.get("pb"), "x"), "year-end equity")
+            + _slk("roe", "#E7F2EC", "#2F9E63", "Sector ROE", _fx(sect.get("roe"), "pct"), "pooled aggregate")
+            + _slk("roce", "#E7F2EC", "#3D9E6B", "Sector ROCE",
+                   "—" if not roce_applicable else _fx(sect.get("roce"), "pct"),
+                   "lenders n/a" if not roce_applicable else "pooled aggregate")
             + "</div>"
         )
     else:
-        pulse = (
+        slk_row = (
             '<div style="background:#fbf7ec;border:1px solid #ecdfbf;border-radius:14px;'
             'padding:16px 18px;color:#7a6a3c;font-size:13.5px;line-height:1.55">'
             '<b style="color:#5f5326">Sector benchmarks not available yet.</b><br>'
             'The monthly sector snapshot has not been generated for this sector yet. '
             'The company figures below are read from your uploaded model; the sector '
-            'column fills in once data/sector_snapshot.json is generated.</div>'
+            'column fills in once the snapshot is generated.</div>'
         )
 
-    # Company-vs-Sector horizontal bars
-    table = (
-        '<div style="padding-top:6px">'
-        + _grp("VALUATION")
-        + _bar_row("P/E", comp["pe"], sect.get("pe"), "x")
-        + _bar_row("P/B", comp["pb"], sect.get("pb"), "x")
-        + _grp("RETURNS")
-        + _bar_row("ROE", comp["roe"], sect.get("roe"), "pct")
-        + _bar_row("ROCE", comp["roce"], sect.get("roce"), "pct", applicable=roce_applicable)
-        + _bar_row("ROA", comp["roa"], sect.get("roa"), "pct")
+    header_card = (
+        '<div class="card"><div class="sl-head">'
+        f'<div><div class="sl-title">{_esc(sector_name)} {sector_tag}</div>'
+        f'<div class="sl-meta">Reference universe <b>{idx_display}</b>{period_txt}</div></div>'
+        f'{src_html}</div>{slk_row}</div>'
+    )
+
+    # ---- Sector cycle & seasonality ----
+    prof = TILT.profile(sector_key or "generic")
+    tilt_state = (snap or {}).get("current_tilt") or "Stable"
+    tilt_reason = ((snap or {}).get("tilt_reason")
+                   or "Baseline established from snapshot fundamentals.")
+    shape = TILT.seasonal(sector_key)
+    chart_html = ""
+    if shape:
+        chart_html = ('<div class="season-lbl">Typical activity by month · fiscal year</div>'
+                      + _month_chart(shape))
+    cyc_tags = (f'<span class="tag-amber sl-secsp">{_esc(prof["nature"])}</span>'
+                f'<span class="tag-green">{_esc(tilt_state)} tilt</span>')
+    seasonality_card = (
+        '<div class="card">'
+        + _sl_sechead("cycle", "Sector cycle & seasonality", cyc_tags)
+        + '<div class="csub">Structural long-run behavior · monthly tilt recalculated from fundamentals</div>'
+        + f'<div class="sl-para">{_esc(prof["text"])}</div>'
+        + chart_html
+        + f'<div class="tilt"><span class="tilt-chip">CURRENT TILT</span>{_esc(tilt_reason)}</div>'
         + "</div>"
     )
 
-    # Reading card
-    reading = _interpretation(comp, sect)
-    reading_card = ""
-    if reading:
-        reading_card = (
-            '<div class="verdict" style="--rail:#d9a441;display:block">'
-            '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;'
-            'padding-bottom:8px">'
-            '<div style="background:#fdf3e2;color:#b5761f;font-size:11px;font-weight:700;'
-            'letter-spacing:.4px;border-radius:20px;padding:4px 12px">COMPANY vs SECTOR</div>'
-            '<div style="font-size:20px;font-weight:800;letter-spacing:-.4px;'
-            'color:#15201a">Reading</div></div>'
-            f'<div style="font-size:14.5px;line-height:1.62;color:#3f4744">{_esc(reading)}</div>'
-            '</div>'
+    # ---- Company vs Sector bullet bars ----
+    bb_html = (
+        '<div class="bb-sec">Valuation</div>'
+        + _bb_row("P/E", comp["pe"], sect.get("pe"), "x")
+        + _bb_row("P/B", comp["pb"], sect.get("pb"), "x")
+        + '<div class="bb-sec" style="margin-top:6px">Returns</div>'
+        + _bb_row("ROE", comp["roe"], sect.get("roe"), "pct")
+        + _bb_row("ROCE", comp["roce"], sect.get("roce"), "pct", applicable=roce_applicable)
+        + _bb_row("ROA", comp["roa"], sect.get("roa"), "pct")
+    )
+    compare_card = (
+        '<div class="card">'
+        + _sl_sechead("compare", "Company vs Sector")
+        + f'<div class="csub">{_esc(model.company.title())} against the sector aggregate · '
+        '<span style="color:#8b918e">bar = company, tick = sector median</span></div>'
+        + bb_html + "</div>"
+    )
+
+    verdict_card = _sl_verdict(comp, sect, roce_applicable)
+
+    # ---- Constituents by market cap ----
+    constituents = (snap or {}).get("constituents") or []
+    con_cards = "".join(_con_card(r, is_fin) for r in constituents)
+    uni_note = f'<div class="uni-note">Universe mapping: {_esc(map_note)}</div>' if map_note else ""
+    if constituents:
+        constituents_card = (
+            '<div class="card">'
+            + _sl_sechead("grid", "Constituents by market cap")
+            + '<div class="csub">Ranked by actual market cap · tap the name for the official NSE quote</div>'
+            + con_cards + uni_note + "</div>"
         )
-
-    # Footnotes
-    notes = []
-    if not roce_applicable and applic.get("roce_reason"):
-        notes.append(_esc(applic["roce_reason"]))
-    if map_note:
-        notes.append(f"Universe mapping: {_esc(map_note)}")
-    if have and snap.get("skipped_count"):
-        notes.append(f'{snap["skipped_count"]} constituent(s) skipped in snapshot computation (missing statement data).')
-
-    notes_html = ""
-    if notes:
-        notes_html = (
-            '<div style="font-size:12px;color:#9aa09d;padding:4px 4px 12px;line-height:1.5">'
-            + "<br>".join(notes)
-            + "</div>"
-        )
-
-    idx_display = _esc(idx_name or "—")
-    src_line = _source_line(snap or {}, meta)
-    period = (snap or {}).get("financial_period") or (snap or {}).get("data_period")
-    period_txt = f" · Data period: <b>{_esc(period)}</b>" if period else ""
+    else:
+        constituents_card = ""
 
     body = "".join([
         '<div class="pghead"><span class="pt">Sector lens</span>'
         '<span class="ps">Sector benchmarks from IndianAPI + NSE, refreshed monthly.'
         '</span></div>',
-        # Header / Pulse Card
-        '<div class="card">'
-        '<div style="display:flex;align-items:baseline;justify-content:space-between;'
-        'gap:12px;flex-wrap:wrap;padding-bottom:12px">'
-        '<div>'
-        f'<div class="ct" style="display:flex;align-items:center;gap:8px">{_esc(sector_name)} {map_badge}</div>'
-        f'<div class="csub" style="padding-bottom:0">Reference universe: <b>{idx_display}</b>{period_txt}</div>'
-        '</div>'
-        f'<div>{src_line}</div></div>'
-        f'{pulse}</div>',
-        # Seasonality & Tilt
-        _seasonality_card(snap, sector_key),
-        # Month-over-Month
+        header_card,
+        seasonality_card,
         _mom_card(snap),
-        # Company vs Sector Comparison
-        f'<div class="card"><div class="ct">Company vs Sector</div>'
-        f'<div class="csub">{_esc(model.company.title())} against the {_esc(sector_name)} sector aggregate</div>'
-        f'{table}</div>',
-        reading_card,
-        notes_html,
-        # Full peer table — all constituents
-        _peer_table((snap or {}).get("constituents"), is_fin),
+        compare_card,
+        verdict_card,
+        constituents_card,
     ])
 
     return _doc(body, ""), 1500

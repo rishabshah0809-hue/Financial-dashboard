@@ -170,6 +170,60 @@ def profile(sector_key: str | None) -> dict:
     return SECTOR_CYCLE.get(sector_key or "", _DEFAULT_CYCLE)
 
 
+# --- Typical activity by month (fiscal year Apr..Mar) -----------------------
+# A small set of named *seasonal shapes* — the qualitative pattern already
+# described in each SECTOR_CYCLE["text"], expressed as a 0-100 relative-activity
+# curve for illustration. `slow`/`peak` are (start_idx, end_idx, label) bands.
+# These are structural typical-year patterns, NOT live data — labelled as such
+# in the UI. Sectors with no pronounced intra-year seasonality get a flat curve.
+FISCAL_MONTHS = ["Apr", "May", "Jun", "Jul", "Aug", "Sep",
+                 "Oct", "Nov", "Dec", "Jan", "Feb", "Mar"]
+
+SEASONAL_SHAPES: dict[str, dict] = {
+    # capex/execution led — slows in the monsoon, peaks into the Jan-Mar year-end
+    "capex_yearend": {"activity": [55, 50, 42, 30, 28, 32, 55, 68, 78, 88, 92, 100],
+                      "slow": (3, 5, "Monsoon · slow"), "peak": (9, 11, "Year-end peak")},
+    # consumption/discretionary — builds into the festive Oct-Dec quarter
+    "festive_h2": {"activity": [48, 52, 46, 42, 50, 66, 92, 100, 84, 74, 66, 62],
+                   "slow": (2, 3, "Monsoon · soft"), "peak": (6, 8, "Festive peak")},
+    # lending/financials — disbursements build through H2, peak in Q4
+    "financial_yearend": {"activity": [52, 55, 50, 48, 54, 60, 72, 80, 78, 90, 94, 100],
+                          "slow": None, "peak": (9, 11, "Year-end push")},
+    # IT / global-budget led — strong H1 budget flush, soft on Q3 furloughs
+    "it_h1": {"activity": [86, 92, 88, 80, 78, 74, 62, 58, 52, 70, 74, 70],
+              "slow": (6, 8, "Furloughs · soft"), "peak": (0, 2, "Budget flush")},
+    # defensive — inelastic demand, only a mild winter/monsoon tilt
+    "defensive": {"activity": [70, 68, 66, 74, 76, 78, 74, 72, 70, 68, 66, 70],
+                  "slow": None, "peak": None},
+    # commodity/global-price led — little intra-year seasonality
+    "commodity_flat": {"activity": [62, 64, 60, 60, 64, 66, 62, 60, 60, 64, 66, 68],
+                       "slow": None, "peak": None},
+}
+
+# Map each niche sector to a seasonal shape.
+SECTOR_SHAPE: dict[str, str] = {
+    "bank": "financial_yearend", "nbfc": "financial_yearend",
+    "housing_finance": "financial_yearend", "insurance": "financial_yearend",
+    "financial_services": "financial_yearend",
+    "it": "it_h1", "telecom": "it_h1",
+    "media": "festive_h2", "auto": "festive_h2", "fmcg": "festive_h2",
+    "consumer_durables": "festive_h2", "consumer_services": "festive_h2",
+    "retail": "festive_h2", "realty": "festive_h2",
+    "commercial_transport": "festive_h2",
+    "pharma": "defensive", "hospitals": "defensive", "healthcare": "defensive",
+    "metal": "commodity_flat", "chemicals": "commodity_flat",
+    "oil_gas": "commodity_flat", "commodities": "commodity_flat",
+    "cement": "capex_yearend", "power": "capex_yearend",
+    "capital_goods": "capex_yearend", "construction": "capex_yearend",
+    "infrastructure": "capex_yearend",
+}
+
+
+def seasonal(sector_key: str | None) -> dict | None:
+    """Typical monthly activity shape for a sector, or None if undefined."""
+    return SEASONAL_SHAPES.get(SECTOR_SHAPE.get(sector_key or "", ""))
+
+
 def _delta(new, old) -> float | None:
     if isinstance(new, (int, float)) and isinstance(old, (int, float)):
         return round(new - old, 2)
