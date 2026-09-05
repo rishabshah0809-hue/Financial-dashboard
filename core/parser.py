@@ -513,6 +513,20 @@ def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
         ].reindex(["Equity Share Capital", "Reserves", "Borrowings",
                    "Other Liabilities"]).sum(axis=0, min_count=1)
 
+        # "Other Assets" is the remainder of the asset side that the Data Sheet
+        # does not itemise, so the assets shown add up to the balance-sheet total
+        # (Total Assets == Total Liabilities & Equity). Derived as the plug, it
+        # holds for any workbook without depending on cell positions.
+        _asset_lines = ["Net Block", "Capital Work in Progress", "Investments",
+                        "Receivables", "Inventory", "Cash & Bank"]
+        present = [a for a in _asset_lines if a in frame.index]
+        if present:
+            listed = frame.loc[present].sum(axis=0, min_count=1)
+            other = frame.loc["Total Asset"].sub(listed, fill_value=0.0)
+            # Ignore rounding dust; only surface a genuine residual.
+            if other.abs().max() and float(other.abs().max()) > 1.0:
+                frame.loc["Other Assets"] = other
+
     if "Net Profit" in frame.index and "No of Equity Shares" in frame.index:
         shares = frame.loc["No of Equity Shares"].replace(0, pd.NA)
         # Screener stores the absolute share count; the statements use crore.

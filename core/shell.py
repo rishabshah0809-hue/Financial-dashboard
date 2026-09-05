@@ -881,8 +881,8 @@ def _peers(peers: list[dict]) -> str:
 
 def _statements_tables(model, query: str) -> str:
     tables = []
-    for tab_key, label in (("is", "Income Statement"), ("ra", "Ratio Analysis"),
-                           ("cs", "Common Size")):
+    for tab_key, label in (("is", "Income Statement"), ("bs", "Balance Sheet"),
+                           ("ra", "Ratio Analysis"), ("cs", "Common Size")):
         html = S.statements_html(model, label, True, query)
         disp = "block" if tab_key == "is" else "none"
         tables.append(f'<div class="stmttable" id="tbl-{tab_key}" '
@@ -1732,6 +1732,7 @@ def statements_shell(model, query: str = "") -> tuple[str, int]:
     body = "".join([
         '<div class="card"><div class="stmttabs">'
         '<button class="stmttab on" data-tab="is">Income Statement</button>'
+        '<button class="stmttab" data-tab="bs">Balance Sheet</button>'
         '<button class="stmttab" data-tab="ra">Ratio Analysis</button>'
         '<button class="stmttab" data-tab="cs">Common Size</button>'
         "</div>",
