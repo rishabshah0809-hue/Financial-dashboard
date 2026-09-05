@@ -32,7 +32,7 @@ from core import sector_universe as U
 from core import shell as SH
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
-from core.derive import fill_missing_ratios
+from core.derive import fill_missing_common_size, fill_missing_ratios
 from core.interpret import SECTIONS as INTERP_SECTIONS
 from core.interpret import fingerprint as interp_fingerprint
 from core.interpret import interpret as build_interpretation
@@ -1070,6 +1070,12 @@ def main() -> None:
     derived = fill_missing_ratios(model)
     if derived:
         LOGGER.info("derived %d ratios for %s", len(derived), model.company)
+
+    # Likewise rebuild the common-size statement (used by the Common Size tab and
+    # the "₹100 of sales" card) when the workbook's own sheet reads empty.
+    derived_cs = fill_missing_common_size(model)
+    if derived_cs:
+        LOGGER.info("derived %d common-size rows for %s", len(derived_cs), model.company)
 
     # A new workbook gets its sector detected once; after that the dropdown is
     # the source of truth, so changing it by hand sticks.
