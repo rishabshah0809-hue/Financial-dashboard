@@ -300,13 +300,22 @@ single string when it is the "Nothing material..." / "Valuation data not \
 available in the model." fallback."""
 
 
-def _build_messages(payload: str) -> list[dict]:
+def _build_messages(payload: str, only: tuple[str, ...] | None = None) -> list[dict]:
+    focus = ""
+    if only:
+        focus = (
+            "\n\nFOCUS: populate ONLY these section keys with real content: "
+            + ", ".join(only)
+            + ". For every OTHER section key, return an empty list []. Still return "
+            "all keys in the JSON. Read the whole model for context, but only write "
+            "the focused sections."
+        )
     return [
         {"role": "system", "content": _SYSTEM},
         {"role": "user", "content": (
             "Interpret the following model. Follow the section structure and the "
-            "rules exactly. Keep every point specific to these numbers.\n\n"
-            + payload)},
+            "rules exactly. Keep every point specific to these numbers." + focus
+            + "\n\n" + payload)},
     ]
 
 
@@ -407,8 +416,13 @@ def _generate(config: LLMConfig, messages: list[dict]) -> tuple[str, dict]:
 # --------------------------------------------------------------------------
 # public entry point
 # --------------------------------------------------------------------------
-def interpret(model: FinancialModel, sector: str, config: LLMConfig) -> Interpretation:
-    """Full pipeline. Always returns an Interpretation; never raises."""
+def interpret(model: FinancialModel, sector: str, config: LLMConfig,
+              only: tuple[str, ...] | None = None) -> Interpretation:
+    """Full pipeline. Always returns an Interpretation; never raises.
+
+    `only` restricts generation to a subset of section keys so the caller can run
+    several groups of sections in parallel (across separate API keys) and merge
+    them — cutting total latency without changing the result."""
     result = Interpretation(company=model.company, sector=sector)
     payload = build_payload(model, sector)
     result.payload_text = payload
@@ -419,7 +433,7 @@ def interpret(model: FinancialModel, sector: str, config: LLMConfig) -> Interpre
         result.offline = True
         return result
 
-    messages = _build_messages(payload)
+    messages = _build_messages(payload, only)
     prompt_chars = sum(len(m["content"]) for m in messages)
     try:
         raw, data = _generate(_augment(config), messages)
@@ -429,7 +443,8 @@ def interpret(model: FinancialModel, sector: str, config: LLMConfig) -> Interpre
         result.error_detail = str(exc)
         return result
 
-    for key, _heading in SECTIONS:
+    wanted = only or tuple(k for k, _ in SECTIONS)
+    for key in wanted:
         result.sections[key] = _coerce_section(data.get(key))
     srcs = data.get("sources") or []
     result.sources = [str(s).strip() for s in srcs if str(s).strip()] \

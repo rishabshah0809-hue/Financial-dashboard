@@ -567,28 +567,52 @@ def _llm_fingerprint(model, result, sector_key: str) -> str:
     ])
 
 
-def _rotate_keys(config: LLMConfig) -> LLMConfig:
-    """A copy of the config whose key pool starts one key later, so a second
-    parallel call reaches for a different API key first."""
-    if len(config.api_keys) > 1:
-        return dc_replace(config, api_keys=config.api_keys[1:] + config.api_keys[:1])
+# The interpretation is split into independent section groups so it can be
+# written by several API keys at once. With the analyst note that is FOUR
+# independent LLM tasks — one per configured key — all launched together the
+# moment a file loads, so the whole analysis finishes in about the time of the
+# single slowest task instead of the sum of them.
+_INTERP_GROUPS: tuple[tuple[str, ...], ...] = (
+    ("growth", "margins"),
+    ("costs", "returns", "efficiency"),
+    ("leverage_cashflow", "valuation"),
+)
+
+
+def _rotate_keys(config: LLMConfig, shift: int) -> LLMConfig:
+    """A copy of the config whose key pool starts `shift` keys later, so each
+    parallel task reaches for a different API key first and none sits idle."""
+    keys = config.api_keys
+    if len(keys) > 1 and shift:
+        s = shift % len(keys)
+        return dc_replace(config, api_keys=keys[s:] + keys[:s])
     return config
 
 
 def _kickoff_llm(model, result, sector_key: str, config: LLMConfig) -> str:
-    """Submit the analyst note and the interpretation to the pool (once per
-    workbook/sector) and return their fingerprint. Non-blocking: it starts both
-    jobs and returns immediately, so the calling page renders without waiting."""
+    """Launch every LLM task in parallel (analyst note + one job per
+    interpretation group), each on a different API key, and return the
+    fingerprint. Non-blocking: it starts the jobs and returns immediately, so the
+    calling page renders without waiting.
+
+    Regenerates when the workbook/sector changes (new fingerprint) OR when this is
+    a fresh browser session (a page refresh clears session state), and otherwise
+    reuses the running/finished jobs so navigation never re-triggers the LLM."""
     fp = _llm_fingerprint(model, result, sector_key)
+    fresh_session = st.session_state.get("__llm_started") != fp
     with _LLM_LOCK:
-        if fp not in _LLM_JOBS:
+        if fp not in _LLM_JOBS or fresh_session:
             sector_name = get_sector(sector_key).name
             _LLM_JOBS.clear()            # only the current workbook's jobs matter
             _LLM_JOBS[fp] = {
-                "note": _LLM_POOL.submit(analyse, result, config),
-                "interp": _LLM_POOL.submit(
-                    build_interpretation, model, sector_name, _rotate_keys(config)),
+                "note": _LLM_POOL.submit(analyse, result, _rotate_keys(config, 0)),
+                "interp": [
+                    _LLM_POOL.submit(build_interpretation, model, sector_name,
+                                     _rotate_keys(config, i + 1), only=group)
+                    for i, group in enumerate(_INTERP_GROUPS)
+                ],
             }
+    st.session_state["__llm_started"] = fp
     st.session_state["__llm_fp__"] = fp
     return fp
 
@@ -598,6 +622,34 @@ def _llm_future(fp: str | None, kind: str):
         return None
     with _LLM_LOCK:
         return _LLM_JOBS.get(fp, {}).get(kind)
+
+
+def _merge_interps(parts: list):
+    """Merge the parallel interpretation-group results into one Interpretation.
+    Successful groups are combined; an offline/error-only set returns as-is."""
+    parts = [p for p in parts if p is not None]
+    if not parts:
+        return None
+    if all(getattr(p, "offline", False) for p in parts):
+        return parts[0]
+    ok = [p for p in parts if not getattr(p, "error", None)]
+    if not ok:
+        return parts[0]                  # every group failed -> surface the error
+    base = ok[0]
+    sections: dict = {}
+    for p in ok:
+        for key, val in (p.sections or {}).items():
+            if val:
+                sections[key] = val
+    base.sections = sections
+    seen, srcs = set(), []
+    for p in ok:
+        for s in (p.sources or []):
+            if s not in seen:
+                seen.add(s)
+                srcs.append(s)
+    base.sources = srcs
+    return base
 
 
 def _get_note(model, result, sector_key: str, config: LLMConfig) -> dict:
@@ -965,22 +1017,26 @@ def _ai_rail_html() -> str:
 def _ensure_interpretation(model, sector_key: str, config: LLMConfig,
                            spinner: bool = True):
     """Return the model interpretation from the background job started at upload.
-    No rendering. Only the page that shows it waits (with a spinner); if the job
-    is done it returns instantly, and a failure falls back to an inline build."""
+    No rendering. Only the page that shows it waits (with a spinner); if the jobs
+    are done it returns instantly, and a failure falls back to an inline build.
+    The interpretation runs as several parallel group jobs that are merged here."""
     sector_name = get_sector(sector_key).name
-    fut = _llm_future(st.session_state.get("__llm_fp__"), "interp")
-    if fut is None:
+    futs = _llm_future(st.session_state.get("__llm_fp__"), "interp")
+    if not futs:
         return build_interpretation(model, sector_name, config)
-    if fut.done() or not spinner:
+
+    def _collect():
         try:
-            return fut.result()
+            merged = _merge_interps([f.result() for f in futs])
+            return merged if merged is not None else build_interpretation(
+                model, sector_name, config)
         except Exception:                # noqa: BLE001
             return build_interpretation(model, sector_name, config)
+
+    if all(f.done() for f in futs) or not spinner:
+        return _collect()
     with st.spinner("Interpreting the financial model…"):
-        try:
-            return fut.result()
-        except Exception:                # noqa: BLE001
-            return build_interpretation(model, sector_name, config)
+        return _collect()
 
 
 def _model_interpretation_block(model, sector_key: str, config: LLMConfig,
