@@ -184,12 +184,11 @@ _BAND_WORD = {"strong": "Strong", "neutral": "Neutral", "weak": "Weak"}
 _BAND_COL = {"Strong": "#2F9E63", "Neutral": "#D9A441", "Weak": "#B4483C"}
 
 
-def _explain_html(r: dict) -> str:
-    """Plain-language, dynamic explanation of how a ratio earns its 0-100 score.
-
-    Uses the SAME sector thresholds and scoring semantics as core.scoring
-    (weak→40, strong→66, beyond strong→toward 100); it explains the existing
-    score, it does not recompute or invent one.
+def _explain(r: dict) -> tuple[str, str]:
+    """Return (inline_panel_html, hover_tooltip_html) explaining how a ratio earns
+    its 0-100 score. Uses the SAME sector thresholds and scoring semantics as
+    core.scoring (weak→40, strong→66, beyond strong→toward 100) — it explains the
+    existing score, it does not recompute or invent one.
     """
     kind = r.get("kind", "num")
     raw = r["display"]
@@ -229,15 +228,22 @@ def _explain_html(r: dict) -> str:
     blend = ("The score blends this year (60%) with the 3-year average"
              + (f" of {avg_txt}" if avg_txt else "") + " (40%) and the recent trend.")
 
-    grid = (
+    panel = (
         '<div class="exgrid">'
         f'<div><div class="exk">Company</div><div class="exv">{escape(raw)}</div></div>'
         f'<div><div class="exk">Sector band</div><div class="exv">{escape(band_desc)}</div></div>'
         f'<div><div class="exk">Direction</div><div class="exv">{better}</div></div>'
         f'<div><div class="exk">Result</div><div class="exv" style="color:{col}">{band} · {score}/100</div></div>'
         '</div>'
+        f'<div class="exwhy">{why} {escape(blend)}</div>'
     )
-    return f'{grid}<div class="exwhy">{why} {escape(blend)}</div>'
+    # concise dark-tooltip version for hover
+    tip = (
+        f'<div class="yr">{escape(r["label"].upper())} · SCORE {score}</div>'
+        f'Company <b>{escape(raw)}</b> · sector {escape(band_desc)} '
+        f'({better.lower()}). Sits {escape(pos)} → <b>{score}/100</b>, {band}.'
+    )
+    return panel, tip
 
 
 # --------------------------------------------------------------------------
@@ -267,7 +273,7 @@ def build_context(model, result, model_filename: str = "") -> dict:
     avail = sorted([r for r in scorecard if r["available"]],
                    key=lambda r: -r["score"])
     for r in avail:                     # per-ratio "how the 0-100 score is built"
-        r["explain"] = _explain_html(r)
+        r["explain"], r["tip"] = _explain(r)
     missing = [r for r in scorecard if not r["available"]]
 
     pillars = sorted(
@@ -536,9 +542,11 @@ def _js_arr(vals: list | None, scale: float = 1.0, nd: int = 2) -> str:
 def _data_js(ctx: dict) -> str:
     Y = ctx["years"]
     sc = ctx["scorecard"]
-    # 4th field carries the per-ratio score explanation (ignored by the template's
-    # scorecard builder; consumed by the expander script in this module).
-    sco = [[r["label"], r["score"], r["display"], r.get("explain", "")] for r in sc]
+    # 4th/5th fields carry the per-ratio score explanation (inline panel) and a
+    # short hover tooltip. The template's scorecard builder reads only r[0..2];
+    # the (i)-button script in this module consumes r[3]/r[4].
+    sco = [[r["label"], r["score"], r["display"], r.get("explain", ""), r.get("tip", "")]
+           for r in sc]
     m = ctx["margins"]
     margins = [[n, c, vals] for n, c, vals in
                [("Gross", "#3D9E6B", m.get("Gross")), ("EBITDA", "#177245", m.get("EBITDA")),
@@ -628,12 +636,13 @@ def _render_js(ctx: dict) -> str:
 # Score-explanation UI — appended only to the scorecard ("Every ratio, scored
 # against its sector band"). No other section shows these explanations.
 _EXP_CSS = """
-.scr.scx{cursor:pointer;border-radius:7px;transition:background .12s ease}
-.scr.scx:hover{background:#F4F8F5}
-.scr.scx.open{background:#F4F8F5}
-.scr.scx .nm::after{content:"›";display:inline-block;margin-left:6px;color:var(--mute-2);
-  font-weight:700;transition:transform .15s ease}
-.scr.scx.open .nm::after{transform:rotate(90deg)}
+.scr .nm{display:flex;align-items:center;justify-content:flex-end;gap:7px}
+.scr .exi{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
+  border-radius:50%;border:1.3px solid #C4CCC6;background:#fff;color:#8B918E;font-size:10px;
+  font-weight:700;font-style:italic;font-family:Georgia,'Times New Roman',serif;line-height:1;
+  cursor:pointer;flex:none;padding:0;transition:border-color .12s ease,color .12s ease,background .12s ease}
+.scr .exi:hover,.scr.open .exi{border-color:var(--brand);color:var(--brand);background:var(--pos-tint)}
+.scr.open{background:#F4F8F5;border-radius:7px}
 .scr-exp{background:#FBFCFB;border:1px solid var(--line);border-radius:12px;
   padding:12px 14px;margin:2px 0 8px;font-size:12px;line-height:1.6;color:var(--ink-3)}
 .scr-exp .exgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
@@ -652,23 +661,25 @@ _EXP_JS = r"""
   var EX = SCORECARD.map(function(r){ return r[3] || ""; });
   var k = 0;
   host.querySelectorAll('.scr').forEach(function(row){
-    var html = EX[k++]; if (!html) return;
-    row.classList.add('scx');
-    row.setAttribute('role', 'button');
-    row.setAttribute('tabindex', '0');
-    row.setAttribute('aria-expanded', 'false');
+    var panel = EX[k++]; if (!panel) return;
+    var nm = row.querySelector('.nm') || row;
+
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'exi'; btn.textContent = 'i';
+    btn.setAttribute('aria-label', 'How this score is built');
+    btn.setAttribute('aria-expanded', 'false');
+    nm.appendChild(btn);
+
     var det = document.createElement('div');
-    det.className = 'scr-exp'; det.hidden = true; det.innerHTML = html;
+    det.className = 'scr-exp'; det.hidden = true; det.innerHTML = panel;
     row.parentNode.insertBefore(det, row.nextSibling);
-    function toggle(){
-      var open = det.hidden;           // currently hidden -> opening
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      var open = det.hidden;            // currently hidden -> opening
       det.hidden = !open;
       row.classList.toggle('open', open);
-      row.setAttribute('aria-expanded', open ? 'true' : 'false');
-    }
-    row.addEventListener('click', toggle);
-    row.addEventListener('keydown', function(e){
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   });
 })();
