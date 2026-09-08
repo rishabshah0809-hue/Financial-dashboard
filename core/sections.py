@@ -639,8 +639,11 @@ def _grouped(frame, model, classify, order):
     empty sections are skipped and the section order follows ``order``.
     """
     buckets: dict[str, list] = {}
+    # Reindex to full_years (drops the trailing TTM column, which is empty for the
+    # balance-sheet-derived ratio/common-size lines and rendered as a dead column).
+    years = full_years(model)
     for name in frame.index:
-        s = pd.to_numeric(frame.loc[name], errors="coerce").reindex(list(model.years))
+        s = pd.to_numeric(frame.loc[name], errors="coerce").reindex(years)
         vals = [float(v) if pd.notna(v) else None for v in s]
         if not any(v is not None for v in vals):
             continue
@@ -699,6 +702,188 @@ def stmt_source(model, tab: str) -> list[tuple[str, list[float | None], object]]
     else:  # Common size
         rows = _grouped(model.common_size, model, _cs_group, _CS_ORDER)
     return rows
+
+
+# --------------------------------------------------------------------------
+# Balance Sheet + the reference-shaped payload for the redesigned Statements
+# component (core/statements_view.py). Data logic lives here; the view module
+# only formats and renders what these functions return.
+# --------------------------------------------------------------------------
+
+# Ordered balance-sheet lines, grouped, with subtotal/total emphasis. Each entry
+# is (display_name, [source aliases in model.historical], kind|None).
+_BS_SECTIONS: list[tuple[str, list[tuple[str, list[str], str | None]]]] = [
+    ("Liabilities & equity", [
+        ("Equity Share Capital", ["Equity Share Capital"], None),
+        ("Reserves", ["Reserves"], None),
+        ("Borrowings", ["Borrowings"], None),
+        ("Other Liabilities", ["Other Liabilities"], None),
+        ("Total Liabilities & Equity",
+         ["Total Liabilities & Equity", "Total Liabilities"], "tot"),
+    ]),
+    ("Assets", [
+        ("Net Block", ["Net Block"], None),
+        ("Capital Work in Progress", ["Capital Work in Progress"], None),
+        ("Investments", ["Investments"], None),
+        ("Other Assets", ["Other Assets"], None),
+        ("Total Non Current Assets",
+         ["Total Non Current Assets", "Total Non Current Asset"], "sub"),
+        ("Receivables", ["Receivables"], None),
+        ("Inventory", ["Inventory"], None),
+        ("Cash & Bank", ["Cash & Bank"], None),
+        ("Total Current Assets",
+         ["Total Current Assets", "Total Current Asset"], "sub"),
+        ("Total Assets", ["Total Assets", "Total Asset"], "tot"),
+    ]),
+]
+
+# Income-statement lines, in order. Gross Profit is DERIVED (Sales - COGS) and
+# tagged `calc`, so it is never mis-read from a stored margin line.
+_IS_SPEC: list[tuple[str, list[str], str | None, bool]] = [
+    ("Sales", ["Sales"], None, False),
+    ("COGS", ["COGS"], None, False),
+    ("Gross Profit", [], "sub", True),
+    ("Selling & General Expenses", ["Selling & General Expenses"], None, False),
+    ("EBITDA", ["EBITDA"], "sub", False),
+    ("Depreciation", ["Depreciation"], None, False),
+    ("EBIT (operating profit)", ["EBIT (OPM)", "EBIT (Operating Profit)"], "sub", False),
+    ("Other Income", ["Other Income"], None, False),
+    ("Interest", ["Interest"], None, False),
+    ("Profit Before Tax", ["Earnings Before Tax", "Profit Before Tax"], "sub", False),
+    ("Tax", ["Tax"], None, False),
+    ("Net Profit", ["Net Profit"], "tot", False),
+]
+
+# Common-size subtotal / total rows get the same emphasis as the reference.
+_CS_TOT = {"sales", "net profit", "total assets", "total asset",
+           "total equity & liabilities", "total liabilities & equity",
+           "total liabilities"}
+_CS_SUB = {"gross profit", "ebitda", "ebit (operating profit)", "ebit (opm)",
+           "earnings before tax", "profit before tax",
+           "total non current assets", "total non current asset",
+           "total current assets", "total current asset"}
+
+
+def _series_vals(model, aliases: list[str], years: list[str]) -> list[float | None] | None:
+    """Values for the first alias that exists in the model, over `years`."""
+    for a in aliases:
+        s = pd.to_numeric(model.series(a), errors="coerce").reindex(years)
+        if s.notna().any():
+            return [float(v) if pd.notna(v) else None for v in s]
+    return None
+
+
+def _has_values(v) -> bool:
+    return bool(v) and any(x is not None for x in v)
+
+
+def _is_data(model, years: list[str]) -> list[dict]:
+    sales = _series_vals(model, ["Sales"], years)
+    cogs = _series_vals(model, ["COGS"], years)
+    rows: list[dict] = []
+    for name, aliases, kind, calc in _IS_SPEC:
+        if calc:                                   # Gross Profit = Sales - COGS
+            if not (sales and cogs):
+                continue
+            v = [(sales[i] - cogs[i]) if (sales[i] is not None and cogs[i] is not None)
+                 else None for i in range(len(years))]
+        else:
+            v = _series_vals(model, aliases, years)
+        if not _has_values(v):
+            continue
+        row: dict = {"n": name, "v": v}
+        if kind:
+            row["kind"] = kind
+        if calc:
+            row["calc"] = True
+        rows.append(row)
+    return [{"g": None, "rows": rows}]
+
+
+def _bs_data(model, years: list[str]) -> list[dict]:
+    out: list[dict] = []
+    for gname, spec in _BS_SECTIONS:
+        rows: list[dict] = []
+        for name, aliases, kind in spec:
+            v = _series_vals(model, aliases, years)
+            if not _has_values(v):
+                continue
+            row: dict = {"n": name, "v": v}
+            if kind:
+                row["kind"] = kind
+            rows.append(row)
+        if rows:
+            out.append({"g": gname, "rows": rows})
+    return out
+
+
+def _ratio_cs_data(model, tab: str, years: list[str]) -> list[dict]:
+    """Grouped RA/CS rows, values scaled to display units (% stored as fraction
+    → ×100) and deduplicated by name across the whole sheet."""
+    out: list[dict] = []
+    cur: dict | None = None
+    seen: set[str] = set()
+    for name, vals, head in stmt_source(model, tab):
+        if head == "section":
+            cur = {"g": name, "rows": []}
+            out.append(cur)
+            continue
+        if cur is None:
+            cur = {"g": None, "rows": []}
+            out.append(cur)
+        key = name.strip().lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        if tab == "Common Size":
+            unit = "%"
+            disp = [x * 100 if x is not None else None for x in vals]
+            kind = ("tot" if key in _CS_TOT else "sub" if key in _CS_SUB else None)
+        else:
+            k = _value_kind(tab, name)
+            unit = {"percent": "%", "times": "x", "days": "d"}.get(k, "")
+            disp = [x * 100 if (unit == "%" and x is not None) else x for x in vals]
+            kind = None
+        row: dict = {"n": name, "v": disp}
+        if unit:
+            row["u"] = unit
+        if kind:
+            row["kind"] = kind
+        cur["rows"].append(row)
+    return [g for g in out if g["rows"]]
+
+
+def statements_payload(model) -> dict:
+    """Everything the redesigned Statements component needs, as plain JSON — real
+    data only, never fabricated. Values are pre-scaled to display units."""
+    years = full_years(model)
+    n = len(years)
+    cagr_years = max(n - 1, 1)
+    money_sub = "— change shown beneath each figure is versus the prior year."
+    sheets = {
+        "is": {"data": _is_data(model, years), "money": True, "sum": f"CAGR {cagr_years}y",
+               "units": "Figures in ₹ crore", "sub": money_sub},
+        "bs": {"data": _bs_data(model, years), "money": True, "sum": f"CAGR {cagr_years}y",
+               "units": "Figures in ₹ crore", "sub": money_sub},
+        "ra": {"data": _ratio_cs_data(model, "Ratio Analysis", years), "money": False,
+               "sum": f"{n}-yr avg", "units": "Ratios as reported",
+               "sub": "— change beneath each figure is the move on the prior year, "
+                      "in the row's own unit."},
+        "cs": {"data": _ratio_cs_data(model, "Common Size", years), "money": False,
+               "sum": f"{n}-yr avg", "units": "Every line as a share of its base",
+               "sub": "— change beneath each figure is the move on the prior year, "
+                      "in percentage points."},
+    }
+    src = (model.meta.get("source_name") or model.meta.get("filename")
+           or model.meta.get("source") or "uploaded model")
+    return {
+        "years": years,
+        "sheets": sheets,
+        "company": model.company or "Company",
+        "window": (f"{years[0]} – {years[-1]}" if years else ""),
+        "periods": n,
+        "source": str(src),
+    }
 
 
 def statements_html(model, tab: str, show_pct: bool, query: str) -> str:

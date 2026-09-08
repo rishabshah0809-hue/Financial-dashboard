@@ -2221,21 +2221,10 @@ def sector_shell(model, result, snap: dict | None,
 
 
 def statements_shell(model, query: str = "") -> tuple[str, int]:
-    n_rows = len(S.stmt_source(model, "Income Statement", ))
-    tables = _statements_tables(model, query)
-    # Mild under-estimate (see ratios_shell): the resizer grows to real content.
-    height = min(1700, 300 + min(max(n_rows, 6), 40) * 42)
-    body = "".join([
-        '<div class="card"><div class="stmttabs">'
-        '<button class="stmttab on" data-tab="is">Income Statement</button>'
-        '<button class="stmttab" data-tab="bs">Balance Sheet</button>'
-        '<button class="stmttab" data-tab="ra">Ratio Analysis</button>'
-        '<button class="stmttab" data-tab="cs">Common Size</button>'
-        "</div>",
-        tables,
-        '<div class="stmtfoot"><div class="pcttoggle" id="pcttoggle">'
-        '<span class="pctbox" id="pctbox">\u2713</span>'
-        '<span class="pctlbl">Show % change</span></div>'
-        '<span class="note">Above figures are in \u20b9 crores</span></div></div>',
-    ])
-    return _doc(body, ""), max(HEIGHTS["statements"], height)
+    """Redesigned Statements \u2014 a self-contained component (IS / BS / RA / CS) with
+    sticky columns, YoY deltas, trend sparkline, CAGR/avg summary, search, pinning
+    and jump nav. Data comes from core.sections.statements_payload; the view lives
+    in core.statements_view. `query` is unused now (search is in-component).
+    """
+    from . import statements_view as SV
+    return SV.build(model)
