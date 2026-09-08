@@ -774,14 +774,29 @@ def _available_labels(model) -> list[str]:
     return [x for x in labels if not (x in seen or seen.add(x))]
 
 
+def _historical_labels(model) -> list[str]:
+    """Line-item labels from the CURRENCY statement frame only. IS/BS concepts
+    resolve against these so a concept never binds to a common-size (% = 1.0) or
+    ratio row that happens to share the name (e.g. 'Total Assets')."""
+    h = getattr(model, "historical", None)
+    if h is None or h.empty:
+        return []
+    return [str(x) for x in h.index]
+
+
 def _concept_vals(model, concept: str, years: list[str],
-                  available: list[str]) -> list[float | None] | None:
-    """Values for a canonical concept, resolving the workbook's own label for it
-    via core.synonyms. Returns None when the concept is not present."""
-    label = SYN.find_label(available, concept)
-    if not label:
+                  labels: list[str]) -> list[float | None] | None:
+    """Reported ₹-crore values for a canonical concept, read from the historical
+    frame. `labels` are the historical labels; the workbook's own wording is
+    resolved via core.synonyms. Returns None when the concept is not present."""
+    label = SYN.find_label(labels, concept)
+    h = getattr(model, "historical", None)
+    if not label or h is None or h.empty or label not in h.index:
         return None
-    s = pd.to_numeric(model.series(label), errors="coerce").reindex(years)
+    row = h.loc[label]
+    if hasattr(row, "ndim") and row.ndim > 1:      # duplicate index -> first row
+        row = row.iloc[0]
+    s = pd.to_numeric(row, errors="coerce").reindex(years)
     if not s.notna().any():
         return None
     return [float(v) if pd.notna(v) else None for v in s]
@@ -791,10 +806,10 @@ def _has_values(v) -> bool:
     return bool(v) and any(x is not None for x in v)
 
 
-def _is_data(model, years: list[str], available: list[str]) -> list[dict]:
+def _is_data(model, years: list[str], labels: list[str]) -> list[dict]:
     rows: list[dict] = []
     for name, concept, kind in _IS_SPEC:
-        v = _concept_vals(model, concept, years, available)
+        v = _concept_vals(model, concept, years, labels)
         if not _has_values(v):
             continue
         row: dict = {"n": name, "v": v}
@@ -804,12 +819,12 @@ def _is_data(model, years: list[str], available: list[str]) -> list[dict]:
     return [{"g": None, "rows": rows}]
 
 
-def _bs_data(model, years: list[str], available: list[str]) -> list[dict]:
+def _bs_data(model, years: list[str], labels: list[str]) -> list[dict]:
     out: list[dict] = []
     for gname, spec in _BS_SECTIONS:
         rows: list[dict] = []
         for name, concept, kind in spec:
-            v = _concept_vals(model, concept, years, available)
+            v = _concept_vals(model, concept, years, labels)
             if not _has_values(v):
                 continue
             row: dict = {"n": name, "v": v}
@@ -835,7 +850,10 @@ def _ratio_cs_data(model, tab: str, years: list[str]) -> list[dict]:
         if cur is None:
             cur = {"g": None, "rows": []}
             out.append(cur)
-        key = name.strip().lower()
+        # Dedupe on a whitespace/punctuation-folded key so spelling variants of
+        # the same line (e.g. "Depreciation%Sales" vs "Depreciation % Sales")
+        # collapse to a single row.
+        key = SYN.normalize(name) or name.strip().lower()
         if key in seen:
             continue
         seen.add(key)
@@ -864,12 +882,12 @@ def statements_payload(model) -> dict:
     n = len(years)
     cagr_years = max(n - 1, 1)
     money_sub = "— change shown beneath each figure is versus the prior year."
-    available = _available_labels(model)
-    SYN.log_unmapped(available, context=str(model.company))   # new wording → add to registry
+    SYN.log_unmapped(_available_labels(model), context=str(model.company))  # new wording → registry
+    hist = _historical_labels(model)      # IS/BS resolve against currency lines only
     sheets = {
-        "is": {"data": _is_data(model, years, available), "money": True, "sum": f"CAGR {cagr_years}y",
+        "is": {"data": _is_data(model, years, hist), "money": True, "sum": f"CAGR {cagr_years}y",
                "units": "Figures in ₹ crore", "sub": money_sub},
-        "bs": {"data": _bs_data(model, years, available), "money": True, "sum": f"CAGR {cagr_years}y",
+        "bs": {"data": _bs_data(model, years, hist), "money": True, "sum": f"CAGR {cagr_years}y",
                "units": "Figures in ₹ crore", "sub": money_sub},
         "ra": {"data": _ratio_cs_data(model, "Ratio Analysis", years), "money": False,
                "sum": f"{n}-yr avg", "units": "Ratios as reported",
