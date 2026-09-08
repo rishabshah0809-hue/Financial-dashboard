@@ -67,7 +67,11 @@ def _bigjs_mid(big_js: str) -> str:
     identical to the design source."""
     global _BIGJS_MID_CACHE
     if _BIGJS_MID_CACHE is None:
-        start_marks = ["/* ====", "SCORECARD"]
+        # Start at the engine (bandOf/BAND + the scorecard IIFE), AFTER the
+        # template's hardcoded DATA block — otherwise the template re-declares
+        # var Y / var SCORECARD / var MARGINS / … and clobbers the dynamic data
+        # emitted by _data_js (which also drops the scorecard explanations).
+        start_marks = ["function bandOf", "var BAND ", "/*  SCORECARD"]
         end_marks = ["/* ---- render everything", "var pc "]
         start = 0
         for m in start_marks:
