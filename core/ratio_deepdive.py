@@ -139,10 +139,18 @@ def _tail_complete(model, years: list[str], *names: str) -> list[float] | None:
     return vals
 
 
-def _latest2(model, *names: str) -> tuple[float | None, float | None]:
+def _latest2(model, *names: str,
+             years: list[str] | None = None) -> tuple[float | None, float | None]:
+    """Latest two values of a line. When `years` is given, the series is
+    restricted to those (annual) periods first — so the trailing TTM column in
+    the historical sheet is never used as 'latest' on the Ratio Deep Dive."""
     s = _num_series(model, *names)
     if s.empty:
         return None, None
+    if years is not None:
+        s = s.reindex(years).dropna()
+        if s.empty:
+            return None, None
     a = float(s.iloc[-1])
     b = float(s.iloc[-2]) if len(s) > 1 else None
     return a, b
@@ -269,12 +277,12 @@ def build_context(model, result, model_filename: str = "") -> dict:
     total = int(round(float(result.total_score)))
     verdict_word = str(result.verdict).capitalize()  # Strong/Neutral/Weak
 
-    # growth strip
-    sales_a, sales_b = _latest2(model, "Sales", "Revenue", "Net Sales")
-    cogs_a, cogs_b = _latest2(model, "COGS", "Cost of Goods Sold")
-    np_a, np_b = _latest2(model, "Net Profit", "Net profit", "PAT")
-    oi_a, _ = _latest2(model, "Other Income", "Other Income ")
-    ebit_a, _ = _latest2(model, "EBIT (OPM)", "EBIT", "Operating Profit")
+    # growth strip — ANNUAL periods only (never the trailing TTM column)
+    sales_a, sales_b = _latest2(model, "Sales", "Revenue", "Net Sales", years=years)
+    cogs_a, cogs_b = _latest2(model, "COGS", "Cost of Goods Sold", years=years)
+    np_a, np_b = _latest2(model, "Net Profit", "Net profit", "PAT", years=years)
+    oi_a, _ = _latest2(model, "Other Income", "Other Income ", years=years)
+    ebit_a, _ = _latest2(model, "EBIT (OPM)", "EBIT", "Operating Profit", years=years)
 
     def _g(a, b):
         if a is None or b is None or b == 0 or pd.isna(a) or pd.isna(b):
@@ -351,7 +359,10 @@ def build_context(model, result, model_filename: str = "") -> dict:
                        ("Inventory turnover", "Inventory Turnover"),
                        ("Fixed asset turnover", "Fixed Asset Turnover"),
                        ("Capital turnover", "Capital Turnover Ratio")):
-        s = _num_series(model, key).tail(10)
+        s = _num_series(model, key)
+        if not s.empty:                         # annual periods only (drop TTM)
+            s = s.reindex(years).dropna()
+        s = s.tail(10)
         if len(s) >= 4:
             turnover.append((label, float(s.iloc[-1]), float(s.median())))
 
