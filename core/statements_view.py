@@ -408,20 +408,6 @@ def _tabs_html(payload: dict) -> str:
     return "".join(out)
 
 
-def _note_html(payload: dict) -> str:
-    """A factual note ONLY when Gross Profit is shown as a derived figure."""
-    is_rows = [r for g in payload["sheets"].get("is", {}).get("data", [])
-               for r in g.get("rows", [])]
-    if not any(r.get("calc") and r["n"] == "Gross Profit" for r in is_rows):
-        return ""
-    return (
-        '<div class="note"><span class="chip">Derived</span><div>'
-        '<b>Gross Profit is computed as Sales &minus; COGS</b> and tagged '
-        '<b>calc</b>, so it is never mis-read from a stored margin line. Every '
-        'other figure is taken as reported from the uploaded model.</div></div>'
-    )
-
-
 def build(model) -> tuple[str, int]:
     """Return (html, initial_height) for the redesigned Statements component."""
     payload = S.statements_payload(model)
@@ -467,8 +453,6 @@ def build(model) -> tuple[str, int]:
       <span class="r">{periods} periods &middot; {window} &middot; {source}</span>
     </div>
   </div>
-
-  {_note_html(payload)}
 
   <div class="foot">
     <span class="foot-l">Source</span>

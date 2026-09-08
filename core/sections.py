@@ -13,6 +13,7 @@ from html import escape
 import numpy as np
 import pandas as pd
 
+from . import synonyms as SYN
 from . import viz
 from .scoring import Assessment
 
@@ -711,47 +712,45 @@ def stmt_source(model, tab: str) -> list[tuple[str, list[float | None], object]]
 # --------------------------------------------------------------------------
 
 # Ordered balance-sheet lines, grouped, with subtotal/total emphasis. Each entry
-# is (display_name, [source aliases in model.historical], kind|None).
-_BS_SECTIONS: list[tuple[str, list[tuple[str, list[str], str | None]]]] = [
+# is (display_name, canonical concept, kind|None); the actual workbook label is
+# resolved through core.synonyms so different terminology still maps.
+_BS_SECTIONS: list[tuple[str, list[tuple[str, str, str | None]]]] = [
     ("Liabilities & equity", [
-        ("Equity Share Capital", ["Equity Share Capital"], None),
-        ("Reserves", ["Reserves"], None),
-        ("Borrowings", ["Borrowings"], None),
-        ("Other Liabilities", ["Other Liabilities"], None),
-        ("Total Liabilities & Equity",
-         ["Total Liabilities & Equity", "Total Liabilities"], "tot"),
+        ("Equity Share Capital", "equity_share_capital", None),
+        ("Reserves", "reserves", None),
+        ("Borrowings", "borrowings", None),
+        ("Other Liabilities", "other_liabilities", None),
+        ("Total Liabilities & Equity", "total_liabilities_equity", "tot"),
     ]),
     ("Assets", [
-        ("Net Block", ["Net Block"], None),
-        ("Capital Work in Progress", ["Capital Work in Progress"], None),
-        ("Investments", ["Investments"], None),
-        ("Other Assets", ["Other Assets"], None),
-        ("Total Non Current Assets",
-         ["Total Non Current Assets", "Total Non Current Asset"], "sub"),
-        ("Receivables", ["Receivables"], None),
-        ("Inventory", ["Inventory"], None),
-        ("Cash & Bank", ["Cash & Bank"], None),
-        ("Total Current Assets",
-         ["Total Current Assets", "Total Current Asset"], "sub"),
-        ("Total Assets", ["Total Assets", "Total Asset"], "tot"),
+        ("Net Block", "net_block", None),
+        ("Capital Work in Progress", "cwip", None),
+        ("Investments", "investments", None),
+        ("Other Assets", "other_assets", None),
+        ("Total Non Current Assets", "total_non_current_assets", "sub"),
+        ("Receivables", "receivables", None),
+        ("Inventory", "inventory", None),
+        ("Cash & Bank", "cash", None),
+        ("Total Current Assets", "total_current_assets", "sub"),
+        ("Total Assets", "total_assets", "tot"),
     ]),
 ]
 
-# Income-statement lines, in order. Gross Profit is DERIVED (Sales - COGS) and
-# tagged `calc`, so it is never mis-read from a stored margin line.
-_IS_SPEC: list[tuple[str, list[str], str | None, bool]] = [
-    ("Sales", ["Sales"], None, False),
-    ("COGS", ["COGS"], None, False),
-    ("Gross Profit", [], "sub", True),
-    ("Selling & General Expenses", ["Selling & General Expenses"], None, False),
-    ("EBITDA", ["EBITDA"], "sub", False),
-    ("Depreciation", ["Depreciation"], None, False),
-    ("EBIT (operating profit)", ["EBIT (OPM)", "EBIT (Operating Profit)"], "sub", False),
-    ("Other Income", ["Other Income"], None, False),
-    ("Interest", ["Interest"], None, False),
-    ("Profit Before Tax", ["Earnings Before Tax", "Profit Before Tax"], "sub", False),
-    ("Tax", ["Tax"], None, False),
-    ("Net Profit", ["Net Profit"], "tot", False),
+# Income-statement lines, in order (display_name, canonical concept, kind|None).
+# Gross Profit is read AS REPORTED from the model — never derived or tagged.
+_IS_SPEC: list[tuple[str, str, str | None]] = [
+    ("Sales", "sales", None),
+    ("COGS", "cogs", None),
+    ("Gross Profit", "gross_profit", "sub"),
+    ("Selling & General Expenses", "selling_general", None),
+    ("EBITDA", "ebitda", "sub"),
+    ("Depreciation", "depreciation", None),
+    ("EBIT (operating profit)", "ebit", "sub"),
+    ("Other Income", "other_income", None),
+    ("Interest", "interest", None),
+    ("Profit Before Tax", "profit_before_tax", "sub"),
+    ("Tax", "tax", None),
+    ("Net Profit", "net_profit", "tot"),
 ]
 
 # Common-size subtotal / total rows get the same emphasis as the reference.
@@ -764,48 +763,53 @@ _CS_SUB = {"gross profit", "ebitda", "ebit (operating profit)", "ebit (opm)",
            "total current assets", "total current asset"}
 
 
-def _series_vals(model, aliases: list[str], years: list[str]) -> list[float | None] | None:
-    """Values for the first alias that exists in the model, over `years`."""
-    for a in aliases:
-        s = pd.to_numeric(model.series(a), errors="coerce").reindex(years)
-        if s.notna().any():
-            return [float(v) if pd.notna(v) else None for v in s]
-    return None
+def _available_labels(model) -> list[str]:
+    """Every line-item label the model exposes, across its statement frames."""
+    labels: list[str] = []
+    for frame in (model.historical, model.ratios, model.common_size):
+        if frame is not None and not frame.empty:
+            labels.extend(str(x) for x in frame.index)
+    # de-dupe, keep order
+    seen: set[str] = set()
+    return [x for x in labels if not (x in seen or seen.add(x))]
+
+
+def _concept_vals(model, concept: str, years: list[str],
+                  available: list[str]) -> list[float | None] | None:
+    """Values for a canonical concept, resolving the workbook's own label for it
+    via core.synonyms. Returns None when the concept is not present."""
+    label = SYN.find_label(available, concept)
+    if not label:
+        return None
+    s = pd.to_numeric(model.series(label), errors="coerce").reindex(years)
+    if not s.notna().any():
+        return None
+    return [float(v) if pd.notna(v) else None for v in s]
 
 
 def _has_values(v) -> bool:
     return bool(v) and any(x is not None for x in v)
 
 
-def _is_data(model, years: list[str]) -> list[dict]:
-    sales = _series_vals(model, ["Sales"], years)
-    cogs = _series_vals(model, ["COGS"], years)
+def _is_data(model, years: list[str], available: list[str]) -> list[dict]:
     rows: list[dict] = []
-    for name, aliases, kind, calc in _IS_SPEC:
-        if calc:                                   # Gross Profit = Sales - COGS
-            if not (sales and cogs):
-                continue
-            v = [(sales[i] - cogs[i]) if (sales[i] is not None and cogs[i] is not None)
-                 else None for i in range(len(years))]
-        else:
-            v = _series_vals(model, aliases, years)
+    for name, concept, kind in _IS_SPEC:
+        v = _concept_vals(model, concept, years, available)
         if not _has_values(v):
             continue
         row: dict = {"n": name, "v": v}
         if kind:
             row["kind"] = kind
-        if calc:
-            row["calc"] = True
         rows.append(row)
     return [{"g": None, "rows": rows}]
 
 
-def _bs_data(model, years: list[str]) -> list[dict]:
+def _bs_data(model, years: list[str], available: list[str]) -> list[dict]:
     out: list[dict] = []
     for gname, spec in _BS_SECTIONS:
         rows: list[dict] = []
-        for name, aliases, kind in spec:
-            v = _series_vals(model, aliases, years)
+        for name, concept, kind in spec:
+            v = _concept_vals(model, concept, years, available)
             if not _has_values(v):
                 continue
             row: dict = {"n": name, "v": v}
@@ -860,10 +864,12 @@ def statements_payload(model) -> dict:
     n = len(years)
     cagr_years = max(n - 1, 1)
     money_sub = "— change shown beneath each figure is versus the prior year."
+    available = _available_labels(model)
+    SYN.log_unmapped(available, context=str(model.company))   # new wording → add to registry
     sheets = {
-        "is": {"data": _is_data(model, years), "money": True, "sum": f"CAGR {cagr_years}y",
+        "is": {"data": _is_data(model, years, available), "money": True, "sum": f"CAGR {cagr_years}y",
                "units": "Figures in ₹ crore", "sub": money_sub},
-        "bs": {"data": _bs_data(model, years), "money": True, "sum": f"CAGR {cagr_years}y",
+        "bs": {"data": _bs_data(model, years, available), "money": True, "sum": f"CAGR {cagr_years}y",
                "units": "Figures in ₹ crore", "sub": money_sub},
         "ra": {"data": _ratio_cs_data(model, "Ratio Analysis", years), "money": False,
                "sum": f"{n}-yr avg", "units": "Ratios as reported",
