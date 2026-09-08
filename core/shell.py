@@ -1155,7 +1155,17 @@ def _gauge_inline_legend() -> str:
     return item(viz.MID, "Strong") + item(GREEN_DARK, "Stable") + item(risk_bg, "Risk")
 
 
-def ratios_shell(model, result) -> tuple[str, int]:
+def ratios_shell(model, result, model_filename: str = "") -> tuple[str, int]:
+    """Ratio deep dive -- exact HTML redesign (see core.ratio_deepdive).
+
+    Delegates to the dynamic renderer that reproduces
+    assets/ratio_deepdive_template.html with real model data.
+    """
+    try:
+        from . import ratio_deepdive as _RD
+        return _RD.render(model, result, model_filename)
+    except Exception:
+        pass
     flows_html = S.flows_card(model)
     rows = [(S.short_name(m.metric), m.display(m.latest), float(m.score))
             for m in result.metrics]

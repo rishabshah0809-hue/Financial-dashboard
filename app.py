@@ -696,9 +696,9 @@ def _page_header(title: str, subtitle: str) -> None:
         unsafe_allow_html=True,
     )
 
-def ratios_tab(model, result) -> None:
-    """Ratio deep dive - the reference section, one shell, hover everywhere."""
-    html, height = SH.ratios_shell(model, result)
+def ratios_tab(model, result, model_filename: str = "") -> None:
+    """Ratio deep dive - exact HTML redesign, dynamic data, hover everywhere."""
+    html, height = SH.ratios_shell(model, result, model_filename)
     _render_shell(html, height)
 
 def statements_tab(model) -> None:
@@ -1280,7 +1280,7 @@ def main() -> None:
                 + ", ".join(result.data_gaps)
             )
     elif page == "ratios":
-        ratios_tab(model, result)
+        ratios_tab(model, result, source_label)
     elif page == "lens":
         sector_lens_tab(model, result)
     elif page == "statements":

@@ -147,27 +147,84 @@ def _clean(series: pd.Series) -> pd.Series:
 
 
 def _sub_score(value: float, weak_at: float, strong_at: float, lower_better: bool) -> float:
-    """Map a raw ratio onto 0-100 using the sector's two thresholds."""
-    if lower_better:
-        # weak_at is the high (bad) number, strong_at the low (good) number.
-        if value <= strong_at:
-            return 100.0
-        if value >= weak_at:
-            # Keep punishing beyond the weak threshold, but with a floor.
-            overshoot = (value - weak_at) / max(abs(weak_at), 1e-6)
-            return max(0.0, 20.0 - min(overshoot, 1.0) * 20.0)
-        span = weak_at - strong_at
-        return 20.0 + 80.0 * (weak_at - value) / span if span else 60.0
+    """Map a raw ratio onto 1-100 using the sector's two thresholds.
 
-    if value >= strong_at:
-        # Reward genuine outperformance, but cap it.
-        excess = (value - strong_at) / max(abs(strong_at), 1e-6)
-        return min(100.0, 85.0 + min(excess, 1.0) * 15.0)
-    if value <= weak_at:
-        shortfall = (weak_at - value) / max(abs(weak_at), 1e-6)
-        return max(0.0, 20.0 - min(shortfall, 1.0) * 20.0)
-    span = strong_at - weak_at
-    return 20.0 + 65.0 * (value - weak_at) / span if span else 50.0
+    Universal score-band boundaries (all ratios share these):
+      1-39 = Weak, 40-65 = Neutral, 66-100 = Strong.
+
+    The *financial* thresholds differ per ratio/sector (``weak_at`` /
+    ``strong_at`` from the sector profile). Anchors:
+      higher-is-better: value == weak -> 40, value == strong -> 66.
+      lower-is-better:  value == weak -> 40, value == strong -> 66 (reversed).
+    Between the anchors the score interpolates linearly (continuous, not
+    bucketed). Beyond an anchor the score extends linearly for one further
+    ``span`` (strong-weak distance) to 100 on the good side and to 1 on the
+    bad side, then clamps. Never invents data: NaN input yields NaN.
+    """
+    import math
+    try:
+        if value is None or (isinstance(value, float) and (math.isnan(value))):
+            return float("nan")
+    except TypeError:
+        pass
+    if not lower_better:
+        span = strong_at - weak_at
+        if not span or span <= 0:
+            span = max(abs(strong_at), abs(weak_at), 1e-6)
+            # Degenerate band: fall back to either side of the midpoint.
+            mid = (weak_at + strong_at) / 2.0
+            return 66.0 if value >= mid else 40.0
+        if value <= weak_at:
+            droop = (weak_at - value) / span
+            return max(1.0, 40.0 - min(droop, 1.0) * 39.0)
+        if value >= strong_at:
+            excess = (value - strong_at) / span
+            return min(100.0, 66.0 + min(excess, 1.0) * 34.0)
+        return 40.0 + (value - weak_at) / span * 26.0
+    # lower-is-better: weak_at is the high (bad) number, strong_at the low one.
+    span = weak_at - strong_at
+    if not span or span <= 0:
+        span = max(abs(strong_at), abs(weak_at), 1e-6)
+        mid = (weak_at + strong_at) / 2.0
+        return 66.0 if value <= mid else 40.0
+    if value >= weak_at:
+        overshoot = (value - weak_at) / span
+        return max(1.0, 40.0 - min(overshoot, 1.0) * 39.0)
+    if value <= strong_at:
+        margin = (strong_at - value) / span
+        return min(100.0, 66.0 + min(margin, 1.0) * 34.0)
+    return 66.0 - (value - strong_at) / span * 26.0
+
+
+def score_ratio(value: float | None, weak_at: float, strong_at: float,
+                lower_better: bool) -> tuple[float | None, str | None]:
+    """Reusable single-point scorer: raw value -> (1-100 score, band word).
+
+    Returns (None, None) when the value is missing so callers can show
+    "unavailable" instead of inventing a score. Band words follow the
+    universal boundaries: 1-39 Weak, 40-65 Neutral, 66-100 Strong.
+    """
+    import math
+    if value is None:
+        return None, None
+    try:
+        if isinstance(value, float) and math.isnan(value):
+            return None, None
+    except TypeError:
+        return None, None
+    s = _sub_score(float(value), weak_at, strong_at, lower_better)
+    if isinstance(s, float) and math.isnan(s):
+        return None, None
+    return float(s), classify(float(s))
+
+
+def classify(score: float) -> str:
+    """Universal score-band word: 1-39 Weak, 40-65 Neutral, 66-100 Strong."""
+    if score >= 66:
+        return "Strong"
+    if score >= 40:
+        return "Neutral"
+    return "Weak"
 
 
 def _trend(series: pd.Series) -> float:
@@ -185,11 +242,8 @@ def _trend(series: pd.Series) -> float:
 
 
 def _label(score: float) -> str:
-    if score >= 70:
-        return "Strong"
-    if score >= 45:
-        return "Adequate"
-    return "Weak"
+    # Universal score bands: 1-39 Weak, 40-65 Neutral, 66-100 Strong.
+    return classify(score)
 
 
 # --------------------------------------------------------------------------
@@ -220,7 +274,7 @@ def assess(model: FinancialModel, sector: SectorProfile) -> Assessment:
         trend = _trend(series)
         if lower_better:
             trend = -trend
-        score = float(np.clip(score + trend * 6.0, 0.0, 100.0))
+        score = float(np.clip(score + trend * 6.0, 1.0, 100.0))
 
         metric_scores.append(
             MetricScore(
@@ -264,19 +318,19 @@ def assess(model: FinancialModel, sector: SectorProfile) -> Assessment:
         elif earnings_quality > 1.0:
             total += 2.5
 
-    total = float(np.clip(total, 0.0, 100.0))
+    total = float(np.clip(total, 1.0, 100.0))
     verdict = "STRONG" if total >= STRONG_CUTOFF else "WEAK" if total < WEAK_CUTOFF else "NEUTRAL"
 
     ranked = sorted(metric_scores, key=lambda m: m.score, reverse=True)
     strengths = [
         f"{m.metric} at {m.display(m.latest)} — {'ahead of' if not m.lower_is_better else 'better than'} "
         f"the {sector.name} strong threshold of {m.display(m.strong_at)}."
-        for m in ranked[:3] if m.score >= 60
+        for m in ranked[:3] if m.score >= 66
     ]
     concerns = [
         f"{m.metric} at {m.display(m.latest)} sits in the weak band for "
         f"{sector.name} (weak at {m.display(m.weak_at)})."
-        for m in reversed(ranked[-3:]) if m.score < 50
+        for m in reversed(ranked[-3:]) if m.score < 40
     ]
 
     return Assessment(

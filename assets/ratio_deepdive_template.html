@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FundaCheck — Ratio deep dive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===========================================================================
+   FundaCheck — Ratio deep dive
+   Type: Plus Jakarta Sans + ui-monospace for data (existing system)
+   Colour: existing FundaCheck palette, unchanged
+   Ships as a Streamlit component: #shell + frame-fit script preserved.
+   =========================================================================== */
+:root{
+  --ink:#15201A; --ink-2:#3F4744; --ink-3:#5F6663; --mute:#8B918E; --mute-2:#9AA09D;
+  --panel:#FFFFFF; --line:#E6EBE7; --line-2:#F0F3F0; --tray:#E9ECE8;
+  --brand:#177245;
+  --pos:#2F9E63; --pos-deep:#0F5B34; --pos-mid:#3D9E6B; --pos-tint:#EEF4F0; --pos-soft:#9ECFB4;
+  --neg:#B4483C; --neg-tint:#FBEEEC; --neg-soft:#E0B6B0;
+  --warn:#D9A441; --warn-deep:#B5761F; --warn-tint:#FDF3E2;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:#D9DED9;color-scheme:light}
+body{padding:6px 20px 14px;background:linear-gradient(180deg,#E7EBE7,#D9DED9);
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);
+  display:flex;justify-content:center;align-items:flex-start;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"lnum" 1;
+  -webkit-font-smoothing:antialiased}
+#shell{width:1240px;max-width:100%;background:var(--tray);border-radius:24px;padding:18px;
+  box-shadow:0 10px 30px rgba(21,32,26,.06);display:flex;flex-direction:column;gap:14px}
+svg{display:block}
+::selection{background:#CFE7DA;color:#0F2A1E}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ------------------------------------------------------------ page head --- */
+.phead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  flex-wrap:wrap;padding:2px 6px 0}
+.phead h1{font-size:26px;font-weight:800;letter-spacing:-.7px;line-height:1.1}
+.phead .sub{font-size:13px;color:var(--mute);padding-top:5px}
+.feed{display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:flex-end}
+.feed-l{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--mute-2);text-align:right}
+.feed-v{font-size:12.5px;font-weight:700;color:var(--ink-2);padding-top:2px;text-align:right}
+
+/* ============================== 1. SCORE + SCORECARD, ONE OBJECT ========== */
+.hero{background:var(--panel);border:1px solid var(--line);border-radius:24px;
+  display:grid;grid-template-columns:326px minmax(0,1fr);overflow:hidden;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 10px 30px -14px rgba(21,32,26,.22)}
+
+.h-left{padding:26px 26px 22px;border-right:1px solid var(--line);background:#FBFCFB;
+  display:flex;flex-direction:column}
+.h-eyebrow{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--warn-deep);padding-bottom:14px}
+.score{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.score b{font-size:60px;font-weight:800;letter-spacing:-3px;line-height:.9}
+.score small{font-size:19px;font-weight:700;color:var(--mute)}
+.band{font-family:var(--mono);font-size:10px;font-weight:800;letter-spacing:1.1px;
+  text-transform:uppercase;color:var(--warn-deep);background:var(--warn-tint);
+  border:1px solid #F0DDBB;border-radius:20px;padding:5px 12px}
+.h-why{font-size:13.5px;line-height:1.65;color:var(--ink-3);padding-top:16px;max-width:40ch}
+.h-why b{color:var(--ink);font-weight:700}
+.pillars{padding-top:30px}
+.p-lab{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--mute);padding-bottom:12px}
+.prow{display:grid;grid-template-columns:74px minmax(0,1fr) 26px;align-items:center;gap:11px;
+  padding:5px 0}
+.prow span{font-size:12px;color:var(--ink-2);font-weight:600}
+.ptrack{height:7px;border-radius:5px;background:#EDF0ED;overflow:hidden}
+.ptrack i{display:block;height:100%;border-radius:5px}
+.prow b{font-family:var(--mono);font-size:12px;font-weight:700;text-align:right}
+
+.h-right{padding:22px 24px 18px;display:flex;flex-direction:column;min-width:0}
+.h-right-h{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+  flex-wrap:wrap;padding-bottom:4px}
+.h-right-t{font-size:16.5px;font-weight:800;letter-spacing:-.3px}
+.h-right-s{font-size:12px;color:var(--mute-2)}
+
+/* scorecard */
+.sc-axis{display:grid;grid-template-columns:126px minmax(0,1fr) 96px;gap:12px;
+  padding:14px 0 6px;align-items:end}
+.sc-axis .ticks{position:relative;height:13px;font-family:var(--mono);font-size:9px;
+  letter-spacing:.8px;text-transform:uppercase;color:var(--mute-2)}
+.sc-axis .ticks u{position:absolute;top:0;transform:translateX(-50%);text-decoration:none;
+  white-space:nowrap}
+.sc-grp{display:flex;align-items:center;gap:10px;padding:14px 0 4px}
+.sc-grp i{width:8px;height:8px;border-radius:2.5px;flex:none}
+.sc-grp span{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.1px;
+  text-transform:uppercase;color:var(--mute)}
+.sc-grp em{font-style:normal;font-size:11.5px;color:var(--mute-2);margin-left:auto}
+.scr{display:grid;grid-template-columns:126px minmax(0,1fr) 96px;gap:12px;align-items:center;
+  padding:4px 0}
+.scr .nm{font-size:12.5px;color:var(--ink-2);text-align:right;line-height:1.25}
+.scr .tr{position:relative;height:14px;border-radius:4px;overflow:hidden;
+  background:linear-gradient(90deg,
+    var(--neg-tint) 0 40%, #F7F4EC 40% 66%, var(--pos-tint) 66% 100%)}
+.scr .tr i{position:absolute;left:0;top:0;bottom:0;border-radius:4px}
+.scr .tr u{position:absolute;top:-2px;bottom:-2px;width:1.5px;background:#fff;
+  text-decoration:none;opacity:.9}
+.scr .vv{display:flex;align-items:baseline;gap:8px;justify-content:flex-end}
+.scr .vv b{font-family:var(--mono);font-size:12.5px;font-weight:700;min-width:22px;
+  text-align:right}
+.scr .vv span{font-family:var(--mono);font-size:10.5px;color:var(--mute-2);min-width:56px;
+  text-align:right}
+.sc-foot{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:14px;margin-top:auto;
+  border-top:1px solid var(--line-2);font-size:11.5px;color:var(--mute-2)}
+.sc-foot b{color:var(--ink-3);font-weight:700}
+
+/* ============================== 2. GROWTH STRIP ========================== */
+.gstrip{background:var(--panel);border:1px solid var(--line);border-radius:20px;
+  display:flex;flex-wrap:wrap;overflow:hidden}
+.gt{flex:1 1 210px;min-width:0;padding:17px 20px;border-right:1px solid var(--line-2)}
+.gt:last-of-type{border-right:0}
+.gt-l{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.1px;
+  text-transform:uppercase;color:var(--mute)}
+.gt-v{display:flex;align-items:baseline;gap:8px;padding-top:9px}
+.gt-v b{font-size:24px;font-weight:800;letter-spacing:-.9px;line-height:1}
+.gt-f{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;
+  color:var(--mute-2);padding-top:9px}
+.gt-f b{color:var(--ink-2);font-weight:700}
+.gt-f i{flex:1;height:1px;background:var(--line);font-style:normal;min-width:10px}
+.gt.flag{background:var(--warn-tint)}
+.gt.flag .gt-l{color:var(--warn-deep)}
+.gt-note{font-size:11px;line-height:1.5;color:#5C4A22;padding-top:9px}
+
+/* ================================ 3. CHART SECTIONS ====================== */
+.sechead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:8px 8px 0}
+.sechead h2{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1.5px;
+  text-transform:uppercase;color:var(--mute)}
+.sechead .rule{flex:1;height:1px;background:#D7DDD8;min-width:20px}
+.sechead .sc{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.8px}
+
+.g2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:18px 20px;
+  box-shadow:var(--shadow);display:flex;flex-direction:column;min-width:0}
+.c-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.c-t{font-size:15.5px;font-weight:800;letter-spacing:-.3px}
+.c-s{font-size:11.5px;color:var(--mute-2)}
+.c-read{font-size:12px;line-height:1.55;color:var(--ink-3);padding-top:8px;max-width:56ch}
+.c-read b{color:var(--ink);font-weight:700}
+.legend{display:flex;gap:14px;flex-wrap:wrap;padding:12px 0 2px}
+.legend span{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink-3)}
+.legend i{width:11px;height:3px;border-radius:2px;flex:none}
+.legend i.sq{height:9px;width:9px;border-radius:2.5px}
+.chart{padding-top:4px}
+.chart svg{width:100%;height:auto;overflow:visible}
+.chart .gl{stroke:#EFF2EF;stroke-width:1}
+.chart .zl{stroke:#C9D2CC;stroke-width:1.2}
+.chart .ax{font-family:ui-monospace,Menlo,monospace;font-size:8.5px;fill:#AEB4B0}
+.chart .hit{fill:transparent;cursor:crosshair}
+.chart .xl{stroke:#15201A;stroke-width:1;stroke-dasharray:3 3;opacity:.28;display:none}
+
+/* bullet bars (turnover) */
+.bul{padding:11px 0}
+.bul-h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  padding-bottom:7px}
+.bul-n{font-size:13px;color:var(--ink-2)}
+.bul-v{font-family:var(--mono);font-size:11.5px;color:var(--mute-2)}
+.bul-v b{color:var(--ink);font-size:12.5px;font-weight:700}
+.bul-t{position:relative;height:11px;border-radius:6px;background:#F1F3F1}
+.bul-t i{display:block;height:100%;border-radius:6px}
+.bul-t u{position:absolute;top:-3px;width:2px;height:17px;background:#0F3D27;border-radius:2px;
+  text-decoration:none}
+.bul-f{font-family:var(--mono);font-size:9.5px;color:var(--mute-2);padding-top:6px}
+
+/* tooltip */
+#tip{position:absolute;display:none;z-index:99;background:#15201A;color:#F2F7F4;
+  border-radius:10px;padding:9px 11px;font-size:11.5px;line-height:1.5;pointer-events:none;
+  box-shadow:0 8px 24px rgba(0,0,0,.24);min-width:132px}
+#tip .yr{font-family:var(--mono);font-size:9.5px;letter-spacing:1px;color:#8FA79A;
+  padding-bottom:5px}
+#tip .r{display:flex;align-items:center;gap:7px;padding:2px 0}
+#tip .r i{width:8px;height:8px;border-radius:2px;flex:none}
+#tip .r em{font-style:normal;flex:1;color:#C8D3CD}
+#tip .r b{font-family:var(--mono);font-weight:700}
+
+/* ---------------------------------------------------------------- foot --- */
+.foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:2px 8px 0}
+.foot-l{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--mute)}
+.foot-v{font-size:12px;color:var(--mute-2)}
+.foot-r{margin-left:auto;font-size:11.5px;color:var(--mute-2)}
+
+@media (max-width:1020px){
+  .hero{grid-template-columns:1fr}
+  .h-left{border-right:0;border-bottom:1px solid var(--line)}
+  .g2{grid-template-columns:1fr}
+}
+@media (max-width:700px){
+  body{padding:6px 10px 12px}
+  #shell{padding:12px;border-radius:18px}
+  .scr,.sc-axis{grid-template-columns:96px minmax(0,1fr) 84px;gap:8px}
+  .scr .nm{font-size:11.5px}
+}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <div class="phead">
+    <div>
+      <h1>Ratio deep dive</h1>
+      <div class="sub">Why the score reads 48, and the ten-year evidence behind it.</div>
+    </div>
+    <div class="feed">
+      <div><div class="feed-l">Model</div><div class="feed-v">3S_model_sample.xlsx</div></div>
+      <div><div class="feed-l">Periods</div><div class="feed-v">FY17&ndash;FY26 &middot; 10 years</div></div>
+      <div><div class="feed-l">Sector bands</div><div class="feed-v">Infrastructure &amp; capital goods</div></div>
+    </div>
+  </div>
+
+  <!-- ============ 1. THE SCORE AND THE TWELVE RATIOS BEHIND IT ============ -->
+  <section class="hero">
+    <div class="h-left">
+      <div class="h-eyebrow">Funda score</div>
+      <div class="score"><b>48</b><small>/100</small><span class="band">Neutral</span></div>
+      <p class="h-why">
+        A mixed picture: real strengths, but clear weak spots. <b>Profitability</b> carries the
+        score at 63, led by net profit margin. <b>Returns</b> drags it down at 33, where
+        <b>ROCE scores 11 of 100</b> &mdash; the single largest deduction on the page.
+      </p>
+      <div class="pillars">
+        <div class="p-lab">Area scores, weighted for this sector</div>
+        <div class="prow"><span>Profitability</span><div class="ptrack"><i style="width:63%;background:#D9A441"></i></div><b style="color:#B5761F">63</b></div>
+        <div class="prow"><span>Efficiency</span><div class="ptrack"><i style="width:50%;background:#D9A441"></i></div><b style="color:#B5761F">50</b></div>
+        <div class="prow"><span>Growth</span><div class="ptrack"><i style="width:49%;background:#D9A441"></i></div><b style="color:#B5761F">49</b></div>
+        <div class="prow"><span>Leverage</span><div class="ptrack"><i style="width:41%;background:#D9A441"></i></div><b style="color:#B5761F">41</b></div>
+        <div class="prow"><span>Returns</span><div class="ptrack"><i style="width:33%;background:#B4483C"></i></div><b style="color:#B4483C">33</b></div>
+      </div>
+    </div>
+
+    <div class="h-right">
+      <div class="h-right-h">
+        <div class="h-right-t">Every ratio, scored against its sector band</div>
+        <div class="h-right-s">Score 0&ndash;100, sorted strongest first</div>
+      </div>
+
+      <div class="sc-axis">
+        <span></span>
+        <div class="ticks"><u style="left:0">0</u><u style="left:40%">Weak 40</u><u style="left:66%">Strong 66</u><u style="left:100%">100</u></div>
+        <span></span>
+      </div>
+
+      <div id="scorecard"></div>
+
+      <div class="sc-foot">
+        <b>How to read it</b>
+        <span>&mdash; the bar is the 0&ndash;100 score; the figure on the right is the raw ratio. Band tints mark where this sector's weak and strong thresholds sit.</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ 2. GROWTH ============================== -->
+  <div class="sechead"><h2>Growth</h2><span class="rule"></span><span class="sc" style="color:#B5761F">Growth 49</span></div>
+
+  <section class="gstrip">
+    <div class="gt">
+      <div class="gt-l">Revenue growth</div>
+      <div class="gt-v"><b style="color:var(--pos-deep)">+2.6%</b></div>
+      <div class="gt-f"><b>&#8377;1.00L cr</b><i></i><span>from &#8377;97,895 cr</span></div>
+    </div>
+    <div class="gt">
+      <div class="gt-l">COGS growth</div>
+      <div class="gt-v"><b style="color:var(--warn-deep)">+2.8%</b></div>
+      <div class="gt-f"><b>&#8377;75,523 cr</b><i></i><span>from &#8377;73,493 cr</span></div>
+    </div>
+    <div class="gt">
+      <div class="gt-l">Net profit growth</div>
+      <div class="gt-v"><b style="color:var(--pos-deep)">+29.3%</b></div>
+      <div class="gt-f"><b>&#8377;9,694 cr</b><i></i><span>from &#8377;7,497 cr</span></div>
+    </div>
+    <div class="gt flag">
+      <div class="gt-l">Other income, FY26</div>
+      <div class="gt-v"><b style="color:#B5761F">&#8377;11,688 cr</b></div>
+      <p class="gt-note">Exceeds EBIT of &#8377;7,855 cr. Profit growth this year is not coming from the operating business.</p>
+    </div>
+  </section>
+
+  <!-- ==================== 3. PROFITABILITY AND RETURNS =================== -->
+  <div class="sechead"><h2>Profitability &amp; returns</h2><span class="rule"></span><span class="sc" style="color:#B5761F">Profitability 63</span><span class="sc" style="color:#B4483C">Returns 33</span></div>
+
+  <div class="g2">
+    <section class="card">
+      <div class="c-h"><div class="c-t">Margin ladder</div><div class="c-s">Gross &rarr; EBITDA &rarr; EBIT &rarr; Net</div></div>
+      <p class="c-read">Every tier widened over the decade. But <b>EBIT fell in FY26 while net margin rose</b> &mdash; the gap between them is other income, not operations.</p>
+      <div class="legend" id="lg-margins"></div>
+      <div class="chart" id="ch-margins"></div>
+    </section>
+
+    <section class="card">
+      <div class="c-h"><div class="c-t">Returns on capital</div><div class="c-s">ROE &middot; ROCE &middot; ROA</div></div>
+      <p class="c-read">The divergence that costs the score: <b>ROE rose to 12.0% while ROCE fell to 4.2%</b>. Equity returns improved; returns on the full capital base did not.</p>
+      <div class="legend" id="lg-returns"></div>
+      <div class="chart" id="ch-returns"></div>
+    </section>
+  </div>
+
+  <!-- ======================= 4. LEVERAGE AND CASH ======================== -->
+  <div class="sechead"><h2>Leverage &amp; cash</h2><span class="rule"></span><span class="sc" style="color:#B5761F">Leverage 41</span></div>
+
+  <div class="g2">
+    <section class="card">
+      <div class="c-h"><div class="c-t">Leverage &amp; solvency</div><div class="c-s">Debt/equity bars &middot; interest cover line</div></div>
+      <p class="c-read">Gearing eased to 1.32x, but <b>interest cover sits at 1.31x</b> &mdash; operating profit barely clears the interest bill, and it has never cleared 1.9x in ten years.</p>
+      <div class="legend" id="lg-lev"></div>
+      <div class="chart" id="ch-lev"></div>
+    </section>
+
+    <section class="card">
+      <div class="c-h"><div class="c-t">Cash flow mix</div><div class="c-s">Operating &middot; investing &middot; financing, &#8377; cr</div></div>
+      <p class="c-read">Operating cash fell to &#8377;2,357 cr while investing outflows hit &#8377;27,680 cr. <b>The gap is being filled by financing</b>, not by the business.</p>
+      <div class="legend" id="lg-cash"></div>
+      <div class="chart" id="ch-cash"></div>
+    </section>
+  </div>
+
+  <!-- ========================== 5. EFFICIENCY ============================ -->
+  <div class="sechead"><h2>Efficiency</h2><span class="rule"></span><span class="sc" style="color:#B5761F">Efficiency 50</span></div>
+
+  <div class="g2">
+    <section class="card">
+      <div class="c-h"><div class="c-t">Working capital cycle</div><div class="c-s">Debtor + inventory &minus; payable, days</div></div>
+      <p class="c-read">The genuine strength: a <b>cash cycle of &minus;130 days</b>, with payables stretched to 266. Suppliers fund the operation. Inventory days climbing to 90 is the thing to watch.</p>
+      <div class="legend" id="lg-wc"></div>
+      <div class="chart" id="ch-wc"></div>
+    </section>
+
+    <section class="card">
+      <div class="c-h"><div class="c-t">Turnover</div><div class="c-s">Latest versus the ten-year median</div></div>
+      <p class="c-read">Four of five turns sit below their own history. <b>Fixed-asset turnover at 0.87x against a 2.49x median</b> is why ROCE collapsed &mdash; the asset base grew far faster than sales.</p>
+      <div id="bullets" style="padding-top:6px"></div>
+    </section>
+  </div>
+
+  <!-- ========================= 6. BALANCE SHEET ========================== -->
+  <div class="sechead"><h2>Balance sheet</h2><span class="rule"></span><span class="sc" style="color:var(--mute-2)">Context</span></div>
+
+  <div class="g2">
+    <section class="card">
+      <div class="c-h"><div class="c-t">Total assets, by component</div><div class="c-s">Stacked, &#8377; crore</div></div>
+      <p class="c-read">Net block grew from &#8377;10,476 cr to &#8377;115,174 cr since FY20, with a further &#8377;51,753 cr still in capital work in progress &mdash; not yet earning.</p>
+      <div class="legend" id="lg-assets"></div>
+      <div class="chart" id="ch-assets"></div>
+    </section>
+
+    <section class="card">
+      <div class="c-h"><div class="c-t">Total liabilities &amp; equity</div><div class="c-s">Stacked, &#8377; crore</div></div>
+      <p class="c-read">Borrowings rose from &#8377;12,419 cr to &#8377;106,622 cr. Reserves grew too, which is what pulled D/E back down &mdash; the debt itself never fell.</p>
+      <div class="legend" id="lg-liab"></div>
+      <div class="chart" id="ch-liab"></div>
+    </section>
+  </div>
+
+  <div class="foot">
+    <span class="foot-l">Source</span>
+    <span class="foot-v">Uploaded model only &mdash; 3S_model_sample.xlsx, FY17&ndash;FY26</span>
+    <span class="foot-r">Scores blended by sector weight &middot; higher is better throughout</span>
+  </div>
+</div>
+<div id="tip"></div>
+
+<script>
+/* ========================================================================= */
+/*  DATA — exactly as supplied by the model                                  */
+/* ========================================================================= */
+var Y = ["FY17","FY18","FY19","FY20","FY21","FY22","FY23","FY24","FY25","FY26"];
+
+var SCORECARD = [
+  ["Cash conversion cycle", 100, "-130 days"],
+  ["Net profit growth",      96, "29.3%"],
+  ["Net profit margin",      84, "9.6%"],
+  ["Debt to equity",         66, "1.32x"],
+  ["Return on equity",       58, "12.0%"],
+  ["EBITDA margin",          42, "13.9%"],
+  ["Return on assets",       29, "3.7%"],
+  ["CFO / PAT",              29, "0.24"],
+  ["Fixed asset turnover",   21, "0.87x"],
+  ["Interest coverage",      16, "1.31x"],
+  ["Return on capital",      11, "4.2%"],
+  ["Sales growth",            1, "2.6%"]
+];
+
+var MARGINS = [
+  ["Gross",  "#3D9E6B", [8.55,8.77,9.52,11.36,10.34,9.61,13.94,21.65,24.93,24.83]],
+  ["EBITDA", "#177245", [5.21,5.67,4.88,5.29,6.34,5.35,6.91,11.80,14.56,13.93]],
+  ["EBIT",   "#0F3D27", [4.34,3.82,3.91,4.20,4.98,3.55,5.00,8.64,10.26,7.82]],
+  ["Net",    "#D9A441", [2.21,1.04,0.78,1.84,1.89,0.68,1.73,3.42,7.66,9.65]]
+];
+var RETURNS = [
+  ["ROE",  "#177245", [5.71,2.48,2.13,4.71,4.35,2.14,6.68,8.43,14.90,11.98]],
+  ["ROCE", "#D9A441", [4.54,4.20,6.08,6.21,5.90,3.86,7.40,7.98,7.08,4.19]],
+  ["ROA",  "#9ECFB4", [1.70,0.66,0.74,1.70,1.45,0.47,1.56,2.05,3.79,3.72]]
+];
+var LEV_BAR  = ["Debt / equity",   "#9ECFB4", [1.47,1.17,0.76,0.73,0.95,1.87,1.61,1.67,1.82,1.32]];
+var LEV_LINE = ["Interest cover",  "#177245", [1.26,1.10,0.97,1.16,1.43,0.98,1.61,1.83,1.68,1.31]];
+var CASH = [
+  ["Operating", "#3D9E6B", [774,2942,3236,2454,4043,1385,17626,10312,4513,2357]],
+  ["Investing", "#B4483C", [-1460,-7649,2487,-1082,-8611,-17041,-15459,-18767,-26417,-27680]],
+  ["Financing", "#9ECFB4", [716,5120,-6158,-221,3109,15901,-1198,8879,22655,28484]]
+];
+var WC_UP = [
+  ["Debtor days",    "#3D9E6B", [127.3,122.9,129.3,110.6,110.6,72.1,35.9,37.1,35.9,45.6]],
+  ["Inventory days", "#9ECFB4", [18.0,26.1,26.7,24.3,18.1,39.5,23.0,45.8,51.1,90.4]]
+];
+var WC_DOWN = ["Payable days", "#D9A441", [126.2,240.6,149.5,147.2,168.3,198.4,157.5,212.7,209.0,266.4]];
+var WC_LINE = ["Cash cycle",   "#0F3D27", [19.2,-91.6,6.5,-12.4,-39.6,-86.8,-98.5,-129.8,-122.1,-130.4]];
+var ASSETS = [
+  ["Net block",    "#0F5B34", [13668,10555,9020,10476,10838,30123,56881,65978,77260,115174]],
+  ["Capital WIP",  "#177245", [7731,5526,5765,7347,8825,23544,24025,35180,51516,51753]],
+  ["Investments",  "#3D9E6B", [1042,1461,1511,1952,5503,4292,6310,8701,9887,9428]],
+  ["Other assets", "#6DBD93", [9062,22538,7555,8014,10900,19211,29217,24379,32314,41448]]
+];
+var LIAB = [
+  ["Borrowings",        "#8F3B31", [20846,17637,11243,12419,16227,41604,53200,65310,91473,106622]],
+  ["Other liabilities", "#C9803A", [12630,23679,16537,17509,18231,37726,55027,56200,56056,73321]],
+  ["Reserves",          "#3D9E6B", [14026,14979,14646,16837,17049,22147,32937,38962,50199,80797]]
+];
+var TURNOVER = [
+  ["Debtor turnover",      8.01, 4.18,  "x"],
+  ["Creditor turnover",    1.37, 2.00,  "x"],
+  ["Inventory turnover",   4.04, 13.84, "x"],
+  ["Fixed asset turnover", 0.87, 2.49,  "x"],
+  ["Capital turnover",     0.54, 1.09,  "x"]
+];
+
+/* ========================================================================= */
+/*  SCORECARD                                                                */
+/* ========================================================================= */
+function bandOf(s){ return s >= 66 ? "strong" : s >= 40 ? "neutral" : "weak"; }
+var BAND = {
+  strong:{ c:"#2F9E63", dot:"#2F9E63", label:"Carrying the score" },
+  neutral:{ c:"#D9A441", dot:"#D9A441", label:"Holding steady" },
+  weak:{ c:"#B4483C", dot:"#B4483C", label:"Dragging it down" }
+};
+
+(function(){
+  var out = "", last = null;
+  SCORECARD.forEach(function(r){
+    var b = bandOf(r[1]);
+    if (b !== last) {
+      var n = SCORECARD.filter(function(x){ return bandOf(x[1]) === b; }).length;
+      out += '<div class="sc-grp"><i style="background:' + BAND[b].dot + '"></i>'
+           + '<span>' + BAND[b].label + '</span><em>' + n + ' of 12</em></div>';
+      last = b;
+    }
+    out += '<div class="scr">'
+        +   '<div class="nm">' + r[0] + '</div>'
+        +   '<div class="tr"><i style="width:' + r[1] + '%;background:' + BAND[b].c + '"></i>'
+        +     '<u style="left:40%"></u><u style="left:66%"></u></div>'
+        +   '<div class="vv"><b style="color:' + BAND[b].c + '">' + r[1] + '</b>'
+        +     '<span>' + r[2] + '</span></div>'
+        + '</div>';
+  });
+  document.getElementById("scorecard").innerHTML = out;
+})();
+
+/* ========================================================================= */
+/*  TOOLTIP                                                                  */
+/* ========================================================================= */
+var tip = document.getElementById("tip");
+function tipShow(e, html){
+  tip.innerHTML = html; tip.style.display = "block";
+  var x = e.clientX + 14, y = e.clientY - tip.offsetHeight / 2;
+  if (x + tip.offsetWidth > window.innerWidth - 8) x = e.clientX - tip.offsetWidth - 14;
+  y = Math.max(4, Math.min(y, window.innerHeight - tip.offsetHeight - 4));
+  tip.style.left = (Math.max(4, x) + (window.scrollX || 0)) + "px";
+  tip.style.top  = (y + (window.scrollY || 0)) + "px";
+}
+function tipHide(){ tip.style.display = "none"; }
+
+/* ========================================================================= */
+/*  CHART ENGINE — one small SVG builder, reused by every chart              */
+/* ========================================================================= */
+var W = 460, H = 208, PL = 38, PR = 10, PT = 12, PB = 24;
+var IW = W - PL - PR, IH = H - PT - PB;
+
+function niceMax(v){
+  if (v <= 0) return 1;
+  var p = Math.pow(10, Math.floor(Math.log10(v)));
+  return Math.ceil(v / p * 2) / 2 * p;
+}
+function xAt(i, n){ return PL + (IW / n) * (i + 0.5); }
+function bandW(n){ return IW / n; }
+
+function axisLabels(n, yMin, yMax, fmtY){
+  var s = "", steps = 4;
+  for (var k = 0; k <= steps; k++){
+    var val = yMin + (yMax - yMin) * k / steps;
+    var y = PT + IH - (IH * k / steps);
+    s += '<line class="gl" x1="' + PL + '" y1="' + y + '" x2="' + (W - PR) + '" y2="' + y + '"/>';
+    s += '<text class="ax" x="' + (PL - 6) + '" y="' + (y + 3) + '" text-anchor="end">' + fmtY(val) + '</text>';
+  }
+  for (var i = 0; i < n; i++){
+    if (i % 2 !== 0 && i !== n - 1) continue;
+    s += '<text class="ax" x="' + xAt(i, n) + '" y="' + (H - 6) + '" text-anchor="middle">' + Y[i] + '</text>';
+  }
+  return s;
+}
+function zeroLine(yMin, yMax){
+  if (yMin >= 0) return "";
+  var y = PT + IH - IH * (0 - yMin) / (yMax - yMin);
+  return '<line class="zl" x1="' + PL + '" y1="' + y + '" x2="' + (W - PR) + '" y2="' + y + '"/>';
+}
+function hitCols(id, n, rows){
+  var s = "", bw = bandW(n);
+  for (var i = 0; i < n; i++){
+    s += '<line class="xl" data-x="' + i + '" x1="' + xAt(i, n) + '" y1="' + PT + '" x2="'
+       + xAt(i, n) + '" y2="' + (PT + IH) + '"/>';
+  }
+  for (var i = 0; i < n; i++){
+    s += '<rect class="hit" data-i="' + i + '" x="' + (PL + bw * i) + '" y="' + PT
+       + '" width="' + bw + '" height="' + IH + '"/>';
+  }
+  return s;
+}
+function bindHits(id, series, fmt){
+  var svg = document.getElementById(id);
+  if (!svg) return;
+  var lines = svg.querySelectorAll(".xl");
+  svg.querySelectorAll(".hit").forEach(function(r){
+    r.addEventListener("mousemove", function(e){
+      var i = +r.dataset.i;
+      var html = '<div class="yr">' + Y[i] + '</div>' + series.map(function(s){
+        return '<div class="r"><i style="background:' + s[1] + '"></i><em>' + s[0]
+             + '</em><b>' + fmt(s[2][i]) + '</b></div>';
+      }).join("");
+      tipShow(e, html);
+      lines.forEach(function(l){ l.style.display = (+l.dataset.x === i) ? "block" : "none"; });
+    });
+    r.addEventListener("mouseleave", function(){
+      tipHide();
+      lines.forEach(function(l){ l.style.display = "none"; });
+    });
+  });
+}
+function legend(elId, series, shape){
+  document.getElementById(elId).innerHTML = series.map(function(s){
+    return '<span><i class="' + (shape === "sq" ? "sq" : "") + '" style="background:' + s[1]
+         + '"></i>' + s[0] + '</span>';
+  }).join("");
+}
+
+/* ---- line chart --------------------------------------------------------- */
+function lineChart(elId, svgId, series, fmt, fmtY){
+  var n = Y.length, all = [];
+  series.forEach(function(s){ all = all.concat(s[2]); });
+  var yMax = niceMax(Math.max.apply(null, all));
+  var yMin = Math.min(0, Math.min.apply(null, all));
+  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+
+  var body = series.map(function(s){
+    var d = s[2].map(function(v, i){ return (i ? "L" : "M") + xAt(i, n).toFixed(1) + " " + sy(v).toFixed(1); }).join(" ");
+    var lastX = xAt(n - 1, n), lastY = sy(s[2][n - 1]);
+    return '<path d="' + d + '" fill="none" stroke="' + s[1] + '" stroke-width="2" '
+         + 'stroke-linejoin="round" stroke-linecap="round"/>'
+         + '<circle cx="' + lastX + '" cy="' + lastY + '" r="3.4" fill="' + s[1] + '" stroke="#fff" stroke-width="1.6"/>';
+  }).join("");
+
+  document.getElementById(elId).innerHTML =
+    '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + H + '">'
+    + axisLabels(n, yMin, yMax, fmtY) + zeroLine(yMin, yMax) + body + hitCols(svgId, n) + '</svg>';
+  bindHits(svgId, series, fmt);
+}
+
+/* ---- bars + overlay line (leverage) ------------------------------------- */
+function barLineChart(elId, svgId, bar, line, fmt, fmtY){
+  var n = Y.length;
+  var yMax = niceMax(Math.max(Math.max.apply(null, bar[2]), Math.max.apply(null, line[2])));
+  var yMin = 0;
+  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+  var bw = bandW(n), w = bw * 0.5;
+
+  var bars = bar[2].map(function(v, i){
+    return '<rect x="' + (xAt(i, n) - w / 2) + '" y="' + sy(v) + '" width="' + w
+         + '" height="' + (PT + IH - sy(v)) + '" rx="3" fill="' + bar[1] + '"/>';
+  }).join("");
+  var d = line[2].map(function(v, i){ return (i ? "L" : "M") + xAt(i, n).toFixed(1) + " " + sy(v).toFixed(1); }).join(" ");
+
+  document.getElementById(elId).innerHTML =
+    '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + H + '">'
+    + axisLabels(n, yMin, yMax, fmtY) + bars
+    + '<path d="' + d + '" fill="none" stroke="' + line[1] + '" stroke-width="2" stroke-linejoin="round"/>'
+    + '<circle cx="' + xAt(n - 1, n) + '" cy="' + sy(line[2][n - 1]) + '" r="3.4" fill="' + line[1] + '" stroke="#fff" stroke-width="1.6"/>'
+    + hitCols(svgId, n) + '</svg>';
+  bindHits(svgId, [bar, line], fmt);
+}
+
+/* ---- grouped bars around zero (cash flow) ------------------------------- */
+function groupedBars(elId, svgId, series, fmt, fmtY){
+  var n = Y.length, all = [];
+  series.forEach(function(s){ all = all.concat(s[2]); });
+  var yMax = niceMax(Math.max.apply(null, all));
+  var yMin = -niceMax(Math.abs(Math.min.apply(null, all)));
+  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+  var z = sy(0), bw = bandW(n), w = bw * 0.72 / series.length;
+
+  var bars = "";
+  series.forEach(function(s, si){
+    s[2].forEach(function(v, i){
+      var x = xAt(i, n) - (bw * 0.72) / 2 + si * w;
+      var y = Math.min(sy(v), z), h = Math.abs(sy(v) - z);
+      bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + (w - 1).toFixed(1)
+           + '" height="' + Math.max(h, 1).toFixed(1) + '" rx="1.5" fill="' + s[1] + '"/>';
+    });
+  });
+
+  document.getElementById(elId).innerHTML =
+    '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + H + '">'
+    + axisLabels(n, yMin, yMax, fmtY) + bars + zeroLine(yMin, yMax) + hitCols(svgId, n) + '</svg>';
+  bindHits(svgId, series, fmt);
+}
+
+/* ---- stacked area ------------------------------------------------------- */
+function stackedArea(elId, svgId, series, fmt, fmtY){
+  var n = Y.length;
+  var totals = Y.map(function(_, i){
+    return series.reduce(function(a, s){ return a + s[2][i]; }, 0);
+  });
+  var yMax = niceMax(Math.max.apply(null, totals)), yMin = 0;
+  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+
+  var base = Y.map(function(){ return 0; }), body = "";
+  series.forEach(function(s){
+    var top = s[2].map(function(v, i){ return base[i] + v; });
+    var up = top.map(function(v, i){ return (i ? "L" : "M") + xAt(i, n).toFixed(1) + " " + sy(v).toFixed(1); }).join(" ");
+    var dn = base.slice().reverse().map(function(v, k){
+      var i = n - 1 - k; return "L" + xAt(i, n).toFixed(1) + " " + sy(v).toFixed(1);
+    }).join(" ");
+    body += '<path d="' + up + " " + dn + ' Z" fill="' + s[1] + '" opacity=".92"/>';
+    base = top;
+  });
+
+  document.getElementById(elId).innerHTML =
+    '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + H + '">'
+    + axisLabels(n, yMin, yMax, fmtY) + body + hitCols(svgId, n) + '</svg>';
+  bindHits(svgId, series, fmt);
+}
+
+/* ---- working capital: stacked up, payable down, cycle line -------------- */
+function wcChart(elId, svgId){
+  var n = Y.length;
+  var ups = Y.map(function(_, i){ return WC_UP[0][2][i] + WC_UP[1][2][i]; });
+  var yMax = niceMax(Math.max.apply(null, ups));
+  var yMin = -niceMax(Math.max(Math.max.apply(null, WC_DOWN[2]), Math.abs(Math.min.apply(null, WC_LINE[2]))));
+  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+  var z = sy(0), bw = bandW(n), w = bw * 0.52;
+
+  var bars = "";
+  Y.forEach(function(_, i){
+    var acc = 0;
+    WC_UP.forEach(function(s){
+      var y0 = sy(acc + s[2][i]), y1 = sy(acc);
+      bars += '<rect x="' + (xAt(i, n) - w / 2) + '" y="' + y0.toFixed(1) + '" width="' + w
+           + '" height="' + (y1 - y0).toFixed(1) + '" fill="' + s[1] + '"/>';
+      acc += s[2][i];
+    });
+    var yd = sy(-WC_DOWN[2][i]);
+    bars += '<rect x="' + (xAt(i, n) - w / 2) + '" y="' + z.toFixed(1) + '" width="' + w
+         + '" height="' + (yd - z).toFixed(1) + '" fill="' + WC_DOWN[1] + '"/>';
+  });
+  var d = WC_LINE[2].map(function(v, i){ return (i ? "L" : "M") + xAt(i, n).toFixed(1) + " " + sy(v).toFixed(1); }).join(" ");
+
+  document.getElementById(elId).innerHTML =
+    '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + H + '">'
+    + axisLabels(n, yMin, yMax, function(v){ return Math.round(v); })
+    + bars + zeroLine(yMin, yMax)
+    + '<path d="' + d + '" fill="none" stroke="' + WC_LINE[1] + '" stroke-width="2" stroke-dasharray="4 3"/>'
+    + '<circle cx="' + xAt(n - 1, n) + '" cy="' + sy(WC_LINE[2][n - 1]) + '" r="3.4" fill="' + WC_LINE[1] + '" stroke="#fff" stroke-width="1.6"/>'
+    + hitCols(svgId, n) + '</svg>';
+  bindHits(svgId, [WC_UP[0], WC_UP[1], WC_DOWN, WC_LINE], function(v){ return v.toFixed(0) + "d"; });
+}
+
+/* ---- bullet bars -------------------------------------------------------- */
+(function(){
+  document.getElementById("bullets").innerHTML = TURNOVER.map(function(t){
+    var max = Math.max(t[1], t[2]) * 1.5;
+    var good = t[1] >= t[2];
+    var c = good ? "#0F5B34" : "#B4483C";
+    var gap = ((t[1] / t[2] - 1) * 100);
+    return '<div class="bul">'
+      + '<div class="bul-h"><span class="bul-n">' + t[0] + '</span>'
+      + '<span class="bul-v"><b>' + t[1].toFixed(2) + t[3] + '</b> &nbsp;median ' + t[2].toFixed(2) + t[3] + '</span></div>'
+      + '<div class="bul-t"><i style="width:' + (t[1] / max * 100).toFixed(1) + '%;background:' + c + '"></i>'
+      + '<u style="left:' + (t[2] / max * 100).toFixed(1) + '%"></u></div>'
+      + '<div class="bul-f" style="color:' + (good ? "#5F6663" : "#B4483C") + '">'
+      + (gap >= 0 ? "+" : "") + gap.toFixed(0) + '% versus its own ten-year median</div>'
+      + '</div>';
+  }).join("");
+})();
+
+/* ---- render everything -------------------------------------------------- */
+var pc  = function(v){ return v.toFixed(1) + "%"; };
+var pcY = function(v){ return Math.round(v) + "%"; };
+var cr  = function(v){ return Math.round(v).toLocaleString("en-IN"); };
+var crY = function(v){ return Math.abs(v) >= 1000 ? Math.round(v / 1000) + "k" : Math.round(v); };
+var xx  = function(v){ return v.toFixed(2) + "x"; };
+var xxY = function(v){ return v.toFixed(1) + "x"; };
+
+legend("lg-margins", MARGINS);              lineChart("ch-margins", "svMargins", MARGINS, pc, pcY);
+legend("lg-returns", RETURNS);              lineChart("ch-returns", "svReturns", RETURNS, pc, pcY);
+legend("lg-lev", [LEV_BAR, LEV_LINE], "sq");barLineChart("ch-lev", "svLev", LEV_BAR, LEV_LINE, xx, xxY);
+legend("lg-cash", CASH, "sq");              groupedBars("ch-cash", "svCash", CASH, cr, crY);
+legend("lg-wc", [WC_UP[0], WC_UP[1], WC_DOWN, WC_LINE], "sq"); wcChart("ch-wc", "svWc");
+legend("lg-assets", ASSETS, "sq");          stackedArea("ch-assets", "svAssets", ASSETS, cr, crY);
+legend("lg-liab", LIAB, "sq");              stackedArea("ch-liab", "svLiab", LIAB, cr, crY);
+</script>
+
+<script>
+/* Streamlit frame fit — preserved from the original component. */
+(function(){
+  function fit(){
+    try{
+      var s=document.getElementById('shell'); if(!s) return;
+      var h=Math.ceil(s.getBoundingClientRect().height)+58;
+      try{ window.parent.postMessage(
+        {isStreamlitMessage:true,type:'streamlit:setFrameHeight',height:h},'*'); }catch(e){}
+      try{
+        var fe=window.frameElement;
+        if(fe){
+          var cur=parseInt(fe.style.height)||0;
+          if(Math.abs(cur-h)>1){
+            fe.style.setProperty('height',h+'px','important'); fe.setAttribute('height',h);
+          }
+          var el=fe.parentElement;
+          for(var i=0;i<5&&el;i++){
+            var tid=el.getAttribute&&el.getAttribute('data-testid');
+            if(tid==='stElementContainer'||tid==='stVerticalBlock'||tid==='stVerticalBlockBorderWrapper'){
+              if(el.style.height!=='auto') el.style.height='auto';
+              el.style.minHeight='0px';
+            }
+            if(tid==='stMain'||tid==='stAppViewContainer') break;
+            el=el.parentElement;
+          }
+        }
+      }catch(e){}
+    }catch(e){}
+  }
+  function schedule(){fit();for(var k=1;k<=12;k++)setTimeout(fit,k*250);}
+  window.addEventListener('load',schedule); schedule();
+  if(window.ResizeObserver){
+    var ro=new ResizeObserver(fit); var s=document.getElementById('shell');
+    if(s) ro.observe(s); ro.observe(document.documentElement);
+    if(document.body) ro.observe(document.body);
+  }
+  window.addEventListener('resize',fit);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',fit);
+    window.visualViewport.addEventListener('scroll',fit);
+  }
+  setInterval(fit,1000);
+})();
+</script>
+</body>
+</html>
