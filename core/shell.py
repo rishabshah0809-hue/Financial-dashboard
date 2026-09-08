@@ -87,11 +87,11 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
   align-items:center;gap:11px;background:#f5f6f5;border-radius:14px;
   padding:11px 15px}
 .searchpill input{border:none;background:transparent;outline:none;flex:1;
-  min-width:0;font-size:14.5px;font-family:inherit;color:#15201a}
+  min-width:0;font-size:16.7px;font-family:inherit;color:#15201a}
 .searchpill input::placeholder{color:#9aa09d}
 .searchpill .lens{width:13px;height:13px;border-radius:50%;
   border:2px solid #9aa09d;flex:none}
-.searchpill .kbd{font-size:11.5px;font-weight:600;color:#8d938f;
+.searchpill .kbd{font-size:13.2px;font-weight:600;color:#8d938f;
   background:#fff;border-radius:7px;padding:4px 8px}
 .topright{margin-left:auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .monitor{width:44px;height:44px;border-radius:50%;background:#f5f6f5;
@@ -101,34 +101,34 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
   border-radius:30px;cursor:pointer;border:none;
   background:radial-gradient(130% 130% at 10% 0%,#2a9c62,#0d4a2c)}
 .aibtn .ic{width:36px;height:36px;border-radius:50%;background:rgba(255,255,255,.16);
-  display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff}
-.aibtn .t1{font-size:14.5px;font-weight:700;color:#fff;line-height:1.2;text-align:left}
-.aibtn .t2{font-size:10px;letter-spacing:1.2px;color:rgba(255,255,255,.62);
+  display:flex;align-items:center;justify-content:center;font-size:18.4px;color:#fff}
+.aibtn .t1{font-size:16.7px;font-weight:700;color:#fff;line-height:1.2;text-align:left}
+.aibtn .t2{font-size:11.5px;letter-spacing:1.2px;color:rgba(255,255,255,.62);
   font-family:ui-monospace,Menlo,monospace}
 
 /* ---- hero ---- */
 .hero{background:#eef2ee;border-radius:22px;padding:24px;display:flex;
   align-items:flex-start;gap:20px;flex-wrap:wrap}
-.hero h1{font-size:38px;font-weight:800;letter-spacing:-1.2px;color:#15201a;
+.hero h1{font-size:43.7px;font-weight:800;letter-spacing:-1.2px;color:#15201a;
   line-height:1.1}
 .herosub{display:flex;align-items:center;gap:10px;padding-top:8px;flex-wrap:wrap}
-.ticker{font-family:ui-monospace,Menlo,monospace;font-size:12px;letter-spacing:1px;
+.ticker{font-family:ui-monospace,Menlo,monospace;font-size:13.8px;letter-spacing:1px;
   color:#8b918e}
 .dotsep{color:#cdd2cf}
 .heroright{margin-left:auto;display:flex;align-items:center;gap:12px;
   flex-wrap:wrap;justify-content:flex-end;flex:1 1 auto;min-width:0}
 .herostat{background:#fff;border-radius:20px;padding:13px 22px;display:flex;
   align-items:center;gap:16px;flex-wrap:wrap;min-width:0}
-.herostat .lbl{font-family:ui-monospace,Menlo,monospace;font-size:9.5px;
+.herostat .lbl{font-family:ui-monospace,Menlo,monospace;font-size:10.9px;
   letter-spacing:1.3px;color:#a4a9a6}
-.herostat .val{font-size:26px;font-weight:800;letter-spacing:-1px;color:#15201a}
-.herostat .val small{font-size:15px;color:#8b918e}
-.herostat .up{font-size:11.5px;font-weight:700;color:#177245;background:#eef4f0;
+.herostat .val{font-size:29.9px;font-weight:800;letter-spacing:-1px;color:#15201a}
+.herostat .val small{font-size:17.2px;color:#8b918e}
+.herostat .up{font-size:13.2px;font-weight:700;color:#177245;background:#eef4f0;
   border-radius:7px;padding:3px 7px}
 .vrule{width:1px;height:38px;background:#eceeec}
-.mcap{font-size:15px;font-weight:700;color:#15201a;padding-top:6px}
+.mcap{font-size:17.2px;font-weight:700;color:#15201a;padding-top:6px}
 .exportbtn{background:#fff;color:#15201a;border:1.5px solid #177245;
-  border-radius:26px;padding:15px 26px;font-size:14.5px;font-weight:700;
+  border-radius:26px;padding:15px 26px;font-size:16.7px;font-weight:700;
   cursor:pointer;font-family:inherit}
 
 /* ---- KPI grid ---- */
@@ -140,9 +140,9 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
   display:flex;flex-direction:column;min-height:172px}
 .kpi .hd{display:flex;align-items:center;justify-content:space-between}
 .kpi .ft{margin-top:auto}
-.kpi .name{font-size:15px;font-weight:600;color:#15201a}
+.kpi .name{font-size:17.2px;font-weight:600;color:#15201a}
 .kpi .circ{width:30px;height:30px;border-radius:50%;border:1.5px solid #dcdfdc;
-  display:flex;align-items:center;justify-content:center;font-size:13px;
+  display:flex;align-items:center;justify-content:center;font-size:14.9px;
   color:#4a5350}
 .kpi.score{color:#fff;background:radial-gradient(130% 130% at 85% 15%,#2a9c62 0%,
   #177245 45%,#0d4a2c 100%)}
@@ -150,11 +150,11 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .kpi.score .name{color:#fff}
 .kpi.score .ft{color:rgba(255,255,255,.92)}
 .kpi.score .chip{background:rgba(255,255,255,.28);color:#fff}
-.kpi .big{font-size:44px;font-weight:800;letter-spacing:-1.5px;color:#15201a;
+.kpi .big{font-size:50.6px;font-weight:800;letter-spacing:-1.5px;color:#15201a;
   padding:14px 0 12px}
 .kpi.score .big{color:#fff}
-.kpi .big small{font-size:20px;font-weight:600;opacity:.7}
-.kpi .ft{display:flex;align-items:center;gap:8px;font-size:12.5px;color:#8b918e}
+.kpi .big small{font-size:23px;font-weight:600;opacity:.7}
+.kpi .ft{display:flex;align-items:center;gap:8px;font-size:14.4px;color:#8b918e}
 .kpi .chip{border-radius:6px;padding:3px 6px;font-weight:700}
 .chip.g{background:#eef4f0;color:#177245}
 .chip.r{background:#fbeeec;color:#b4483c}
@@ -167,16 +167,16 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
   grid-template-columns:repeat(auto-fit,minmax(min(300px,100%),1fr));
   gap:28px;align-items:center}
 .verdict .chips{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.verdict .vtag{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;
+.verdict .vtag{font-family:ui-monospace,Menlo,monospace;font-size:12.1px;
   font-weight:700;letter-spacing:1.4px;color:#b5761f;background:#fdf3e2;
   border-radius:20px;padding:7px 13px}
-.verdict .sect{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+.verdict .sect{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
   letter-spacing:1.2px;color:#a4a9a6}
-.verdict h2{font-size:29px;font-weight:800;letter-spacing:-.9px;color:#15201a;
+.verdict h2{font-size:33.3px;font-weight:800;letter-spacing:-.9px;color:#15201a;
   padding:16px 0 12px}
-.verdict p{font-size:14.5px;line-height:1.65;color:#5f6663;text-wrap:pretty}
+.verdict p{font-size:16.7px;line-height:1.65;color:#5f6663;text-wrap:pretty}
 .drivers{display:flex;flex-direction:column;gap:10px}
-.drivers .drow .dl{display:flex;justify-content:space-between;font-size:13px;
+.drivers .drow .dl{display:flex;justify-content:space-between;font-size:14.9px;
   color:#3f4744;padding-bottom:5px}
 .drivers .drow b{font-weight:700}
 .drivers .track{height:7px;border-radius:7px;background:#f1f3f1}
@@ -190,15 +190,15 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .srpanel.rsk{background:#fcf1ef}
 .srhead{display:flex;align-items:center;justify-content:space-between;
   padding:0 4px 16px}
-.srhead .t{font-size:17px;font-weight:700;color:#15201a}
-.srhead .cnt{width:28px;height:28px;border-radius:50%;color:#fff;font-size:12.5px;
+.srhead .t{font-size:19.5px;font-weight:700;color:#15201a}
+.srhead .cnt{width:28px;height:28px;border-radius:50%;color:#fff;font-size:14.4px;
   font-weight:700;display:flex;align-items:center;justify-content:center}
 .srlist{display:flex;flex-direction:column;gap:10px}
 .sritem{background:#fff;border-radius:13px;padding:14px 16px;border:1px solid #e9ede9;box-shadow:0 1px 2px rgba(21,32,26,.035)}
-.sritem .it{font-size:14.5px;font-weight:700;color:#15201a}
-.sritem .id2{font-size:12.5px;color:#7d847f;line-height:1.5;padding-top:4px}
+.sritem .it{font-size:16.7px;font-weight:700;color:#15201a}
+.sritem .id2{font-size:14.4px;color:#7d847f;line-height:1.5;padding-top:4px}
 .seeall{cursor:pointer;grid-column:1/-1;background:#fff;border:1px solid #e6e9e7;
-  border-radius:14px;padding:14px;text-align:center;font-size:13.5px;
+  border-radius:14px;padding:14px;text-align:center;font-size:15.5px;
   font-weight:700;color:#15201a;font-family:inherit}
 
 /* ---- panel cards & grids ---- */
@@ -219,36 +219,36 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 /* The chart body grows to fill the stretched card, so a short chart (e.g. the
    turnover meter) expands to use the space instead of sitting congested up top. */
 .grid-440 .cardbody{flex:1;display:flex;flex-direction:column;min-height:0}
-.ct{font-size:17px;font-weight:700;color:#15201a;white-space:nowrap}
+.ct{font-size:19.5px;font-weight:700;color:#15201a;white-space:nowrap}
 .ct-row{display:flex;align-items:baseline;justify-content:space-between}
-.csub{font-size:12.5px;color:#9aa09d;padding:4px 0 8px}
+.csub{font-size:14.4px;color:#9aa09d;padding:4px 0 8px}
 
 /* clickable ⓘ info icon next to a title + the wide explanation popover */
 .info{display:inline-flex;align-items:center;justify-content:center;width:16px;
   height:16px;border-radius:50%;border:1.4px solid #b6c0ba;color:#8b918e;
-  font-size:10px;font-weight:700;font-style:italic;font-family:Georgia,'Times New Roman',serif;
+  font-size:11.5px;font-weight:700;font-style:italic;font-family:Georgia,'Times New Roman',serif;
   cursor:pointer;margin-left:7px;vertical-align:middle;flex:none;user-select:none;
   transition:background .15s,border-color .15s,color .15s}
 .info:hover{border-color:#177245;color:#177245;background:#eef4f0}
-#fctip.wide{white-space:normal;max-width:250px;line-height:1.55;font-size:12px;
+#fctip.wide{white-space:normal;max-width:250px;line-height:1.55;font-size:13.8px;
   color:#e8efe9;padding:11px 13px}
 
 /* year-on-year growth tiles (dashboard) */
 .ftiles{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px}
 .ftile{background:#fbfcfb;border:1px solid #eef1ee;border-radius:14px;padding:14px 15px}
-.ftile .fg{display:flex;align-items:center;gap:7px;font-size:22px;font-weight:800;
+.ftile .fg{display:flex;align-items:center;gap:7px;font-size:25.3px;font-weight:800;
   letter-spacing:-.6px;color:#15201a}
-.ftile .farr{font-size:13px}
-.ftile .flbl{font-size:12.5px;color:#8b918e;padding-top:2px}
-.ftile .flbl2{font-size:12px;color:#8b918e}
-.ftile .fbig{font-size:22px;font-weight:800;letter-spacing:-.6px;color:#15201a;padding-top:4px}
-.ftile .fnote{font-size:11.5px;color:#d9a441;font-weight:600;padding-top:10px;
+.ftile .farr{font-size:14.9px}
+.ftile .flbl{font-size:14.4px;color:#8b918e;padding-top:2px}
+.ftile .flbl2{font-size:13.8px;color:#8b918e}
+.ftile .fbig{font-size:25.3px;font-weight:800;letter-spacing:-.6px;color:#15201a;padding-top:4px}
+.ftile .fnote{font-size:13.2px;color:#d9a441;font-weight:600;padding-top:10px;
   margin-top:10px;border-top:1px solid #eef1ee}
 .ftile .frow{display:flex;align-items:center;gap:12px;margin-top:11px;padding-top:11px;
   border-top:1px solid #eef1ee}
-.ftile .frow>span{display:flex;flex-direction:column;font-size:14px;font-weight:700;
+.ftile .frow>span{display:flex;flex-direction:column;font-size:16.1px;font-weight:700;
   color:#15201a;font-family:ui-monospace,Menlo,monospace}
-.ftile .frow small{font-size:10px;color:#9aa09d;font-weight:600;padding-top:2px;
+.ftile .frow small{font-size:11.5px;color:#9aa09d;font-weight:600;padding-top:2px;
   font-family:ui-monospace,Menlo,monospace}
 .ftile .frow>i{width:1px;height:26px;background:#e6e9e6;flex:none}
 
@@ -258,36 +258,36 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 .scorebadge{display:flex;flex-direction:column;align-items:center;gap:6px;flex:none;
   background:radial-gradient(130% 130% at 85% 15%,#2a9c62,#0f4a2c);
   border-radius:16px;padding:16px 22px;box-shadow:0 8px 22px rgba(15,74,44,.20)}
-.scorebadge .sbig{font-size:34px;font-weight:800;letter-spacing:-1px;color:#fff;line-height:1}
-.scorebadge .sbig small{font-size:15px;color:rgba(255,255,255,.8);font-weight:700}
-.scorebadge .sverdict{font-size:10.5px;font-weight:800;letter-spacing:1px;color:#eafff3;
+.scorebadge .sbig{font-size:39.1px;font-weight:800;letter-spacing:-1px;color:#fff;line-height:1}
+.scorebadge .sbig small{font-size:17.2px;color:rgba(255,255,255,.8);font-weight:700}
+.scorebadge .sverdict{font-size:12.1px;font-weight:800;letter-spacing:1px;color:#eafff3;
   background:rgba(255,255,255,.2);border-radius:20px;padding:3px 12px}
-.scorenar{flex:1;min-width:260px;font-size:13.5px;line-height:1.65;color:#3f4744}
+.scorenar{flex:1;min-width:260px;font-size:15.5px;line-height:1.65;color:#3f4744}
 .scorenar b{color:#15201a;font-weight:700}
 .pillars{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr));
   gap:10px 26px;padding-top:14px;margin-top:6px;border-top:1px solid #eef1ee}
 .prow{display:flex;align-items:center;gap:10px}
-.prow .pl{font-size:12.5px;color:#5f6663;min-width:96px;font-weight:600}
+.prow .pl{font-size:14.4px;color:#5f6663;min-width:96px;font-weight:600}
 .prow .ptrack{flex:1;height:7px;background:#eef1ee;border-radius:6px;overflow:hidden}
 .prow .pfill{height:100%;border-radius:6px}
-.prow b{font-size:13px;font-family:ui-monospace,Menlo,monospace;min-width:22px;text-align:right}
-.pilltag{font-size:12px;font-weight:700;color:#177245;border:1.5px solid #cfe2d7;
+.prow b{font-size:14.9px;font-family:ui-monospace,Menlo,monospace;min-width:22px;text-align:right}
+.pilltag{font-size:13.8px;font-weight:700;color:#177245;border:1.5px solid #cfe2d7;
   border-radius:20px;padding:6px 12px}
 
 /* revenue trend pill bars (reference design) */
 .pill-head{display:flex;align-items:baseline;justify-content:space-between}
-.pill-note{font-size:12.5px;color:#9aa09d}
+.pill-note{font-size:14.4px;color:#9aa09d}
 .pill-row{display:flex;align-items:flex-end;gap:10px;height:176px;
   padding:52px 2px 0;min-width:0}
 .pill-col{flex:1;min-width:0;display:flex;flex-direction:column;
   align-items:center;gap:9px}
-.pill-col span{font-size:13px;color:#8b918e}
+.pill-col span{font-size:14.9px;color:#8b918e}
 .pill-wrap{position:relative;width:100%;display:flex;align-items:flex-end;
   justify-content:center}
 .pill{width:100%;border-radius:40px;transition:filter .2s ease}
 .pill-col:hover .pill{filter:brightness(1.06)}
 .pill-tag{position:absolute;top:-32px;left:50%;transform:translateX(-50%);
-  background:#eef4f0;border-radius:8px;padding:4px 8px;font-size:11.5px;
+  background:#eef4f0;border-radius:8px;padding:4px 8px;font-size:13.2px;
   font-weight:700;color:#0f5b34;white-space:nowrap}
 
 /* stat mini-cards (ratio deep dive) */
@@ -296,61 +296,61 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 
 /* ratio page header */
 .pghead{display:flex;align-items:baseline;gap:14px;padding:2px 4px 0;flex-wrap:wrap}
-.pghead .pt{font-size:26px;font-weight:800;letter-spacing:-.7px;color:#15201a}
-.pghead .ps{font-size:13.5px;color:#8b918e}
+.pghead .pt{font-size:29.9px;font-weight:800;letter-spacing:-.7px;color:#15201a}
+.pghead .ps{font-size:15.5px;color:#8b918e}
 .leftstack{flex:1 1 240px;min-width:0;display:flex;flex-direction:column;gap:14px}
 .rightstack{flex:2 1 380px;min-width:0;display:flex;flex-direction:column;gap:14px}
 .rowwrap{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-start}
 .strip{background:#fff;border-radius:18px;padding:16px 20px;border:1px solid #e6ebe7;box-shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06)}
-.strip .slabel{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+.strip .slabel{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
   font-weight:700;letter-spacing:1.4px;color:#8b918e;padding-bottom:8px}
 .dialcard-hd{text-align:center}
-.dialcard-hd .t{font-size:16px;font-weight:700;color:#15201a}
-.dialcard-hd .s{font-size:12.5px;color:#9aa09d;padding-top:3px}
+.dialcard-hd .t{font-size:18.4px;font-weight:700;color:#15201a}
+.dialcard-hd .s{font-size:14.4px;color:#9aa09d;padding-top:3px}
 
 /* sector lens */
 .why{background:#fff;border-radius:18px;padding:20px 24px;
   border-left:4px solid #7f7de0}
-.why .wl{font-family:ui-monospace,Menlo,monospace;font-size:10.5px;font-weight:700;
+.why .wl{font-family:ui-monospace,Menlo,monospace;font-size:12.1px;font-weight:700;
   letter-spacing:1.4px;color:#6f6dd0;padding-bottom:10px}
-.why p{font-size:14.5px;line-height:1.65;color:#5f6663}
+.why p{font-size:16.7px;line-height:1.65;color:#5f6663}
 .healthrow{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
 .healthrow .htxt{flex:1;min-width:120px}
-.healthrow .htxt .t{font-size:16px;font-weight:700;color:#15201a}
-.healthrow .htxt .s{font-size:12.5px;color:#9aa09d;padding-top:4px}
+.healthrow .htxt .t{font-size:18.4px;font-weight:700;color:#15201a}
+.healthrow .htxt .s{font-size:14.4px;color:#9aa09d;padding-top:4px}
 .legendcol{display:flex;flex-direction:column;gap:9px;flex:1 1 240px;min-width:200px}
 .legrow{display:flex;align-items:center;gap:8px}
 .legrow i{width:11px;height:11px;border-radius:50%;flex:none}
-.legrow span{font-size:12.5px;color:#5f6663}
+.legrow span{font-size:14.4px;color:#5f6663}
 
 /* statements */
 .stmttabs{display:flex;align-items:center;gap:6px;padding-bottom:16px;flex-wrap:wrap}
-.stmttab{cursor:pointer;padding:9px 16px;border-radius:11px;font-size:13px;
+.stmttab{cursor:pointer;padding:9px 16px;border-radius:11px;font-size:14.9px;
   font-weight:700;background:#f4f5f3;color:#5f6663;font-family:inherit;border:none}
 .stmttab.on{background:#177245;color:#fff}
 .pcttoggle{cursor:pointer;display:flex;align-items:center;gap:9px;user-select:none}
 .pctbox{width:17px;height:17px;border-radius:5px;background:#177245;border:2px solid
   #177245;display:flex;align-items:center;justify-content:center;color:#fff;
-  font-size:11px;font-weight:800}
+  font-size:12.6px;font-weight:800}
 .pctbox.off{background:#fff;border-color:#c9cec9;color:transparent}
-.pctlbl{font-size:13px;color:#3f4744}
+.pctlbl{font-size:14.9px;color:#3f4744}
 .stmtfoot{display:flex;align-items:center;gap:12px;padding-top:14px;flex-wrap:wrap}
-.stmtfoot .note{margin-left:auto;font-size:12px;color:#9aa09d}
+.stmtfoot .note{margin-left:auto;font-size:13.8px;color:#9aa09d}
 table.stmt{width:100%;border-collapse:collapse}
-table.stmt th{padding:10px 12px;font-size:11.5px;letter-spacing:.8px;color:#8b918e;
+table.stmt th{padding:10px 12px;font-size:13.2px;letter-spacing:.8px;color:#8b918e;
   font-weight:700;text-align:right;border-bottom:1px solid #eceeec;
   font-family:ui-monospace,Menlo,monospace}
 table.stmt th:first-child{text-align:left;position:sticky;left:0;background:#fafbfa;
-  min-width:200px;font-size:14px;letter-spacing:0;color:#15201a}
+  min-width:200px;font-size:16.1px;letter-spacing:0;color:#15201a}
 table.stmt td{padding:10px 14px;text-align:right;border-bottom:1px solid #f1f3f1;
   white-space:nowrap;cursor:default}
 table.stmt td:first-child{text-align:left;position:sticky;left:0;white-space:nowrap;
-  font-size:15px;font-weight:500;color:#3f4744}
+  font-size:17.2px;font-weight:500;color:#3f4744}
 table.stmt tr.head td{font-weight:700;color:#15201a;background:#f5f9f7}
-.val{font-size:17px;font-weight:600;color:#15201a;letter-spacing:-.2px;
+.val{font-size:19.5px;font-weight:600;color:#15201a;letter-spacing:-.2px;
   font-family:ui-monospace,Menlo,monospace}
 tr.head .val{font-weight:800}
-.pctsub{font-size:13px;padding-top:3px;font-weight:600;
+.pctsub{font-size:14.9px;padding-top:3px;font-weight:600;
   font-family:ui-monospace,Menlo,monospace}
 .tblwrap{overflow:auto;border:1px solid #eceeec;border-radius:12px}
 
@@ -359,10 +359,10 @@ tr.head .val{font-weight:800}
 .peerrow{display:flex;align-items:center;gap:13px}
 .peerav{width:34px;height:34px;border-radius:11px;flex:none}
 .peermain{flex:1;min-width:0}
-.peername{font-size:14.5px;font-weight:600;color:#15201a}
-.peersub{font-size:12px;color:#9aa09d}
+.peername{font-size:16.7px;font-weight:600;color:#15201a}
+.peersub{font-size:13.8px;color:#9aa09d}
 .peersub b{color:#15201a;font-weight:600}
-.peertag{font-size:11.5px;font-weight:700;border-radius:8px;padding:5px 10px;
+.peertag{font-size:13.2px;font-weight:700;border-radius:8px;padding:5px 10px;
   white-space:nowrap;flex:none}
 .ptag.g{color:#177245;background:#eef4f0}
 .ptag.w{color:#8a7a2e;background:#f8f4e3}
@@ -370,21 +370,21 @@ tr.head .val{font-weight:800}
 .addpeer{display:flex;gap:8px;flex-wrap:wrap;padding-top:12px;
   border-top:1px dashed #eceeec;margin-top:12px}
 .addpeer input{border:1px solid #e4e7e5;border-radius:9px;padding:7px 10px;
-  font-family:inherit;font-size:12.5px;width:110px}
+  font-family:inherit;font-size:14.4px;width:110px}
 .addpeer button{background:#f4f5f3;border:1px solid #e4e7e5;border-radius:9px;
-  padding:7px 12px;font-family:inherit;font-weight:700;font-size:12.5px;
+  padding:7px 12px;font-family:inherit;font-weight:700;font-size:14.4px;
   color:#15201a;cursor:pointer}
 
 /* toast + tooltip */
 #toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
-  background:#0f2a1e;color:#fff;font-size:12.5px;padding:9px 16px;
+  background:#0f2a1e;color:#fff;font-size:14.4px;padding:9px 16px;
   border-radius:10px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99}
 #fctip{position:absolute;display:none;pointer-events:none;background:#0f2a1e;
   opacity:.97;border-radius:8px;padding:8px 10px;z-index:60;min-width:96px;
-  font-size:10.5px;line-height:15px;color:#cfe0d7;white-space:nowrap;
+  font-size:12.1px;line-height:15px;color:#cfe0d7;white-space:nowrap;
   box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #fctip b{color:#fff;font-weight:700}
-#fctip .yr{font-size:11px;font-weight:700;margin-bottom:4px}
+#fctip .yr{font-size:12.6px;font-weight:700;margin-bottom:4px}
 #fctip span{display:flex;align-items:center;gap:6px}
 #fctip i{width:7px;height:7px;border-radius:50%;flex:none}
 #fctip .v{margin-left:auto;padding-left:12px;color:#fff;font-weight:700;
@@ -400,13 +400,13 @@ main [style*="background:#fff"][style*="border-radius:20px"]{
 
 /* ===== sector lens redesign (matches sector_lens.html reference) ===== */
 .sl-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:18px}
-.sl-title{font-size:19px;font-weight:800;letter-spacing:-.3px;color:#15201a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.sl-meta{font-size:12.5px;color:#8b918e;padding-top:5px}.sl-meta b{color:#4a5350;font-weight:700}
-.sl-src{text-align:right}.sl-src a{font-size:12.5px;font-weight:700;color:#177245}
-.sl-upd{font-size:11.5px;color:#9aa09d;padding-top:3px}
-.tag-amber{background:#fbf1df;color:#b5761f;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
-.tag-green{background:#eef4f0;color:#177245;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
-.tag-grey{background:#f1f3f1;color:#8b918e;font-size:11px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
+.sl-title{font-size:21.8px;font-weight:800;letter-spacing:-.3px;color:#15201a;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sl-meta{font-size:14.4px;color:#8b918e;padding-top:5px}.sl-meta b{color:#4a5350;font-weight:700}
+.sl-src{text-align:right}.sl-src a{font-size:14.4px;font-weight:700;color:#177245}
+.sl-upd{font-size:13.2px;color:#9aa09d;padding-top:3px}
+.tag-amber{background:#fbf1df;color:#b5761f;font-size:12.6px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
+.tag-green{background:#eef4f0;color:#177245;font-size:12.6px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
+.tag-grey{background:#f1f3f1;color:#8b918e;font-size:12.6px;font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px}
 .slk-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:14px}
 .slk{position:relative;background:#fff;border:1px solid #e6ebe7;border-radius:16px;padding:16px 18px;
   box-shadow:0 1px 2px rgba(21,32,26,.04);transition:transform .18s ease,box-shadow .18s ease}
@@ -414,9 +414,9 @@ main [style*="background:#fff"][style*="border-radius:20px"]{
 .slk-ic{position:absolute;top:14px;right:14px;width:34px;height:34px;border-radius:10px;display:flex;
   align-items:center;justify-content:center}
 .slk-ic svg{width:18px;height:18px;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.slk-l{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#8b918e;padding-right:38px}
-.slk-v{font-size:27px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:8px}
-.slk-s{font-size:11.5px;color:#9aa09d;padding-top:4px}
+.slk-l{font-size:12.6px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:#8b918e;padding-right:38px}
+.slk-v{font-size:31px;font-weight:800;letter-spacing:-1px;color:#15201a;padding-top:8px}
+.slk-s{font-size:13.2px;color:#9aa09d;padding-top:4px}
 /* section header row with icon */
 .sl-secrow{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding-bottom:2px}
 .sl-secrow>.tag-amber,.sl-secrow>.tag-green,.sl-secrow>.tag-grey{margin-left:0}
@@ -424,24 +424,24 @@ main [style*="background:#fff"][style*="border-radius:20px"]{
 .secic{width:34px;height:34px;border-radius:10px;background:#e9efec;border:1px solid #dce5df;flex:none;
   display:flex;align-items:center;justify-content:center}
 .secic svg{width:19px;height:19px;fill:none;stroke:#2f5545;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.sl-para{font-size:14px;line-height:1.66;color:#3f4744;padding:10px 2px 6px}
-.season-lbl{font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#9aa09d;
+.sl-para{font-size:16.1px;line-height:1.66;color:#3f4744;padding:10px 2px 6px}
+.season-lbl{font-size:12.6px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:#9aa09d;
   padding:12px 2px 8px;font-family:ui-monospace,Menlo,monospace}
-.tilt{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;font-size:13.5px;line-height:1.6;color:#26332c;
+.tilt{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;font-size:15.5px;line-height:1.6;color:#26332c;
   background:#f4f8f5;border:1px solid #dcebe1;border-radius:13px;padding:13px 15px;margin-top:14px}
-.tilt-chip{font-size:10px;font-weight:800;letter-spacing:.8px;color:#177245;background:#e6f2ec;
+.tilt-chip{font-size:11.5px;font-weight:800;letter-spacing:.8px;color:#177245;background:#e6f2ec;
   border-radius:20px;padding:3px 10px;font-family:ui-monospace,Menlo,monospace;flex:none}
 /* bullet bars: bar = company, tick = sector median */
-.bb-sec{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#9aa09d;
+.bb-sec{font-size:12.1px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:#9aa09d;
   font-family:ui-monospace,Menlo,monospace;padding:14px 2px 4px}
 .bb{padding:9px 2px 11px;border-top:1px solid #f1f3f1}
 .bb-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:8px}
-.bb-n{font-size:14px;font-weight:700;color:#15201a}
-.bb-delta{font-size:12px;font-weight:700;border-radius:20px;padding:3px 11px;font-family:ui-monospace,Menlo,monospace}
+.bb-n{font-size:16.1px;font-weight:700;color:#15201a}
+.bb-delta{font-size:13.8px;font-weight:700;border-radius:20px;padding:3px 11px;font-family:ui-monospace,Menlo,monospace}
 .bb-track{position:relative;height:14px;background:#eef1ee;border-radius:7px}
 .bb-fill{position:absolute;left:0;top:0;height:100%;background:#33443d;border-radius:7px}
 .bb-tick{position:absolute;top:-3px;height:20px;width:2.5px;background:#7d847f;border-radius:2px;transform:translateX(-50%)}
-.bb-f{display:flex;justify-content:space-between;font-size:11px;color:#9aa09d;padding-top:6px;font-family:ui-monospace,Menlo,monospace}
+.bb-f{display:flex;justify-content:space-between;font-size:12.6px;color:#9aa09d;padding-top:6px;font-family:ui-monospace,Menlo,monospace}
 .bb-f b{color:#15201a}
 /* verdict reading */
 .verdict2{background:#fff;border:1px solid #e6ebe7;border-left:4px solid #d9a441;border-radius:18px;
@@ -449,27 +449,27 @@ main [style*="background:#fff"][style*="border-radius:20px"]{
   transition:transform .18s ease,box-shadow .18s ease}
 .verdict2:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(21,32,26,.05),0 14px 30px rgba(21,32,26,.11)}
 .v2-h{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding-bottom:9px}
-.v2-chip{font-size:10.5px;font-weight:800;letter-spacing:.8px;color:#b5761f;background:#fbf1df;
+.v2-chip{font-size:12.1px;font-weight:800;letter-spacing:.8px;color:#b5761f;background:#fbf1df;
   border-radius:20px;padding:4px 11px;font-family:ui-monospace,Menlo,monospace}
-.v2-title{font-size:18px;font-weight:800;letter-spacing:-.3px;color:#15201a}
-.v2-body{font-size:14.5px;line-height:1.62;color:#3f4744}.v2-body b{color:#15201a}
+.v2-title{font-size:20.7px;font-weight:800;letter-spacing:-.3px;color:#15201a}
+.v2-body{font-size:16.7px;line-height:1.62;color:#3f4744}.v2-body b{color:#15201a}
 /* constituents */
 .con{border:1px solid #e6ebe7;border-radius:16px;padding:16px 18px;margin-top:12px;background:#fbfcfb;
   transition:transform .18s ease,box-shadow .18s ease}
 .con:hover{transform:translateY(-3px);box-shadow:0 2px 4px rgba(21,32,26,.05),0 12px 28px rgba(21,32,26,.10)}
 .con-h{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid #eef0ed}
-.con-rank{font-size:24px;font-weight:800;color:#d3e2da;font-family:ui-monospace,Menlo,monospace;flex:none}
+.con-rank{font-size:27.6px;font-weight:800;color:#d3e2da;font-family:ui-monospace,Menlo,monospace;flex:none}
 .con-id{flex:1;min-width:150px}
-.con-name{font-size:16px;font-weight:800;color:#177245;letter-spacing:-.2px}
-.con-tk{font-size:11.5px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace;padding-top:2px}
+.con-name{font-size:18.4px;font-weight:800;color:#177245;letter-spacing:-.2px}
+.con-tk{font-size:13.2px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace;padding-top:2px}
 .con-mc{text-align:right}
-.con-mc-l{font-size:9.5px;font-weight:700;letter-spacing:1.2px;color:#a4a9a6;font-family:ui-monospace,Menlo,monospace}
-.con-mc-v{font-size:19px;font-weight:800;letter-spacing:-.5px;color:#15201a;padding-top:2px}
+.con-mc-l{font-size:10.9px;font-weight:700;letter-spacing:1.2px;color:#a4a9a6;font-family:ui-monospace,Menlo,monospace}
+.con-mc-v{font-size:21.8px;font-weight:800;letter-spacing:-.5px;color:#15201a;padding-top:2px}
 .con-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:2px 4px;padding-top:14px}
 .mc{padding:8px 10px}
-.mc-l{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9aa09d}
-.mc-v{font-size:16px;font-weight:800;color:#15201a;letter-spacing:-.3px;padding-top:3px;font-family:ui-monospace,Menlo,monospace}
-.uni-note{font-size:12px;color:#9aa09d;line-height:1.5;padding-top:16px}
+.mc-l{font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9aa09d}
+.mc-v{font-size:18.4px;font-weight:800;color:#15201a;letter-spacing:-.3px;padding-top:3px;font-family:ui-monospace,Menlo,monospace}
+.uni-note{font-size:13.8px;color:#9aa09d;line-height:1.5;padding-top:16px}
 """
 
 FC_DEFS = """
@@ -960,9 +960,9 @@ def _kr_fallback(model) -> str:
             else f"{v:.0f} d"
         out.append(f'<div style="display:flex;align-items:center;'
                    f'justify-content:space-between;gap:10px"><div style="min-width:0">'
-                   f'<div style="font-size:14px;font-weight:600;color:{INK}">{label}</div>'
-                   f'<div style="font-size:11.5px;color:{FAINT}">{fam}</div></div>'
-                   f'<span style="font-size:15px;font-weight:700;color:{INK};'
+                   f'<div style="font-size:16.1px;font-weight:600;color:{INK}">{label}</div>'
+                   f'<div style="font-size:13.2px;color:{FAINT}">{fam}</div></div>'
+                   f'<span style="font-size:17.2px;font-weight:700;color:{INK};'
                    f'flex:none;font-family:{MONO}">{txt}</span></div>')
     return (f'<div style="display:flex;flex-direction:column;gap:11px">'
             + "".join(out) + "</div>")
@@ -1151,7 +1151,7 @@ def _gauge_inline_legend() -> str:
     item = lambda c, t: (f'<div style="display:flex;align-items:center;gap:7px">'
                          f'<div style="width:11px;height:11px;border-radius:50%;'
                          f'background:{c}"></div>'
-                         f'<span style="font-size:12.5px;color:#5f6663">{t}</span></div>')
+                         f'<span style="font-size:14.4px;color:#5f6663">{t}</span></div>')
     return item(viz.MID, "Strong") + item(GREEN_DARK, "Stable") + item(risk_bg, "Risk")
 
 
@@ -1280,14 +1280,14 @@ def _fx(v, kind) -> str:
 
 
 def _tile(label: str, value: str, sub: str = "") -> str:
-    sub_html = (f'<div style="font-size:11.5px;color:#9aa09d;padding-top:3px">{sub}</div>'
+    sub_html = (f'<div style="font-size:13.2px;color:#9aa09d;padding-top:3px">{sub}</div>'
                 if sub else "")
     return (
         '<div style="flex:1;min-width:150px;background:#fff;border:1px solid #eef0ed;'
         'border-radius:16px;padding:16px 18px">'
-        f'<div style="font-size:11.5px;color:#8b918e;font-weight:600;'
+        f'<div style="font-size:13.2px;color:#8b918e;font-weight:600;'
         f'letter-spacing:.3px;text-transform:uppercase">{label}</div>'
-        f'<div style="font-size:30px;font-weight:800;letter-spacing:-1px;'
+        f'<div style="font-size:34.5px;font-weight:800;letter-spacing:-1px;'
         f'color:#15201a;padding-top:6px">{value}</div>{sub_html}</div>')
 
 
@@ -1314,7 +1314,7 @@ def _cmp_row(label: str, comp, sect, kind: str) -> str:
             arrow = "\u25b2" if better else "\u25bc"
             diff = (f'<span style="color:{colour};font-weight:700">{arrow} '
                     f'{pp:+.2f} pp</span>')
-    td = ('padding:11px 14px;font-size:13.5px;border-top:1px solid #f1f3f1')
+    td = ('padding:11px 14px;font-size:15.5px;border-top:1px solid #f1f3f1')
     return (
         f'<tr><td style="{td};color:#5c635f;font-weight:600">{label}</td>'
         f'<td style="{td};color:#15201a;font-weight:700;text-align:right;'
@@ -1414,7 +1414,7 @@ def _source_line(snap: dict, meta: dict | None) -> str:
                      if m.get("market_stale") else "")
         sc = m.get("market_stale_count") or 0
         sc_tag = (f'<span style="color:#b8860b"> · {sc} co. stale</span>' if sc else "")
-        lines.append(f'<div style="font-size:12px;color:#177245;font-weight:600">'
+        lines.append(f'<div style="font-size:13.8px;color:#177245;font-weight:600">'
                      f'Market: {_esc(m["market_source"])} · {_esc(str(mkt_date))} {_days_ago(mkt_date)}'
                      f'{stale_tag}{sc_tag}</div>')
     period = m.get("fundamental_period") or m.get("financial_period")
@@ -1422,10 +1422,10 @@ def _source_line(snap: dict, meta: dict | None) -> str:
     fund_bits = f"Fundamentals: {_esc(fund_src)}"
     if period:
         fund_bits += f" · {_esc(str(period))}"
-    lines.append(f'<div style="font-size:12px;color:#8b918e">{fund_bits}</div>')
+    lines.append(f'<div style="font-size:13.8px;color:#8b918e">{fund_bits}</div>')
     inc = snap.get("included_count")
     if inc:
-        lines.append(f'<div style="font-size:11.5px;color:#9aa09d">Bottom-up calculation from {inc} constituents</div>')
+        lines.append(f'<div style="font-size:13.2px;color:#9aa09d">Bottom-up calculation from {inc} constituents</div>')
     if not lines:
         return ""
     return f'<div style="text-align:right">{"".join(lines)}</div>'
@@ -1468,9 +1468,9 @@ def _benchmarks_block(sect: dict, roce_applicable: bool) -> str:
     tiles = "".join(
         '<div style="flex:1;min-width:96px;background:#fff;border:1px solid #eef0ed;'
         'border-radius:14px;padding:12px 14px">'
-        f'<div style="font-size:11px;color:#8b918e;font-weight:600;'
+        f'<div style="font-size:12.6px;color:#8b918e;font-weight:600;'
         f'letter-spacing:.3px">{lab}</div>'
-        f'<div style="font-size:22px;font-weight:800;color:#15201a;'
+        f'<div style="font-size:25.3px;font-weight:800;color:#15201a;'
         f'padding-top:4px;font-family:ui-monospace,Menlo,monospace">{val}</div></div>'
         for lab, val in cells
     )
@@ -1485,11 +1485,11 @@ def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
         return (
             '<div style="display:flex;align-items:center;gap:16px;padding:15px 4px 9px;'
             'border-top:1px solid #f1f3f1">'
-            f'<div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;'
-            f'color:#15201a">{label}</div><div style="font-size:11px;color:#9aa09d;'
+            f'<div style="flex:0 0 118px"><div style="font-size:16.1px;font-weight:700;'
+            f'color:#15201a">{label}</div><div style="font-size:12.6px;color:#9aa09d;'
             f'font-family:ui-monospace,Menlo,monospace">you {_fx(comp, kind)}</div></div>'
-            '<div style="flex:1;font-size:11.5px;color:#9aa09d">not meaningful for this sector</div>'
-            '<div style="flex:0 0 128px;text-align:right;color:#b8bdb9;font-size:14px;'
+            '<div style="flex:1;font-size:13.2px;color:#9aa09d">not meaningful for this sector</div>'
+            '<div style="flex:0 0 128px;text-align:right;color:#b8bdb9;font-size:16.1px;'
             'font-weight:700;font-family:ui-monospace,Menlo,monospace">—</div></div>'
         )
 
@@ -1506,7 +1506,7 @@ def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
             good = comp < sect
             arrow, word = ("▼", "cheaper") if good else ("▲", "pricier")
             pill = (
-                f'<div style="font-size:14px;font-weight:700;'
+                f'<div style="font-size:16.1px;font-weight:700;'
                 f'color:{_TL_GOOD if good else _TL_BAD};'
                 f'font-family:ui-monospace,Menlo,monospace">{arrow} {abs(pct):.1f}% {word}</div>'
             )
@@ -1516,13 +1516,13 @@ def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
             good = pp >= 0
             arrow = "▲" if good else "▼"
             pill = (
-                f'<div style="font-size:14px;font-weight:700;'
+                f'<div style="font-size:16.1px;font-weight:700;'
                 f'color:{_TL_GOOD if good else _TL_BAD};'
                 f'font-family:ui-monospace,Menlo,monospace">{arrow} {pp:+.2f} pp</div>'
             )
             tt = f"Company {_fx(comp, kind)} vs Sector {_fx(sect, kind)} — {pp:+.2f}pp"
     else:
-        pill = ('<div style="font-size:14px;font-weight:700;color:#b8bdb9;'
+        pill = ('<div style="font-size:16.1px;font-weight:700;color:#b8bdb9;'
                 'font-family:ui-monospace,Menlo,monospace">— n/a</div>')
         tt = f"Company {_fx(comp, kind)} · Sector {_fx(sect, kind)}"
 
@@ -1536,26 +1536,26 @@ def _bar_row(label: str, comp, sect, kind: str, applicable: bool = True,
             f'<div style="position:absolute;left:{sw:.1f}%;top:-3px;'
             'height:calc(100% + 6px);width:2.5px;background:#7d847f;border-radius:2px"></div>'
             f'<div style="position:absolute;left:{sw:.1f}%;top:-16px;'
-            'transform:translateX(-50%);font-size:10px;color:#8b918e;font-weight:600;'
+            'transform:translateX(-50%);font-size:11.5px;color:#8b918e;font-weight:600;'
             'white-space:nowrap;font-family:ui-monospace,Menlo,monospace">sector</div>'
         )
     return (
         f'<div data-tt="{_esc(tt)}" style="display:flex;align-items:center;gap:16px;'
         'padding:15px 4px 9px;border-top:1px solid #f1f3f1;cursor:default">'
-        f'<div style="flex:0 0 118px"><div style="font-size:14px;font-weight:700;'
-        f'color:#15201a">{label}</div><div style="font-size:11px;color:#9aa09d;'
+        f'<div style="flex:0 0 118px"><div style="font-size:16.1px;font-weight:700;'
+        f'color:#15201a">{label}</div><div style="font-size:12.6px;color:#9aa09d;'
         f'font-family:ui-monospace,Menlo,monospace">you {_fx(comp, kind)}</div></div>'
         '<div style="flex:1;position:relative;height:14px;background:#eef1ee;border-radius:7px">'
         f'{comp_bar}{sect_tick}</div>'
         '<div style="flex:0 0 128px;text-align:right">'
-        f'{pill}<div style="font-size:11px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">'
+        f'{pill}<div style="font-size:12.6px;color:#9aa09d;font-family:ui-monospace,Menlo,monospace">'
         f'sector {_fx(sect, kind)}</div></div></div>'
     )
 
 
 def _grp(label: str) -> str:
     return (
-        '<div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;'
+        '<div style="font-size:12.1px;font-weight:700;letter-spacing:.6px;'
         'color:#9aa09d;font-family:ui-monospace,Menlo,monospace;'
         f'padding:16px 4px 2px">{label}</div>'
     )
@@ -1570,7 +1570,7 @@ def _seasonality_card(snap: dict | None, sector_key: str | None) -> str:
     tilt_reason = (snap or {}).get("tilt_reason") or "Baseline established from snapshot fundamentals."
 
     nature_badge = (
-        f'<span style="background:#eef2f7;color:#3a5a8a;font-size:11px;'
+        f'<span style="background:#eef2f7;color:#3a5a8a;font-size:12.6px;'
         'font-weight:700;letter-spacing:.3px;border-radius:20px;padding:4px 12px">'
         f'{_esc(prof["nature"])}</span>'
     )
@@ -1584,7 +1584,7 @@ def _seasonality_card(snap: dict | None, sector_key: str | None) -> str:
     }
     t_bg, t_fg = tilt_color_map.get(tilt_state, ("#f1f3f1", "#4f5854"))
     tilt_badge = (
-        f'<span style="background:{t_bg};color:{t_fg};font-size:11px;'
+        f'<span style="background:{t_bg};color:{t_fg};font-size:12.6px;'
         'font-weight:700;letter-spacing:.3px;border-radius:20px;'
         f'padding:4px 12px;margin-left:8px">Current tilt: {_esc(tilt_state)}</span>'
     )
@@ -1594,9 +1594,9 @@ def _seasonality_card(snap: dict | None, sector_key: str | None) -> str:
         'flex-wrap:wrap;padding-bottom:4px"><div class="ct">Sector cycle &amp; seasonality</div>'
         f'{nature_badge}{tilt_badge}</div>'
         '<div class="csub">Structural long-run sector behavior · current monthly tilt recalculated from fundamentals</div>'
-        f'<div style="font-size:14px;line-height:1.65;color:#3f4744;padding-top:4px">'
+        f'<div style="font-size:16.1px;line-height:1.65;color:#3f4744;padding-top:4px">'
         f'{_esc(prof["text"])}</div>'
-        f'<div style="font-size:13.5px;line-height:1.6;color:#26332c;background:#f4f8f5;'
+        f'<div style="font-size:15.5px;line-height:1.6;color:#26332c;background:#f4f8f5;'
         'border:1px solid #dcebe1;border-radius:12px;padding:12px 14px;margin-top:12px">'
         f'<b>Current tilt reading:</b> {_esc(tilt_reason)}</div></div>'
     )
@@ -1619,7 +1619,7 @@ def _mom_card(snap: dict | None) -> str:
             ch_str = f"{c:+}" if c is not None else ""
             bits.append(
                 f'<span style="background:#fff;border:1px solid #eef0ed;border-radius:8px;'
-                f'padding:4px 10px;font-size:12.5px;font-family:ui-monospace,Menlo,monospace">'
+                f'padding:4px 10px;font-size:14.4px;font-family:ui-monospace,Menlo,monospace">'
                 f'<b>{k.upper()}:</b> {fv} → <b>{tv}</b> ({ch_str})</span>'
             )
 
@@ -1627,7 +1627,7 @@ def _mom_card(snap: dict | None) -> str:
     if top_ch.get("changed"):
         bits.append(
             f'<span style="background:#fff;border:1px solid #eef0ed;border-radius:8px;'
-            f'padding:4px 10px;font-size:12.5px;color:#177245;font-weight:600">'
+            f'padding:4px 10px;font-size:14.4px;color:#177245;font-weight:600">'
             f'{top_ch.get("changed")} constituent change(s)</span>'
         )
 
@@ -1648,7 +1648,7 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
         return (
             '<div class="card"><div class="ct">Peer comparison — all index constituents</div>'
             '<div class="csub">Complete constituent universe ranked by market cap</div>'
-            '<div style="padding:14px;color:#8b918e;font-size:13px">No constituent data available in this snapshot.</div></div>'
+            '<div style="padding:14px;color:#8b918e;font-size:14.9px">No constituent data available in this snapshot.</div></div>'
         )
     top10 = peers
 
@@ -1657,7 +1657,7 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
         "ROCE %", "Rev Gr %", "EPS Gr %", "OPM %", "NPM %", "D/E", "Asset Turn", "Int Cov"
     ]
     th_html = "".join(
-        f'<th style="padding:10px 10px;font-size:11px;font-weight:700;letter-spacing:.4px;'
+        f'<th style="padding:10px 10px;font-size:12.6px;font-weight:700;letter-spacing:.4px;'
         f'color:#8b918e;text-align:{"left" if i < 2 else "right"};'
         f'border-bottom:1px solid #eef0ed;white-space:nowrap">{h}</th>'
         for i, h in enumerate(headers)
@@ -1688,7 +1688,7 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
         stale_badge = ""
         if r.get("stale"):
             since = r.get("stale_since")
-            stale_badge = (f'<span style="font-size:9.5px;color:#b8860b;font-weight:700" '
+            stale_badge = (f'<span style="font-size:10.9px;color:#b8860b;font-weight:700" '
                            f'title="Today\'s Screener refresh failed for this company; '
                            f'showing last snapshot{(" from " + _esc(str(since))) if since else ""}"> '
                            f'⚠ stale{(" " + _esc(str(since))) if since else ""}</span>')
@@ -1696,26 +1696,26 @@ def _peer_table(peers: list[dict] | None, is_financial: bool) -> str:
             f'<a href="{_esc(nse_url)}" target="_blank" rel="noopener noreferrer" '
             f'style="color:#177245;font-weight:700;text-decoration:none" '
             f'title="Open official NSE quote for {_esc(sym)}">{_esc(name)} '
-            f'<span style="font-size:10.5px;color:#9aa09d;font-weight:500">({_esc(sym)}) ↗</span></a>{stale_badge}'
+            f'<span style="font-size:12.1px;color:#9aa09d;font-weight:500">({_esc(sym)}) ↗</span></a>{stale_badge}'
         )
 
         cells = [
-            f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;color:#9aa09d">{rank}</td>',
-            f'<td style="padding:10px 10px;font-size:13px">{comp_cell}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{cmp}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;font-weight:700;text-align:right;font-family:ui-monospace,Menlo,monospace">{mcap}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pe}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pb}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roe}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roa}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roce}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{rev_gr}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{eps_gr}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{opm}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{npm}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{de}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{at}</td>',
-            f'<td style="padding:10px 10px;font-size:12.5px;text-align:right;font-family:ui-monospace,Menlo,monospace">{ic}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;font-weight:700;color:#9aa09d">{rank}</td>',
+            f'<td style="padding:10px 10px;font-size:14.9px">{comp_cell}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{cmp}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;font-weight:700;text-align:right;font-family:ui-monospace,Menlo,monospace">{mcap}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pe}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{pb}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roe}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roa}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{roce}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{rev_gr}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{eps_gr}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{opm}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{npm}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{de}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{at}</td>',
+            f'<td style="padding:10px 10px;font-size:14.4px;text-align:right;font-family:ui-monospace,Menlo,monospace">{ic}</td>',
         ]
         rows_html.append(f'<tr style="border-bottom:1px solid #f6f8f6">{"".join(cells)}</tr>')
 
@@ -1767,7 +1767,7 @@ def _sl_sechead(icon: str, title: str, tags: str = "") -> str:
 
 
 def _season_hdr(text: str) -> str:
-    return (f'<div style="font-size:11px;font-weight:700;letter-spacing:.4px;'
+    return (f'<div style="font-size:12.6px;font-weight:700;letter-spacing:.4px;'
             f'color:#8b918e;text-transform:uppercase;padding:2px 0 6px">{_esc(text)}</div>')
 
 
@@ -1783,7 +1783,7 @@ def _season_strip(season: dict) -> str:
             f'<div title="{_esc(c["month"] + ": " + c["state"])}" '
             f'style="flex:1;min-width:0;text-align:center">'
             f'<div style="height:24px;border-radius:6px;background:{c["colour"]}"></div>'
-            f'<div style="font-size:10px;color:#8b918e;font-weight:600;padding-top:3px">'
+            f'<div style="font-size:11.5px;color:#8b918e;font-weight:600;padding-top:3px">'
             f'{_esc(c["month"])}</div></div>')
     legend = "".join(
         f'<span style="display:inline-flex;align-items:center;gap:4px;margin-right:12px">'
@@ -1792,11 +1792,11 @@ def _season_strip(season: dict) -> str:
         for s, col in (("Strong", "#1b7f4f"), ("Neutral", "#c7d3cc"), ("Weak", "#d09a8f")))
     return (
         _season_hdr("Typical business seasonality")
-        + '<div style="font-size:11px;color:#9aa09d;font-style:italic;padding-bottom:6px">'
+        + '<div style="font-size:12.6px;color:#9aa09d;font-style:italic;padding-bottom:6px">'
           'Structural pattern — not a price backtest</div>'
         + f'<div style="display:flex;gap:4px;align-items:flex-end">{"".join(tiles)}</div>'
-        + f'<div style="font-size:11px;color:#9aa09d;padding-top:6px">{legend}</div>'
-        + (f'<div style="font-size:10.5px;color:#9aa09d;font-style:italic;'
+        + f'<div style="font-size:12.6px;color:#9aa09d;padding-top:6px">{legend}</div>'
+        + (f'<div style="font-size:12.1px;color:#9aa09d;font-style:italic;'
            f'padding-top:4px">{_esc(season.get("methodology", ""))}</div>'
            if season.get("flat") else ""))
 
@@ -1809,7 +1809,7 @@ def _quant_seasonality(q: dict | None) -> str:
     if not q:
         return ""
     head = (_season_hdr("Historical market seasonality")
-            + '<div style="font-size:11px;color:#9aa09d;font-style:italic;'
+            + '<div style="font-size:12.6px;color:#9aa09d;font-style:italic;'
               'padding-bottom:6px">Based on FundaCheck\'s actual historical market '
               'observations</div>')
     if not q.get("sufficient"):
@@ -1820,7 +1820,7 @@ def _quant_seasonality(q: dict | None) -> str:
                 f'≥ {q.get("min_years")} years')
         return (head +
             '<div style="background:#f7f9f7;border:1px dashed #d6ddd7;border-radius:12px;'
-            'padding:12px 14px;font-size:12.5px;color:#5f6663">'
+            'padding:12px 14px;font-size:14.4px;color:#5f6663">'
             '<b style="color:#3f4744">Building historical dataset…</b><br>'
             f'{obs} monthly observation{"s" if obs != 1 else ""} '
             f'({days} daily snapshot{"s" if days != 1 else ""}) currently available · '
@@ -1840,18 +1840,18 @@ def _quant_seasonality(q: dict | None) -> str:
         tiles.append(
             f'<div title="{_esc(tip)}" style="flex:1;min-width:0;text-align:center">'
             f'<div style="height:26px;border-radius:6px;background:{colour};display:flex;'
-            f'align-items:center;justify-content:center;font-size:9.5px;font-weight:700;'
+            f'align-items:center;justify-content:center;font-size:10.9px;font-weight:700;'
             f'color:#0f2a1e">{_esc(num)}</div>'
-            f'<div style="font-size:10px;color:#8b918e;font-weight:600;padding-top:3px">'
+            f'<div style="font-size:11.5px;color:#8b918e;font-weight:600;padding-top:3px">'
             f'{_esc(c["month"])}</div>'
-            + (f'<div style="font-size:8.5px;color:#9aa09d">{pf}%+</div>'
+            + (f'<div style="font-size:9.8px;color:#9aa09d">{pf}%+</div>'
                if isinstance(pf, (int, float)) else "")
             + '</div>')
     return (head
             + f'<div style="display:flex;gap:4px;align-items:flex-end">{"".join(tiles)}</div>'
-            + '<div style="font-size:10px;color:#8b918e;padding-top:4px">Cell = average '
+            + '<div style="font-size:11.5px;color:#8b918e;padding-top:4px">Cell = average '
               'monthly change · sub-label = share of positive months</div>'
-            + f'<div style="font-size:10.5px;color:#9aa09d;font-style:italic;'
+            + f'<div style="font-size:12.1px;color:#9aa09d;font-style:italic;'
               f'padding-top:4px">{_esc(q.get("methodology", ""))}</div>')
 
 
@@ -1868,7 +1868,7 @@ def _current_cycle(ctx: dict | None) -> str:
     stale = ctx.get("stale")
     body = "".join(f'<div style="padding:2px 0">{_esc(l)}</div>' for l in lines)
     drv = ("".join(
-        f'<span style="font-size:11px;font-weight:700;color:#5f5326;background:#fbf3dd;'
+        f'<span style="font-size:12.6px;font-weight:700;color:#5f5326;background:#fbf3dd;'
         f'border:1px solid #ecdfbf;border-radius:20px;padding:2px 9px;margin:0 6px 6px 0;'
         f'display:inline-block">{_esc(d)}</span>' for d in drivers))
     src = ctx.get("sources") or []
@@ -1883,17 +1883,17 @@ def _current_cycle(ctx: dict | None) -> str:
     return (
         '<div style="margin-top:14px;border-top:1px solid #eef0ee;padding-top:12px">'
         '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
-        '<span style="font-size:11px;font-weight:700;letter-spacing:.4px;color:#8b918e;'
+        '<span style="font-size:12.6px;font-weight:700;letter-spacing:.4px;color:#8b918e;'
         'text-transform:uppercase">Current cycle</span>'
-        f'<span style="font-size:11.5px;font-weight:700;color:#0f5b34;background:#e2efe8;'
+        f'<span style="font-size:13.2px;font-weight:700;color:#0f5b34;background:#e2efe8;'
         f'border:1px solid #cfe2d7;border-radius:20px;padding:2px 10px">{_esc(label)}</span>'
         '</div>'
-        f'<div style="font-size:13px;line-height:1.6;color:#3f4744;padding-top:8px">{body}</div>'
+        f'<div style="font-size:14.9px;line-height:1.6;color:#3f4744;padding-top:8px">{body}</div>'
         + (f'<div style="padding-top:8px">{drv}</div>' if drv else "")
         + tilt_html
-        + (f'<div style="font-size:11px;color:#9aa09d;padding-top:10px">'
+        + (f'<div style="font-size:12.6px;color:#9aa09d;padding-top:10px">'
            f'Sources: {src_links or "—"}</div>' if src else "")
-        + (f'<div style="font-size:11px;color:#9aa09d;padding-top:3px">'
+        + (f'<div style="font-size:12.6px;color:#9aa09d;padding-top:3px">'
            f'Updated: {_esc(updated)}{stale_note}</div>' if updated else "")
         + '</div>')
 
@@ -2039,7 +2039,7 @@ def _con_card(r: dict, is_financial: bool) -> str:
     if all(val == "—" for _, val in metrics):
         # No market ratios for this constituent in the latest snapshot — show an
         # honest note rather than a grid of empty dashes.
-        grid = ('<div style="font-size:12.5px;color:#9aa09d;padding:14px 2px 2px">'
+        grid = ('<div style="font-size:14.4px;color:#9aa09d;padding:14px 2px 2px">'
                 'Market ratios not in the latest snapshot — tap the name for live data on Screener.</div>')
     else:
         mcells = "".join(
@@ -2138,7 +2138,7 @@ def sector_shell(model, result, snap: dict | None,
     else:
         slk_row = (
             '<div style="background:#fbf7ec;border:1px solid #ecdfbf;border-radius:14px;'
-            'padding:16px 18px;color:#7a6a3c;font-size:13.5px;line-height:1.55">'
+            'padding:16px 18px;color:#7a6a3c;font-size:15.5px;line-height:1.55">'
             '<b style="color:#5f5326">Sector benchmarks not available yet.</b><br>'
             'The monthly sector snapshot has not been generated for this sector yet. '
             'The company figures below are read from your uploaded model; the sector '

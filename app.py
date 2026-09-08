@@ -145,14 +145,14 @@ section[data-testid="stSidebar"]{padding-top:.4rem!important}
 .side-mark{width:40px!important;height:40px!important;border-radius:12px!important;
   display:flex;align-items:center;justify-content:center;
   background:linear-gradient(135deg,#37d67a,#1faa5e)!important;color:#06120c!important;
-  font-weight:800!important;font-size:18px!important}
-.side-brand .name{color:#f2f7f4!important;font-size:18px!important;font-weight:800!important}
-.side-brand .tag{color:#8a948f!important;font-size:9.5px!important;letter-spacing:1.6px!important}
+  font-weight:800!important;font-size:20.7px!important}
+.side-brand .name{color:#f2f7f4!important;font-size:20.7px!important;font-weight:800!important}
+.side-brand .tag{color:#8a948f!important;font-size:10.9px!important;letter-spacing:1.6px!important}
 
 /* collapse control */
 section[data-testid="stSidebar"] [class*="st-key-side-min"] button{
   background:transparent!important;border:none!important;color:#aebab3!important;
-  justify-content:flex-start!important;font-size:13px!important;font-weight:600!important;
+  justify-content:flex-start!important;font-size:14.9px!important;font-weight:600!important;
   padding:.35rem .5rem!important}
 section[data-testid="stSidebar"] [class*="st-key-side-min"] button *{color:#aebab3!important}
 section[data-testid="stSidebar"] [class*="st-key-side-min"] button:hover{
@@ -162,17 +162,17 @@ section[data-testid="stSidebar"] [class*="st-key-side-min"] button:hover{
 section[data-testid="stSidebar"] [class*="st-key-ds-card"]{
   background:rgba(255,255,255,.03)!important;border:1px solid rgba(255,255,255,.09)!important;
   border-radius:16px!important;padding:16px 16px 14px!important;margin-bottom:6px!important}
-.ds-title{color:#eaf3ee;font-size:15px;font-weight:800;padding-bottom:12px}
+.ds-title{color:#eaf3ee;font-size:17.2px;font-weight:800;padding-bottom:12px}
 /* Streamlit's theme forces markdown spans to dark ink, which is invisible on the
    dark rail; pin the filename text light with !important. */
-.ds-file{display:flex;align-items:flex-start;gap:9px;font-size:13px;
+.ds-file{display:flex;align-items:flex-start;gap:9px;font-size:14.9px;
   line-height:1.45;font-weight:600}
 .ds-file,.ds-file span{color:#c8d1cb!important}
-.ds-file .ds-ic{color:#8a948f!important;font-size:15px;flex:none}
+.ds-file .ds-ic{color:#8a948f!important;font-size:17.2px;flex:none}
 .ds-status{display:flex;align-items:center;gap:8px;padding:10px 0 14px}
 .ds-dot{width:8px;height:8px;border-radius:50%;background:#4a5551;flex:none}
 .ds-dot.ok{background:#37d67a;box-shadow:0 0 0 3px rgba(55,214,122,.18)}
-.ds-ready{color:#37d67a;font-size:12.5px;font-weight:700}
+.ds-ready{color:#37d67a;font-size:14.4px;font-weight:700}
 .ds-ready.muted{color:#8a948f}
 
 /* upload dropzone -> a single green "Upload new file" button */
@@ -192,7 +192,7 @@ section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button{
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button>*{
   display:none!important}
 section[data-testid="stSidebar"] [data-testid="stFileUploaderDropzone"] button::after{
-  content:"\\2191  Upload new file";font-size:14px!important;color:#fff!important;
+  content:"\\2191  Upload new file";font-size:16.1px!important;color:#fff!important;
   width:100%!important;text-align:center!important}
 /* drop the little uploaded-file preview strip Streamlit shows under the button */
 section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"]{display:none!important}
@@ -201,7 +201,7 @@ section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"]{display:none
 section[data-testid="stSidebar"] [class*="st-key-src-action"] button{
   width:100%!important;background:transparent!important;
   border:1px solid rgba(255,255,255,.16)!important;border-radius:12px!important;
-  color:#dde4df!important;font-size:13.5px!important;font-weight:600!important;
+  color:#dde4df!important;font-size:15.5px!important;font-weight:600!important;
   padding:.55rem .8rem!important;margin-top:8px!important;justify-content:center!important;
   text-align:center!important}
 section[data-testid="stSidebar"] [class*="st-key-src-action"] button *{
@@ -220,12 +220,12 @@ section[data-testid="stSidebar"] [class*="st-key-src-action"] button:hover{
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button{
   background:transparent!important;border:none!important;
   color:#c3ccc6!important;justify-content:flex-start!important;text-align:left!important;
-  font-size:14px!important;font-weight:600!important;padding:.7rem .85rem!important;
+  font-size:16.1px!important;font-weight:600!important;padding:.7rem .85rem!important;
   border-radius:12px!important;gap:13px!important;
   transition:background .16s ease,transform .16s ease!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button *{color:#c3ccc6!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button [data-testid="stIconMaterial"]{
-  font-size:20px!important;color:#9aa8a1!important}
+  font-size:23px!important;color:#9aa8a1!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button:hover{
   background:rgba(255,255,255,.06)!important;transform:translateX(2px)!important}
 section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"]{
@@ -241,9 +241,9 @@ section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"] [
 .fc-dntoggle{display:flex;align-items:center;gap:10px;width:100%;
   background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10);
   border-radius:12px;padding:.55rem .8rem;color:#dde4df;font-family:inherit;
-  font-size:14px;font-weight:600;cursor:pointer;margin:6px 0 2px}
+  font-size:16.1px;font-weight:600;cursor:pointer;margin:6px 0 2px}
 .fc-dntoggle:hover{background:rgba(255,255,255,.08)}
-.fc-dntoggle .dnic{font-size:16px;width:20px;text-align:center}
+.fc-dntoggle .dnic{font-size:18.4px;width:20px;text-align:center}
 .fc-dntoggle,.fc-dntoggle *{color:#dde4df!important}
 """
 
@@ -689,9 +689,9 @@ def _page_header(title: str, subtitle: str) -> None:
     st.markdown(
         f'<div style="display:flex;align-items:baseline;gap:14px;'
         f'padding:2px 4px 0;flex-wrap:wrap">'
-        f'<span style="font-size:26px;font-weight:800;'
+        f'<span style="font-size:29.9px;font-weight:800;'
         f'letter-spacing:-.7px;color:#15201a">{title}</span>'
-        f'<span style="font-size:13.5px;color:#8b918e">{subtitle}</span>'
+        f'<span style="font-size:15.5px;color:#8b918e">{subtitle}</span>'
         '</div>',
         unsafe_allow_html=True,
     )
@@ -850,20 +850,20 @@ def _sector_market_context(sector_key: str, sector_name: str) -> dict | None:
 INTERP_CSS = """<style>
 *{box-sizing:border-box}
 .interp{font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#15201a}
-.interp .ititle{font-size:18px;font-weight:800;color:#15201a;padding:2px 2px 2px}
-.interp .isub{font-size:12px;color:#8b918e;padding:2px 2px 12px}
-.interp .inone{font-size:12.5px;color:#8b918e;font-style:italic;padding:3px 0}
-.interp .iext{font-size:11.5px;color:#8b918e;font-style:italic;padding:6px 0 0}
-.interp .inote{font-size:13px;color:#8b918e;padding:10px 2px;line-height:1.55}
+.interp .ititle{font-size:20.7px;font-weight:800;color:#15201a;padding:2px 2px 2px}
+.interp .isub{font-size:13.8px;color:#8b918e;padding:2px 2px 12px}
+.interp .inone{font-size:14.4px;color:#8b918e;font-style:italic;padding:3px 0}
+.interp .iext{font-size:13.2px;color:#8b918e;font-style:italic;padding:6px 0 0}
+.interp .inote{font-size:14.9px;color:#8b918e;padding:10px 2px;line-height:1.55}
 /* ===== two-column layout: interpretation grid + AI rail ===== */
 #layout{display:flex;gap:18px;align-items:flex-start}
 #main{flex:1;min-width:0}
 #aside{flex:0 0 306px;max-width:306px;position:sticky;top:8px}
 @media(max-width:900px){#layout{flex-direction:column}#aside{flex:1 1 auto;max-width:100%;width:100%;position:static}}
 .hero2{text-align:left;padding:6px 2px 2px}
-.hero2 h1{font-size:34px;font-weight:800;letter-spacing:-1px;color:#15201a}
-.hero2 p{font-size:14.5px;color:#8b918e;padding-top:7px;max-width:640px}
-.mainlbl{font-size:12px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
+.hero2 h1{font-size:39.1px;font-weight:800;letter-spacing:-1px;color:#15201a}
+.hero2 p{font-size:16.7px;color:#8b918e;padding-top:7px;max-width:640px}
+.mainlbl{font-size:13.8px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;
   color:#9aa09d;padding:14px 2px 10px;font-family:ui-monospace,Menlo,monospace}
 /* ===== feature-card grid (icon top-right · corner deco) ===== */
 .interp .igrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
@@ -881,9 +881,9 @@ INTERP_CSS = """<style>
   align-items:center;justify-content:center;z-index:2}
 .interp .cIcon svg{width:22px;height:22px;fill:none;stroke:var(--hue,#2f5545);stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
-.interp .ih{font-size:16.5px;font-weight:800;letter-spacing:-.3px;color:#15201a;
+.interp .ih{font-size:19px;font-weight:800;letter-spacing:-.3px;color:#15201a;
   padding-right:56px;min-height:40px;display:flex;align-items:flex-start;margin-bottom:2px}
-.interp .ibody{font-size:13px;line-height:1.66;color:#3f4744;padding-top:4px;position:relative;z-index:1}
+.interp .ibody{font-size:14.9px;line-height:1.66;color:#3f4744;padding-top:4px;position:relative;z-index:1}
 .interp .il{padding:6px 0 6px 16px;position:relative}
 .interp .il:before{content:"";position:absolute;left:2px;top:13px;width:5px;height:5px;
   border-radius:50%;background:#37a06a}
@@ -891,9 +891,9 @@ INTERP_CSS = """<style>
 .interp .cDeco{position:absolute;right:0;bottom:0;width:120px;height:90px;
   pointer-events:none;z-index:0}
 .interp .srcs{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:2px}
-.interp .srcl{font-family:ui-monospace,Menlo,monospace;font-size:10px;
+.interp .srcl{font-family:ui-monospace,Menlo,monospace;font-size:11.5px;
   letter-spacing:1.4px;color:#8b918e;font-weight:700}
-.interp .src{font-size:12px;font-weight:600;color:#177245;
+.interp .src{font-size:13.8px;font-weight:600;color:#177245;
   background:#eef4f0;border:1px solid #cfe2d7;border-radius:20px;padding:4px 11px}
 /* ===== right AI rail ===== */
 .airail .aicard{background:#fff;border:1px solid #e6ebe7;border-radius:18px;padding:20px 18px;
@@ -903,23 +903,23 @@ INTERP_CSS = """<style>
   display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px rgba(13,74,44,.28)}
 .airail .aiav svg{width:30px;height:30px;stroke:#fff;stroke-width:1.6;fill:none;
   stroke-linecap:round;stroke-linejoin:round}
-.airail .ainame{font-size:16.5px;font-weight:800;color:#15201a;padding-top:12px}
-.airail .airole{font-size:11.5px;color:#8b918e;padding-top:3px;line-height:1.4}
+.airail .ainame{font-size:19px;font-weight:800;color:#15201a;padding-top:12px}
+.airail .airole{font-size:13.2px;color:#8b918e;padding-top:3px;line-height:1.4}
 .airail .aibar{height:5px;border-radius:4px;background:#eef1ee;margin:14px 6px 6px;overflow:hidden}
 .airail .aibar i{display:block;height:100%;width:66%;border-radius:4px;
   background:linear-gradient(90deg,#37a06a,#177245)}
-.airail .aihint{font-size:9.5px;letter-spacing:1.3px;text-transform:uppercase;color:#a4a9a6;
+.airail .aihint{font-size:10.9px;letter-spacing:1.3px;text-transform:uppercase;color:#a4a9a6;
   font-weight:700;font-family:ui-monospace,Menlo,monospace}
-.airail .sechead{font-size:18px;font-weight:800;color:#177245;letter-spacing:-.3px;padding:20px 4px 1px}
-.airail .sesub{font-size:12px;color:#8b918e;padding:0 4px 6px}
+.airail .sechead{font-size:20.7px;font-weight:800;color:#177245;letter-spacing:-.3px;padding:20px 4px 1px}
+.airail .sesub{font-size:13.8px;color:#8b918e;padding:0 4px 6px}
 .airail .qitem{display:flex;gap:13px;align-items:center;padding:13px 6px;
   border-top:1px solid #eef0ed;border-radius:10px}
-.airail .qn{font-size:27px;font-weight:800;color:#d3e2da;line-height:1;flex:none;width:36px;
+.airail .qn{font-size:31px;font-weight:800;color:#d3e2da;line-height:1;flex:none;width:36px;
   font-family:ui-monospace,Menlo,monospace}
-.airail .qt{font-size:13px;font-weight:600;color:#15201a;line-height:1.42}
+.airail .qt{font-size:14.9px;font-weight:600;color:#15201a;line-height:1.42}
 .airail .ans{margin-top:14px;background:#f6f9f7;border:1px solid #e6ebe7;border-radius:14px;
-  padding:13px 15px;font-size:12.5px;line-height:1.62;color:#3f4744}
-.airail .ans .albl{font-size:10.5px;font-weight:700;letter-spacing:1.2px;color:#9aa09d;
+  padding:13px 15px;font-size:14.4px;line-height:1.62;color:#3f4744}
+.airail .ans .albl{font-size:12.1px;font-weight:700;letter-spacing:1.2px;color:#9aa09d;
   text-transform:uppercase;padding-bottom:6px}
 </style>"""
 
@@ -1113,8 +1113,8 @@ def qa_tab(model, result, config: LLMConfig) -> None:
         st.markdown(
             '<div style="background:linear-gradient(135deg,#0d1d16,#0a1610);'
             'border-radius:16px;padding:16px 18px;color:#eaf3ee">'
-            '<div style="font-size:16px;font-weight:800">Ask the analyst</div>'
-            '<div style="font-size:11.5px;color:#9fb4a8;padding-top:3px;line-height:1.5">'
+            '<div style="font-size:18.4px;font-weight:800">Ask the analyst</div>'
+            '<div style="font-size:13.2px;color:#9fb4a8;padding-top:3px;line-height:1.5">'
             'Groq · Gemini — grounded only in the scored ratios and sector profile of '
             'the loaded model, so it cannot invent outside facts.</div></div>',
             unsafe_allow_html=True,
@@ -1132,8 +1132,8 @@ def qa_tab(model, result, config: LLMConfig) -> None:
             safe = html.escape(answer).replace("\n", "<br>")
             st.markdown(
                 '<div style="background:#fff;border:1px solid #e6ebe7;border-radius:14px;'
-                'padding:14px 16px;margin-top:12px;font-size:13.5px;line-height:1.65;'
-                f'color:#3f4744"><div style="font-size:11px;font-weight:700;letter-spacing:.6px;'
+                'padding:14px 16px;margin-top:12px;font-size:15.5px;line-height:1.65;'
+                f'color:#3f4744"><div style="font-size:12.6px;font-weight:700;letter-spacing:.6px;'
                 f'color:#177245;padding-bottom:6px">ANSWER</div>{safe}</div>',
                 unsafe_allow_html=True,
             )

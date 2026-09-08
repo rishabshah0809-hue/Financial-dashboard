@@ -642,18 +642,18 @@ def _render_js(ctx: dict) -> str:
 _EXP_CSS = """
 .scr .nm{display:flex;align-items:center;justify-content:flex-end;gap:7px}
 .scr .exi{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
-  border-radius:50%;border:1.3px solid #C4CCC6;background:#fff;color:#8B918E;font-size:10px;
+  border-radius:50%;border:1.3px solid #C4CCC6;background:#fff;color:#8B918E;font-size:11.5px;
   font-weight:700;font-style:italic;font-family:Georgia,'Times New Roman',serif;line-height:1;
   cursor:pointer;flex:none;padding:0;transition:border-color .12s ease,color .12s ease,background .12s ease}
 .scr .exi:hover,.scr.open .exi{border-color:var(--brand);color:var(--brand);background:var(--pos-tint)}
 .scr.open{background:#F4F8F5;border-radius:7px}
 .scr-exp{background:#FBFCFB;border:1px solid var(--line);border-radius:12px;
-  padding:12px 14px;margin:2px 0 8px;font-size:12px;line-height:1.6;color:var(--ink-3)}
+  padding:12px 14px;margin:2px 0 8px;font-size:13.8px;line-height:1.6;color:var(--ink-3)}
 .scr-exp .exgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
   gap:9px 16px;padding-bottom:9px;border-bottom:1px solid var(--line-2)}
-.scr-exp .exk{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:1px;
+.scr-exp .exk{font-family:var(--mono);font-size:9.8px;font-weight:700;letter-spacing:1px;
   text-transform:uppercase;color:var(--mute-2)}
-.scr-exp .exv{font-size:12px;font-weight:700;color:var(--ink-2);padding-top:2px}
+.scr-exp .exv{font-size:13.8px;font-weight:700;color:var(--ink-2);padding-top:2px}
 .scr-exp .exwhy{padding-top:9px}
 .scr-exp .exwhy b{color:var(--ink);font-weight:700}
 """
@@ -691,7 +691,7 @@ _EXP_JS = r"""
 
 
 def _unavail(msg: str = "Unavailable — not in this workbook") -> str:
-    return (f'<div style="padding:26px 6px;color:#9AA09D;font-size:12.5px;line-height:1.6">'
+    return (f'<div style="padding:26px 6px;color:#9AA09D;font-size:14.4px;line-height:1.6">'
             f'{escape(msg)} — no score assigned, nothing assumed.</div>')
 
 

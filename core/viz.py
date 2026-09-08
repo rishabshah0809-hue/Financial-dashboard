@@ -53,10 +53,10 @@ text{font-family:'Plus Jakarta Sans',system-ui,sans-serif}
 #wrap{position:relative}
 #fctip{position:absolute;display:none;pointer-events:none;background:#0f2a1e;
   opacity:.97;border-radius:8px;padding:8px 10px;z-index:50;min-width:96px;
-  font-size:10.5px;line-height:15px;color:#cfe0d7;white-space:nowrap;
+  font-size:12.1px;line-height:15px;color:#cfe0d7;white-space:nowrap;
   box-shadow:0 6px 18px rgba(0,0,0,.25)}
 #fctip b{color:#fff;font-weight:700}
-#fctip .yr{font-size:11px;font-weight:700;margin-bottom:4px}
+#fctip .yr{font-size:12.6px;font-weight:700;margin-bottom:4px}
 #fctip span{display:flex;align-items:center;gap:6px}
 #fctip i{width:7px;height:7px;border-radius:50%;flex:none}
 #fctip .v{margin-left:auto;padding-left:12px;color:#fff;font-weight:700;
@@ -589,11 +589,11 @@ def dial(label: str, val: float, mx: float, sub: str,
                + f'<text x="170" y="112" font-size="10" fill="{FAINT}" '
                + f'text-anchor="end" class="mono">{mx:.0f}%</text>')
     html = (f'<div style="flex:1 1 0;min-width:120px;text-align:center">'
-            f'<div style="font-size:13.5px;font-weight:700;color:#3f4744;padding-bottom:4px">'
+            f'<div style="font-size:15.5px;font-weight:700;color:#3f4744;padding-bottom:4px">'
             f'{label}</div>{svg}'
-            f'<div style="font-size:23px;font-weight:800;letter-spacing:-.9px;'
+            f'<div style="font-size:26.4px;font-weight:800;letter-spacing:-.9px;'
             f'color:{INK};padding-top:4px">{val:.2f}%</div>'
-            f'<div style="font-size:11.5px;color:{MUTED}">{sub}</div></div>')
+            f'<div style="font-size:13.2px;color:{MUTED}">{sub}</div></div>')
     return html, 210
 
 
@@ -630,13 +630,13 @@ def donut(segs: list[tuple[str, float, str]], centre_big: str, centre_small: str
             f'stroke-width="{sw}"/>{rings}</svg>')
     centre = (f'<div style="position:absolute;inset:0;display:flex;flex-direction:column;'
               f'align-items:center;justify-content:center">'
-              f'<div style="font-size:19px;font-weight:800;letter-spacing:-.6px;color:{INK}">'
+              f'<div style="font-size:21.8px;font-weight:800;letter-spacing:-.6px;color:{INK}">'
               f'{centre_big}</div>'
-              f'<div style="font-size:10.5px;color:{FAINT}">{centre_small}</div></div>')
+              f'<div style="font-size:12.1px;color:{FAINT}">{centre_small}</div></div>')
     legend = "".join(
         f'<div style="display:flex;align-items:center;justify-content:space-between;'
-        f'gap:10px"><span style="font-size:12.5px;color:{BODY}">{nm}</span>'
-        f'<b style="font-size:13px;color:{INK};font-family:{MONO}">{fmt(v)}</b></div>'
+        f'gap:10px"><span style="font-size:14.4px;color:{BODY}">{nm}</span>'
+        f'<b style="font-size:14.9px;color:{INK};font-family:{MONO}">{fmt(v)}</b></div>'
         for nm, v, _ in segs)
     html = ('<div style="display:flex;align-items:center;gap:20px;padding:14px 0 6px;'
             'flex-wrap:wrap">'
@@ -758,8 +758,8 @@ def turnover_rows(rows: list[tuple[str, float, float]]) -> tuple[str, int]:
         colour = _turnover_colour(latest, median)
         out.append(
             f'<div><div style="display:flex;justify-content:space-between;gap:10px;'
-            f'font-size:14px;color:#3f4744;padding-bottom:7px"><span>{name}</span>'
-            f'<span style="font-size:13px;flex:none;font-family:{MONO}">'
+            f'font-size:16.1px;color:#3f4744;padding-bottom:7px"><span>{name}</span>'
+            f'<span style="font-size:14.9px;flex:none;font-family:{MONO}">'
             f'<b style="color:{INK}">{latest:.2f}x</b>'
             f'<span style="color:{FAINT}">  median {median:.2f}x</span></span></div>'
             f'<div style="position:relative;height:11px;border-radius:11px;background:#f1f3f1">'
