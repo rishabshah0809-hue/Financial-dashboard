@@ -172,6 +172,66 @@ def _band(score: float) -> str:
     return "strong" if score >= 66 else "neutral" if score >= 40 else "weak"
 
 
+_BAND_WORD = {"strong": "Strong", "neutral": "Neutral", "weak": "Weak"}
+_BAND_COL = {"Strong": "#2F9E63", "Neutral": "#D9A441", "Weak": "#B4483C"}
+
+
+def _explain_html(r: dict) -> str:
+    """Plain-language, dynamic explanation of how a ratio earns its 0-100 score.
+
+    Uses the SAME sector thresholds and scoring semantics as core.scoring
+    (weak→40, strong→66, beyond strong→toward 100); it explains the existing
+    score, it does not recompute or invent one.
+    """
+    kind = r.get("kind", "num")
+    raw = r["display"]
+    weak = _fmt_raw(r["weak"], kind)
+    strong = _fmt_raw(r["strong"], kind)
+    lower = bool(r["lower_better"])
+    score = r["score"]
+    band = _BAND_WORD.get(r["band"], "Neutral")
+    col = _BAND_COL[band]
+    v = r["raw"]
+
+    better = "Lower is better" if lower else "Higher is better"
+    if lower:
+        band_desc = f"weak ≥ {weak} · strong ≤ {strong}"
+        if v <= r["strong"]:
+            pos = f"at or beyond the strong end ({strong})"
+        elif v >= r["weak"]:
+            pos = f"at or past the weak end ({weak})"
+        else:
+            pos = "between the weak and strong marks"
+    else:
+        band_desc = f"weak ≤ {weak} · strong ≥ {strong}"
+        if v >= r["strong"]:
+            pos = f"at or beyond the strong end ({strong})"
+        elif v <= r["weak"]:
+            pos = f"at or below the weak end ({weak})"
+        else:
+            pos = "between the weak and strong marks"
+
+    why = (
+        f"On this sector's scale, a value at the weak mark scores <b>40</b> and at "
+        f"the strong mark <b>66</b>; going past the strong mark pushes toward "
+        f"<b>100</b>. Your <b>{escape(raw)}</b> sits {escape(pos)}, so this ratio "
+        f"scores <b>{score}/100</b> — <b style=\"color:{col}\">{band}</b>."
+    )
+    avg_txt = _fmt_raw(r["avg"], kind) if r.get("avg") is not None else None
+    blend = ("The score blends this year (60%) with the 3-year average"
+             + (f" of {avg_txt}" if avg_txt else "") + " (40%) and the recent trend.")
+
+    grid = (
+        '<div class="exgrid">'
+        f'<div><div class="exk">Company</div><div class="exv">{escape(raw)}</div></div>'
+        f'<div><div class="exk">Sector band</div><div class="exv">{escape(band_desc)}</div></div>'
+        f'<div><div class="exk">Direction</div><div class="exv">{better}</div></div>'
+        f'<div><div class="exk">Result</div><div class="exv" style="color:{col}">{band} · {score}/100</div></div>'
+        '</div>'
+    )
+    return f'{grid}<div class="exwhy">{why} {escape(blend)}</div>'
+
+
 # --------------------------------------------------------------------------
 # context builder
 # --------------------------------------------------------------------------
@@ -189,13 +249,17 @@ def build_context(model, result, model_filename: str = "") -> dict:
                               "band": None, "available": False})
             continue
         sc = int(round(max(1.0, min(100.0, float(m.score)))))
+        avg = (float(m.average_3y) if m.average_3y is not None
+               and not pd.isna(m.average_3y) else None)
         scorecard.append({"label": label, "metric": metric, "score": sc,
                           "raw": float(m.latest), "display": _fmt_raw(float(m.latest), kind),
-                          "band": _band(sc), "available": True,
+                          "band": _band(sc), "available": True, "kind": kind, "avg": avg,
                           "weak": float(m.weak_at), "strong": float(m.strong_at),
                           "lower_better": bool(m.lower_is_better)})
     avail = sorted([r for r in scorecard if r["available"]],
                    key=lambda r: -r["score"])
+    for r in avail:                     # per-ratio "how the 0-100 score is built"
+        r["explain"] = _explain_html(r)
     missing = [r for r in scorecard if not r["available"]]
 
     pillars = sorted(
@@ -461,7 +525,9 @@ def _js_arr(vals: list | None, scale: float = 1.0, nd: int = 2) -> str:
 def _data_js(ctx: dict) -> str:
     Y = ctx["years"]
     sc = ctx["scorecard"]
-    sco = [[r["label"], r["score"], r["display"]] for r in sc]
+    # 4th field carries the per-ratio score explanation (ignored by the template's
+    # scorecard builder; consumed by the expander script in this module).
+    sco = [[r["label"], r["score"], r["display"], r.get("explain", "")] for r in sc]
     m = ctx["margins"]
     margins = [[n, c, vals] for n, c, vals in
                [("Gross", "#3D9E6B", m.get("Gross")), ("EBITDA", "#177245", m.get("EBITDA")),
@@ -546,6 +612,56 @@ def _render_js(ctx: dict) -> str:
     if has["liab"]:
         parts.append('legend("lg-liab", LIAB, "sq");              stackedArea("ch-liab", "svLiab", LIAB, cr, crY);')
     return "\n".join(parts)
+
+
+# Score-explanation UI — appended only to the scorecard ("Every ratio, scored
+# against its sector band"). No other section shows these explanations.
+_EXP_CSS = """
+.scr.scx{cursor:pointer;border-radius:7px;transition:background .12s ease}
+.scr.scx:hover{background:#F4F8F5}
+.scr.scx.open{background:#F4F8F5}
+.scr.scx .nm::after{content:"›";display:inline-block;margin-left:6px;color:var(--mute-2);
+  font-weight:700;transition:transform .15s ease}
+.scr.scx.open .nm::after{transform:rotate(90deg)}
+.scr-exp{background:#FBFCFB;border:1px solid var(--line);border-radius:12px;
+  padding:12px 14px;margin:2px 0 8px;font-size:12px;line-height:1.6;color:var(--ink-3)}
+.scr-exp .exgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:9px 16px;padding-bottom:9px;border-bottom:1px solid var(--line-2)}
+.scr-exp .exk{font-family:var(--mono);font-size:8.5px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;color:var(--mute-2)}
+.scr-exp .exv{font-size:12px;font-weight:700;color:var(--ink-2);padding-top:2px}
+.scr-exp .exwhy{padding-top:9px}
+.scr-exp .exwhy b{color:var(--ink);font-weight:700}
+"""
+
+_EXP_JS = r"""
+(function(){
+  if (typeof SCORECARD === 'undefined') return;
+  var host = document.getElementById('scorecard'); if (!host) return;
+  var EX = SCORECARD.map(function(r){ return r[3] || ""; });
+  var k = 0;
+  host.querySelectorAll('.scr').forEach(function(row){
+    var html = EX[k++]; if (!html) return;
+    row.classList.add('scx');
+    row.setAttribute('role', 'button');
+    row.setAttribute('tabindex', '0');
+    row.setAttribute('aria-expanded', 'false');
+    var det = document.createElement('div');
+    det.className = 'scr-exp'; det.hidden = true; det.innerHTML = html;
+    row.parentNode.insertBefore(det, row.nextSibling);
+    function toggle(){
+      var open = det.hidden;           // currently hidden -> opening
+      det.hidden = !open;
+      row.classList.toggle('open', open);
+      row.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    row.addEventListener('click', toggle);
+    row.addEventListener('keydown', function(e){
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
+})();
+"""
 
 
 def _unavail(msg: str = "Unavailable — not in this workbook") -> str:
@@ -651,7 +767,7 @@ def render(model, result, model_filename: str = "") -> tuple[str, int]:
       <div id="scorecard"></div>
       <div class="sc-foot">
         <b>How to read it</b>
-        <span>— the bar is the 0–100 score; the figure on the right is the raw ratio. Band tints mark where this sector's weak and strong thresholds sit.</span>
+        <span>— the bar is the 0–100 score; the figure on the right is the raw ratio. Band tints mark where this sector's weak and strong thresholds sit. <b>Click any ratio</b> to see how its score is built.</span>
       </div>
     </div>
   </section>
@@ -704,9 +820,10 @@ def render(model, result, model_filename: str = "") -> tuple[str, int]:
             '<link rel="preconnect" href="https://fonts.googleapis.com">'
             '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
             '<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
-            f"<style>{css}</style></head><body><div id=\"shell\">{body}</div>"
+            f"<style>{css}{_EXP_CSS}</style></head><body><div id=\"shell\">{body}</div>"
             '<div id="tip"></div>'
             f"<script>\n{data_js}\n{mid}\n{render_js}\n</script>"
+            f"<script>{_EXP_JS}</script>"
             f"<script>{fit_js}</script>"
             "</body></html>")
     n_cards = 8
