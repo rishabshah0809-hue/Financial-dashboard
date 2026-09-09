@@ -87,6 +87,124 @@ _SECTOR_QUERY: dict[str, str] = {
 }
 _MACRO_QUERY = "India stock market Nifty Sensex RBI rupee crude FII flows US Fed yields"
 
+# Per-sector INTERNATIONAL query — used to fill the Global column with genuine
+# offshore drivers (China/US/Europe demand, global commodity prices, tariffs),
+# not Indian index moves. Falls back to a generic global-macro query.
+_GLOBAL_QUERY: dict[str, str] = {
+    "metal": "China steel demand US tariffs LME copper aluminium global mining prices",
+    "commodities": "China demand US tariffs LME global commodity metals oil prices",
+    "oil_gas": "OPEC crude oil prices Brent global supply US shale China demand",
+    "chemicals": "China chemicals feedstock global prices US Europe demand",
+    "cement": "global cement fuel petcoke coal prices China demand",
+    "it": "US technology spending global IT outsourcing AI deals recession",
+    "pharma": "USFDA US generic drug pricing global pharma exports",
+    "auto": "global auto demand semiconductor supply China EV commodity costs",
+    "fmcg": "global palm oil crude commodity prices consumer demand",
+    "power": "global energy prices coal LNG renewables demand",
+    "capital_goods": "global capex machinery orders US Europe China demand",
+    "bank": "US Fed rate decision global banking credit conditions",
+    "realty": "global interest rates property demand construction costs",
+}
+_GLOBAL_MACRO_QUERY = ("global markets US Fed rate decision China economy Europe "
+                       "commodity prices crude oil tariffs")
+
+# --- geography classification -------------------------------------------------
+# Tokens that mark a headline as India-framed (a domestic market/company/policy
+# event) vs a genuine offshore/global driver. A headline is `mixed` when both
+# fire, `unknown` when neither does — and unknown is NEVER treated as global.
+_INDIA_TOKENS = (
+    "sensex", "nifty", "bse", "nse", "dalal street", "d-street", "rupee", "rbi",
+    "sebi", "irdai", "indian stock", "india stock", "indian market", "mumbai",
+    "adani", "reliance", "tata ", "fpi ", "fii", "dii", "lok sabha", "gst",
+    "union budget", "indian", "domestic", "india's")
+_GLOBAL_TOKENS = (
+    "china", "chinese", "united states", "america", "american", " us ", "us fed",
+    "fed ", "federal reserve", "europe", "european", "ecb", "eurozone", "germany",
+    "japan", "opec", "lme", "comex", "brent", "wti", "tariff", "trade war", "global",
+    "worldwide", "imf", "treasury yield", "dollar index", "washington", "beijing",
+    "geopolitic")
+
+
+def _india_company_re():
+    """A single alternation of distinctive known-Indian-company aliases (reusing
+    the authoritative map in core.sectors), so 'JSW Steel Q1 earnings' reads as an
+    India event even without an explicit 'India' token. Short tickers are excluded
+    to avoid matching fragments; matched at word boundaries."""
+    global _INDIA_CO_RE
+    try:
+        return _INDIA_CO_RE
+    except NameError:
+        try:
+            from .sectors import KNOWN_COMPANIES
+            aliases = sorted((a for a in KNOWN_COMPANIES if " " in a or len(a) >= 5),
+                             key=len, reverse=True)
+            _INDIA_CO_RE = (re.compile(r"\b(?:" + "|".join(re.escape(a) for a in aliases)
+                                       + r")\b") if aliases else None)
+        except Exception:                                # noqa: BLE001
+            _INDIA_CO_RE = None
+        return _INDIA_CO_RE
+
+
+def classify_geography(title: str, source: str | None = None) -> str:
+    """Classify a headline's event geography from its CONTENT (not its publisher):
+    'india' | 'global' | 'mixed' | 'unknown'. A Reuters byline or a mention of
+    China does not by itself make an item global — both an India frame and a
+    global driver present → 'mixed'; neither → 'unknown' (never auto-global)."""
+    t = " " + re.sub(r"[^a-z0-9 ]", " ", (title or "").lower()) + " "
+    india = any(tok in t for tok in _INDIA_TOKENS)
+    if not india:
+        co_re = _india_company_re()
+        india = bool(co_re and co_re.search(t))          # a known Indian listed name
+    glob = any(tok in t for tok in _GLOBAL_TOKENS)
+    if india and glob:
+        return "mixed"
+    if india:
+        return "india"
+    if glob:
+        return "global"
+    return "unknown"
+
+
+# --- sector relevance ---------------------------------------------------------
+# A global item is only shown when it materially bears on THIS sector. Keyed by
+# core.sector_universe sector key; a key with no list means "do not over-filter".
+_SECTOR_KEYWORDS: dict[str, tuple[str, ...]] = {
+    "metal": ("steel", "aluminium", "aluminum", "copper", "zinc", "iron ore",
+              "metal", "mining", "lme", "alloy", "ferrous", "ore"),
+    "commodities": ("steel", "copper", "aluminium", "metal", "crude", "oil",
+                    "commodity", "mining", "lme", "coal"),
+    "oil_gas": ("crude", "oil", "gas", "opec", "brent", "wti", "refining",
+                "refinery", "lng", "petroleum", "diesel", "fuel", "grm"),
+    "chemicals": ("chemical", "feedstock", "petrochemical", "specialty", "agrochem"),
+    "cement": ("cement", "clinker", "petcoke", "construction", "infrastructure"),
+    "it": ("software", "it services", "tech", "technology", "ai ", "cloud",
+           "semiconductor", "chip", "outsourcing", "deal", "digital"),
+    "pharma": ("pharma", "drug", "generic", "usfda", "fda", "api ", "healthcare",
+               "biotech", "medicine"),
+    "auto": ("auto", "vehicle", "car", "ev ", "two-wheeler", "semiconductor",
+             "steel", "commodity"),
+    "fmcg": ("fmcg", "consumer", "staples", "palm oil", "rural", "volume",
+             "inflation", "commodity"),
+    "power": ("power", "electricity", "coal", "lng", "renewable", "solar", "grid",
+              "energy"),
+    "capital_goods": ("capex", "machinery", "orders", "engineering", "industrial",
+                      "capital goods"),
+    "bank": ("bank", "credit", "deposit", "nim", "loan", "lending", "rate", "npa",
+             "liquidity"),
+    "realty": ("real estate", "property", "housing", "realty", "home loan",
+               "mortgage", "rate"),
+}
+
+
+def sector_relevant(title: str, sector_key: str) -> bool:
+    """Does this headline materially bear on the selected sector? Unknown sectors
+    (no keyword list) are not over-filtered."""
+    kws = _SECTOR_KEYWORDS.get(sector_key)
+    if not kws:
+        return True
+    t = (title or "").lower()
+    return any(k in t for k in kws)
+
 
 # ---------------------------------------------------------------------------
 # fetch — Google News RSS, compact
@@ -255,32 +373,62 @@ def _synthesize(config: LLMConfig | None, sector_name: str, structural: str,
 
 
 def _deterministic(sector_name: str, structural: str,
-                   global_heads: list[dict], india_heads: list[dict]) -> dict:
-    """No LLM: a factual read built only from real headlines + structural text.
-    Names no events that were not retrieved; makes no directional overclaim."""
-    first = structural.split(". ")[0].strip()
+                   global_heads: list[dict], india_heads: list[dict],
+                   fundamentals: dict | None = None) -> dict:
+    """No LLM: a factual read built ONLY from real headlines + the sector's own
+    structural profile + the passed-in snapshot fundamentals. Never invents an
+    event and never exposes which model/API was unavailable (rule §1/§6/§7).
+
+    - Level B (this function, when there is any headline or fundamental context):
+      a concise deterministic synthesis.
+    - Level C (no headlines AND no usable fundamentals): the neutral
+      no-current-signal message.
+    """
+    first = (structural.split(". ")[0].strip() or f"the {sector_name} cycle")
+    lower_first = first[:1].lower() + first[1:] if first else ""
     g_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
                 "date": h.get("date"),
-                "explain": (f"A recent global development for the {sector_name} complex. "
-                            f"It matters because {first[:1].lower() + first[1:]}, so moves "
-                            "in the global market feed through to this sector before "
-                            "volumes react. (Live AI commentary was unavailable, so this "
-                            "is the structural read against the real headline.)")}
+                "explain": (f"An international development bearing on the {sector_name} "
+                            f"complex. It matters because {lower_first}, so moves in the "
+                            "global market feed through to the sector before domestic "
+                            "volumes react.")}
                for h in global_heads[:_WANT_EACH]]
     i_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
                 "date": h.get("date"),
-                "explain": (f"The read-through to Indian {sector_name} producers. Domestic "
-                            "demand, policy and the rupee shape how this reaches reported "
-                            "earnings. (Live AI commentary was unavailable, so this is the "
-                            "structural read against the real headline.)")}
+                "explain": (f"The read-through to Indian {sector_name} producers: "
+                            "domestic demand, policy and the rupee shape how this reaches "
+                            "reported earnings.")}
                for h in india_heads[:_WANT_EACH]]
+
+    f = fundamentals or {}
+    eg = f.get("earnings_growth")
+    tilt_state = (f.get("current_tilt") or "").strip()
+    has_headlines = bool(global_heads or india_heads)
+    has_fund = isinstance(eg, (int, float)) or bool(tilt_state)
+
+    if not has_headlines and not has_fund:
+        # Level C — genuinely nothing usable.
+        tilt = ("No current macro signal is available from the retrieved sources. "
+                "The structural sector view is shown below.")
+        return {"label": "Mixed / Transitional", "global_items": [], "india_items": [],
+                "lines": [first], "drivers": [], "tilt": tilt, "from_llm": False}
+
+    # Level B — deterministic synthesis from real data only.
+    bits = []
+    if isinstance(eg, (int, float)):
+        trend = ("contracting" if eg < -0.05 else "expanding" if eg > 0.05 else "roughly flat")
+        bits.append(f"Sector earnings growth is {trend} at {eg:+.1f}% year on year")
+    if tilt_state:
+        bits.append(f"the fundamental read is {tilt_state.lower()}")
+    lead = ("; ".join(bits).capitalize() + "." if bits else
+            f"{sector_name} tracks its structural cycle.")
+    tail = ("The headlines below are the latest retrieved market context for the sector."
+            if has_headlines else
+            "No fresh sector headlines were retrieved; the structural view is shown below.")
     return {"label": "Mixed / Transitional",
             "global_items": g_items, "india_items": i_items,
             "lines": [first], "drivers": [],
-            "tilt": "Live macro synthesis is unavailable, so this is the sector's "
-                    "structural standing rather than a current directional call. "
-                    "The headlines below are the latest retrieved context.",
-            "from_llm": False}
+            "tilt": f"{lead} {tail}", "from_llm": False}
 
 
 # ---------------------------------------------------------------------------
@@ -311,23 +459,52 @@ def _latest_for(cache: dict, sector_key: str) -> dict | None:
 # ---------------------------------------------------------------------------
 # public entry point
 # ---------------------------------------------------------------------------
+def _route(pool: list[dict], sector_key: str) -> tuple[list[dict], list[dict]]:
+    """Split a fetched pool into (global_heads, india_heads) by real geography +
+    sector relevance. Global = genuinely offshore drivers that bear on the
+    sector; India = domestic (india/mixed/relevant-unknown). Sensex/Nifty items
+    are India-framed and therefore can never land in the Global column."""
+    seen: set = set()
+    global_pool, india_pool = [], []
+    for it in _fresh(pool):
+        title = it.get("title", "")
+        key = title.lower()[:80]
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        geo = classify_geography(title, it.get("source"))
+        relevant = sector_relevant(title, sector_key)
+        if geo == "global" and relevant:
+            global_pool.append(it)
+        elif geo in ("india", "mixed") or (geo == "unknown" and relevant):
+            india_pool.append(it)
+        # global-but-irrelevant, or unknown-and-irrelevant: dropped (rule §4)
+    rank = lambda lst: sorted(lst, key=lambda i: (_trusted(i), i.get("_ts", 0)),  # noqa: E731
+                              reverse=True)[:_WANT_EACH]
+    compact = lambda lst: [{k: it.get(k) for k in ("title", "source", "url", "date")}  # noqa: E731
+                           for it in lst]
+    return compact(rank(global_pool)), compact(rank(india_pool))
+
+
 def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = None,
-                *, force: bool = False) -> dict:
+                *, fundamentals: dict | None = None, force: bool = False) -> dict:
     """Current-cycle context for one sector. Cached per sector per day; fails
-    soft to the latest cached entry (dated), then to a deterministic read."""
+    soft to the latest cached entry (dated), then to a deterministic read built
+    only from real headlines + the passed-in sector fundamentals."""
     cache = _load_cache()
     today = datetime.now(timezone.utc).date().isoformat()
     key = f"{sector_key}:{today}"
     if not force and key in cache:
         return cache[key]
 
-    seen: set = set()
-    macro = _fetch_rss(_MACRO_QUERY, limit=_WANT_EACH)
-    sector_q = _SECTOR_QUERY.get(sector_key, f"India {sector_name} sector")
-    sector_items = _fetch_rss(sector_q, limit=_WANT_EACH)
-    # Global column = macro/global complex; India column = sector read-through.
-    global_heads = _pick(macro, _WANT_EACH, seen)
-    india_heads = _pick(sector_items, _WANT_EACH, seen)
+    # Fetch international + domestic pools separately, then classify every item by
+    # its actual event geography (a query is only a seed, not the label).
+    global_q = _GLOBAL_QUERY.get(sector_key, _GLOBAL_MACRO_QUERY)
+    india_q = _SECTOR_QUERY.get(sector_key, f"India {sector_name} sector")
+    pool = (_fetch_rss(global_q, limit=_WANT_EACH)
+            + _fetch_rss(india_q, limit=_WANT_EACH)
+            + _fetch_rss(_MACRO_QUERY, limit=_WANT_EACH))
+    global_heads, india_heads = _route(pool, sector_key)
     headlines = global_heads + india_heads          # for the Sources strip
 
     structural = TILT.profile(sector_key).get("text", "")
@@ -342,7 +519,8 @@ def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = No
             prev["stale"] = True
             return prev
     if read is None:
-        read = _deterministic(sector_name, structural, global_heads, india_heads)
+        read = _deterministic(sector_name, structural, global_heads, india_heads,
+                              fundamentals)
 
     entry = {
         "sector_key": sector_key,

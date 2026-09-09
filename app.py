@@ -831,20 +831,29 @@ def sector_lens_tab(model, result) -> None:
 
     meta = SNAP.snapshot_meta(fundamentals) if fundamentals else {}
     meta.update(src_meta)
-    context = _sector_market_context(chosen, labels.get(chosen, chosen))
+    context = _sector_market_context(
+        chosen, labels.get(chosen, chosen),
+        (sector_snap or {}).get("earnings_growth"),
+        (sector_snap or {}).get("current_tilt"))
     html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen,
                                    meta=meta, context=context)
     _render_shell(html, height)
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
-def _sector_market_context(sector_key: str, sector_name: str) -> dict | None:
+def _sector_market_context(sector_key: str, sector_name: str,
+                           earnings_growth: float | None = None,
+                           current_tilt: str | None = None) -> dict | None:
     """Current-cycle context for the selected sector. core.market_context caches
     to disk per sector per day; this st.cache_data wrapper additionally avoids
-    re-entering it on every Streamlit rerun within the session. Fails soft to
-    None so the Sector Lens still renders if news/LLM are unavailable."""
+    re-entering it on every Streamlit rerun within the session. The sector
+    fundamentals are threaded through so the deterministic fallback (when the LLM
+    is unavailable) is factual. Fails soft to None so the Sector Lens still
+    renders if news/LLM are unavailable."""
     try:
-        return MC.get_context(sector_key, sector_name, config=analyst_config())
+        return MC.get_context(sector_key, sector_name, config=analyst_config(),
+                              fundamentals={"earnings_growth": earnings_growth,
+                                            "current_tilt": current_tilt})
     except Exception:                                   # noqa: BLE001 — never break the page
         LOGGER.warning("market context unavailable for %s", sector_key, exc_info=True)
         return None

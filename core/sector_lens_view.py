@@ -50,6 +50,61 @@ def _pct(v):   # "16.73%"
 
 
 # --------------------------------------------------------------------------
+# valuation / earnings headline — colour is driven by the comparison STATE,
+# never by parsing the words. valuation below sector = cheaper = positive;
+# earnings above sector = positive. Each clause is coloured independently, so
+# "Priced below the sector. Earning above it." shows two green clauses.
+# --------------------------------------------------------------------------
+def _val_clause(word: str, state: str) -> str:
+    cls = {"pos": "vpos", "neg": "vneg"}.get(state, "vneu")
+    return f'<span class="{cls}">{escape(word)}</span>'
+
+
+def _valuation_head(priced: str | None, earning: str | None,
+                    sector_name: str) -> str:
+    """priced ∈ {below, above, inline, None}; earning ∈ {above, below, inline, None}."""
+    def _priced_frag(p):
+        state = "pos" if p == "below" else "neg" if p == "above" else "neu"
+        if p == "inline":
+            return f'Priced {_val_clause("in line", state)} with the sector.'
+        return f'Priced {_val_clause(p, state)} the sector.'
+
+    def _earn_frag(e):
+        state = "pos" if e == "above" else "neg" if e == "below" else "neu"
+        word = "in line" if e == "inline" else e
+        return f'Earning {_val_clause(word, state)} it.'
+
+    if priced and earning:
+        return f'{_priced_frag(priced)} {_earn_frag(earning)}'
+    if priced:
+        return _priced_frag(priced)
+    return f'{escape(sector_name)} — company ratios unavailable.'
+
+
+def _cycle_list(items: list[dict]) -> str:
+    """Render one column of cycle headlines. Source name + date are PLAIN TEXT;
+    the clickable links live ONLY in the Sources strip (the url stays in the data
+    for that strip — it is never rendered as an <a> here)."""
+    out = []
+    for it in items or []:
+        title = escape(str(it.get("title") or "").strip())
+        expl = escape(str(it.get("explain") or "").strip())
+        src = escape(str(it.get("source") or "").strip())
+        dt = escape(str(it.get("date") or "").strip())
+        if not title and not expl:
+            continue
+        body = f'<b>{title}</b>' if title else ""
+        if expl:
+            body += (" &mdash; " if title else "") + expl
+        meta = ""
+        if src:
+            lab = f'{src}{(" &middot; " + dt) if dt else ""}'
+            meta = f'<span class="tsrc">{lab}</span>'
+        out.append(f'<li>{body}{meta}</li>')
+    return "".join(out)
+
+
+# --------------------------------------------------------------------------
 # the "gap, measure by measure" deviation bars (server-side; centre = sector)
 # --------------------------------------------------------------------------
 def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
@@ -213,10 +268,13 @@ _EXTRA_CSS = """
 .slg i{width:11px;height:11px;border-radius:3px;display:inline-block}
 /* map svgs behind the cycle columns */
 .tmap svg{display:block;width:100%;height:auto}
-/* per-headline source link inside the cycle lists */
-.tlist li .tsrc{display:block;margin-top:5px;font-size:11.5px;font-weight:700;
-  color:var(--brand,#177245);text-decoration:none}
-.tlist li .tsrc:hover{text-decoration:underline}
+/* per-headline source + date, PLAIN TEXT (no link — links are in Sources) */
+.tlist li .tsrc{display:block;margin-top:5px;font-size:11.5px;font-weight:600;
+  color:var(--ink-3,#8b918e)}
+/* valuation headline: colour each clause by its comparison state */
+.v-head .vpos{font-style:normal;color:var(--pos-deep,#0F5B34)}
+.v-head .vneg{font-style:normal;color:var(--neg,#B4483C)}
+.v-head .vneu{font-style:normal;color:inherit}
 """
 
 
@@ -277,18 +335,26 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     rets_av = [(n, _num(y), _num(s)) for n, y, s in rets if _num(y) is not None and _num(s) is not None]
     below = sum(1 for _, y, s in rets_av if y < s)
 
-    priced = ("above" if (pe_gap is not None and pe_gap >= 0) else
-              "below" if pe_gap is not None else None)
-    earning = ("below" if (rets_av and below > len(rets_av) / 2) else
-               "above" if rets_av else None)
-    if priced and earning:
-        head = (f'Priced <em>{priced}</em> the sector. Earning <em>{earning}</em> it.'
-                if not (priced == "below" and earning == "above")
-                else 'Priced <em>below</em> the sector. Earning <em>above</em> it.')
-    elif priced:
-        head = f'Priced <em>{priced}</em> the sector.'
+    # Valuation vs sector: below (cheaper) is positive, above is negative; a
+    # near-zero gap (±2%) is neutral. Earnings vs sector: driven by how many
+    # return measures sit below the aggregate (a clean tie is neutral).
+    if pe_gap is None:
+        priced = None
+    elif pe_gap > 2.0:
+        priced = "above"
+    elif pe_gap < -2.0:
+        priced = "below"
     else:
-        head = f'{escape(sector_name)} — company ratios unavailable.'
+        priced = "inline"
+    if not rets_av:
+        earning = None
+    elif below > len(rets_av) / 2:
+        earning = "below"
+    elif below < len(rets_av) / 2:
+        earning = "above"
+    else:
+        earning = "inline"
+    head = _valuation_head(priced, earning, sector_name)
 
     body_bits = []
     if pe_gap is not None:
@@ -441,31 +507,9 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     india_items = list(ctx.get("india_items") or [])
     have_news = bool(glob_items or india_items)
 
-    def _cyc_li(items):
-        out = []
-        for it in items:
-            title = escape(str(it.get("title") or "").strip())
-            expl = escape(str(it.get("explain") or "").strip())
-            src = escape(str(it.get("source") or "").strip())
-            url = str(it.get("url") or "").strip()
-            dt = escape(str(it.get("date") or "").strip())
-            if not title and not expl:
-                continue
-            body = f'<b>{title}</b>' if title else ""
-            if expl:
-                body += (" &mdash; " if title else "") + expl
-            meta = ""
-            if src:
-                lab = f'{src}{(" &middot; " + dt) if dt else ""}'
-                meta = (f'<a class="tsrc" href="{escape(url)}" target="_blank" '
-                        f'rel="noopener noreferrer">{lab} &#8599;</a>' if url
-                        else f'<span class="tsrc">{lab}</span>')
-            out.append(f'<li>{body}{meta}</li>')
-        return "".join(out)
-
     if have_news:
-        global_html = _cyc_li(glob_items) or f'<li>{escape(prof.get("text",""))}</li>'
-        india_html = _cyc_li(india_items) or (
+        global_html = _cycle_list(glob_items) or f'<li>{escape(prof.get("text",""))}</li>'
+        india_html = _cycle_list(india_items) or (
             '<li>Indian producers in this sector track the same structural cycle; '
             'domestic demand, policy and the rupee shape the pass-through.</li>')
     else:
