@@ -1038,6 +1038,24 @@ def _topbar(current: str) -> str:
             f"</button></div></div>")
 
 
+_REPORT_CACHE: dict[str, str] = {}
+
+
+def _report_b64(model, result) -> str:
+    """Base64 of the exported PDF, memoised per (model, verdict) so pure UI
+    reruns do not rebuild the multi-page document. Keyed on a light fingerprint
+    of the loaded model and its score, which is exactly what changes the PDF."""
+    from .report import build_pdf
+    fp = "|".join([model.company, f"{result.total_score:.1f}", result.verdict,
+                   result.sector.name, str(len(model.years))])
+    cached = _REPORT_CACHE.get(fp)
+    if cached is None:
+        cached = base64.b64encode(build_pdf(model, result)).decode()
+        _REPORT_CACHE.clear()                 # only the current model is kept
+        _REPORT_CACHE[fp] = cached
+    return cached
+
+
 def _hero(model, result) -> str:
     price = model.meta.get("current_price")
     mcap = model.meta.get("market_cap")
@@ -1070,8 +1088,7 @@ def _hero(model, result) -> str:
     # no sandbox, so the download goes straight to the browser.
     export = ""
     try:
-        from .report import build_pdf
-        pdf64 = base64.b64encode(build_pdf(model, result)).decode()
+        pdf64 = _report_b64(model, result)
         export = (f'<a class="exportbtn" download="{_esc(model.company)}'
                   f'_fundacheck_report.pdf" '
                   f'href="data:application/pdf;base64,{pdf64}">Export Report</a>')
