@@ -432,21 +432,35 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
         for l, (v, u, neg) in facts)
 
     # ---- positioning plot payload ----------------------------------------
+    # The vertical axis is a return-on-capital measure. ROCE is not meaningful
+    # for lenders (banks/exchanges), so fall back to ROE, then ROA — whichever the
+    # sector aggregate actually carries. This lets ANY loaded company be plotted
+    # from its own model values, even when it is not itself an index constituent.
+    ret_key, ret_label, sec_ret = "roce", "ROCE", (_num(sect.get("roce")) if roce_app else None)
+    if sec_ret is None or _num(comp.get("roce")) is None:
+        for _k, _lab in (("roe", "ROE"), ("roa", "ROA")):
+            if _num(sect.get(_k)) is not None and _num(comp.get(_k)) is not None:
+                ret_key, ret_label, sec_ret = _k, _lab, _num(sect.get(_k))
+                break
+    self_ret_gap = (_num(comp.get(ret_key)) - sec_ret) \
+        if (sec_ret is not None and _num(comp.get(ret_key)) is not None) else None
+
     peers = []
     for r in constituents:
         if r is self_row:
             continue
-        pe, roce = _num(r.get("pe")), _num(r.get("roce"))
-        if pe is None or roce is None:
+        pe, ret = _num(r.get("pe")), _num(r.get(ret_key))
+        if pe is None or ret is None:
             continue
         peers.append({"n": r.get("name"), "tk": r.get("nse_symbol"),
-                      "cmp": _num(r.get("cmp")), "pe": pe, "roce": roce})
+                      "cmp": _num(r.get("cmp")), "pe": pe, "roce": ret})
     self_pt = None
-    if _num(comp["pe"]) is not None and _num(comp["roce"]) is not None and _num(sect.get("pe")) and _num(sect.get("roce")) is not None:
+    if _num(comp.get("pe")) is not None and _num(comp.get(ret_key)) is not None \
+            and _num(sect.get("pe")) is not None and sec_ret is not None:
         self_pt = {"n": company, "tk": (self_row or {}).get("nse_symbol") or "",
                    "cmp": _num((self_row or {}).get("cmp")),
-                   "pe": comp["pe"], "roce": comp["roce"],
-                   "peGap": pe_gap, "roceGap": roce_gap}
+                   "pe": comp["pe"], "roce": _num(comp.get(ret_key)),
+                   "peGap": pe_gap, "roceGap": self_ret_gap}
 
     # ---- vitals ----------------------------------------------------------
     vitals = [
@@ -615,8 +629,8 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
         })
 
     payload = {
-        "plot": {"sec_pe": _num(sect.get("pe")), "sec_roce": _num(sect.get("roce")),
-                 "peers": peers, "self": self_pt},
+        "plot": {"sec_pe": _num(sect.get("pe")), "sec_roce": sec_ret,
+                 "ret_label": ret_label, "peers": peers, "self": self_pt},
         "hm": hm_payload,
         "cons": {"sec_roce": _num(sect.get("roce")) or 0, "rows": cons_rows, "n": len(cons_rows)},
     }
@@ -687,7 +701,7 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
         <text class="tick" x="40" y="178" text-anchor="end">&minus;10pp</text>
         <text class="tick" x="40" y="216" text-anchor="end">&minus;20pp</text>
         <text class="axlab" x="210" y="284" text-anchor="middle">P/E versus sector aggregate &rarr;</text>
-        <text class="axlab" x="14" y="138" text-anchor="middle" transform="rotate(-90 14 138)">ROCE versus sector &rarr;</text>
+        <text class="axlab" x="14" y="138" text-anchor="middle" transform="rotate(-90 14 138)">{ret_label} versus sector &rarr;</text>
         <g id="peers"></g><g id="selfg"></g>
         <g stroke="#8B918E" stroke-width="1.6">
           <line x1="203" y1="138" x2="217" y2="138"/><line x1="210" y1="131" x2="210" y2="145"/></g>
@@ -825,6 +839,7 @@ function px(g){ return 210 + clamp(g,-XR,XR) * (164/XR) * 0.955; }
 function py(g){ return 138 - clamp(g,-YR,YR) * (112/YR) * 0.945; }
 function sgn(v,u,dp){ return (v>=0?"+":"−") + Math.abs(v).toFixed(dp||1) + u; }
 var tip = document.getElementById("ptip"), plot = document.getElementById("plot");
+var RL = (P.ret_label || "ROCE");
 var pts = [];
 if (P.sec_pe && P.sec_roce != null){
   pts = (P.peers||[]).map(function(r){
@@ -854,9 +869,9 @@ function tipHTML(p){
   return '<div class="n">'+p.n+'</div><div class="tk">'+(p.tk||"")+'</div>'
     + (p.cmp!=null?'<div class="r"><span>CMP</span><b>₹'+p.cmp.toLocaleString("en-US",{minimumFractionDigits:2})+'</b></div>':"")
     + '<div class="r"><span>P/E</span><b>'+p.pe.toFixed(2)+'x</b></div>'
-    + '<div class="r"><span>ROCE</span><b>'+p.roce.toFixed(2)+'%</b></div>'
+    + '<div class="r"><span>'+RL+'</span><b>'+p.roce.toFixed(2)+'%</b></div>'
     + '<div class="r gap"><span>vs sector P/E</span><b class="'+(p.peGap>0?"dn":"up")+'">'+sgn(p.peGap,"%")+'</b></div>'
-    + '<div class="r"><span>vs sector ROCE</span><b class="'+(p.roceGap>=0?"up":"dn")+'">'+sgn(p.roceGap," pp",2)+'</b></div>';
+    + '<div class="r"><span>vs sector '+RL+'</span><b class="'+(p.roceGap>=0?"up":"dn")+'">'+sgn(p.roceGap," pp",2)+'</b></div>';
 }
 function showTip(p, ev){
   tip.innerHTML = tipHTML(p); tip.style.display = "block";
