@@ -45,6 +45,8 @@ CACHE_PATH = Path(__file__).resolve().parent.parent / "data" / "market_context_c
 
 _TIMEOUT = 12
 _FRESH_HOURS = 24                 # re-use today's cached entry; refetch when older
+_MAX_AGE_DAYS = 183               # never show a headline older than ~6 months
+_WANT_EACH = 4                    # 4 Global + 4 India items in the cycle section
 _GNEWS = ("https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en")
 
 # Credible sources we prefer to keep when ranking headlines (rule §6 priority).
@@ -93,7 +95,14 @@ def _clean(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", text or "")).strip()
 
 
-def _fetch_rss(query: str, limit: int, when: str = "3d") -> list[dict]:
+def _fresh(items: list[dict], max_age_days: int = _MAX_AGE_DAYS) -> list[dict]:
+    """Drop anything older than ~6 months (or undated), newest first."""
+    cutoff = time.time() - max_age_days * 86400
+    kept = [it for it in items if it.get("_ts", 0) and it["_ts"] >= cutoff]
+    return sorted(kept, key=lambda i: i.get("_ts", 0), reverse=True)
+
+
+def _fetch_rss(query: str, limit: int, when: str = "6m") -> list[dict]:
     url = _GNEWS.format(q=quote_plus(f"{query} when:{when}"))
     try:
         resp = requests.get(url, timeout=_TIMEOUT,
@@ -125,29 +134,25 @@ def _fetch_rss(query: str, limit: int, when: str = "3d") -> list[dict]:
     return items
 
 
-def _select(macro: list[dict], sector: list[dict], want: int = 4) -> list[dict]:
-    """Prefer trusted, recent items; keep a couple sector-specific + macro."""
-    def trusted(it):
-        blob = (it.get("url", "") + " " + it.get("source", "")).lower()
-        return any(t in blob for t in _TRUSTED)
+def _trusted(it) -> bool:
+    blob = (it.get("url", "") + " " + it.get("source", "")).lower()
+    return any(t in blob for t in _TRUSTED)
 
-    def rank(lst):
-        return sorted(lst, key=lambda i: (trusted(i), i.get("_ts", 0)), reverse=True)
 
-    picked, seen = [], set()
-    # up to 2 sector-specific, then fill from macro, deduped, capped at `want`
-    for pool, cap in ((rank(sector), 2), (rank(macro), want)):
-        added = 0
-        for it in pool:
-            if len(picked) >= want or added >= cap:
-                break
-            key = it.get("title", "").lower()[:80]
-            if not key or key in seen:
-                continue
-            seen.add(key)
-            picked.append({k: it[k] for k in ("title", "source", "url", "date")})
-            added += 1
-    return picked[:want]
+def _pick(pool: list[dict], want: int, seen: set) -> list[dict]:
+    """Top `want` fresh, trusted-first, deduped items as compact dicts."""
+    ranked = sorted(_fresh(pool), key=lambda i: (_trusted(i), i.get("_ts", 0)),
+                    reverse=True)
+    out = []
+    for it in ranked:
+        key = it.get("title", "").lower()[:80]
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append({k: it.get(k) for k in ("title", "source", "url", "date")})
+        if len(out) >= want:
+            break
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -157,41 +162,73 @@ _CYCLE_LABELS = ("Early Expansion", "Expansion", "Late Expansion", "Peak",
                  "Contraction", "Recovery", "Mixed / Transitional")
 
 
-def _messages(sector_name: str, structural: str, headlines: list[dict]) -> list[dict]:
-    heads = "\n".join(f"- [{h.get('source') or 'source'} · {h.get('date') or 'n/a'}] "
-                      f"{h['title']}" for h in headlines) or "- (no recent headlines retrieved)"
+def _heads_block(items: list[dict]) -> str:
+    return "\n".join(
+        f"  [{i}] ({h.get('source') or 'source'} · {h.get('date') or 'n/a'}) {h['title']}"
+        for i, h in enumerate(items)) or "  (none retrieved)"
+
+
+def _messages(sector_name: str, structural: str,
+              global_heads: list[dict], india_heads: list[dict]) -> list[dict]:
     system = (
-        "You are a sell-side macro strategist writing the 'Current cycle' note for "
-        "one Indian equity sector. Use ONLY the headlines provided plus the "
-        "structural context. Do NOT invent events, numbers, dates or prices. If the "
-        "headlines do not support a directional call, use 'Mixed / Transitional'. "
-        "Do no arithmetic. Keep it specific to THIS sector's transmission channel.")
+        "You are a sell-side macro strategist writing the 'Where the cycle sits now' "
+        "note for one Indian equity sector. Use ONLY the headlines provided plus the "
+        "structural context. Do NOT invent events, numbers, dates or prices, and do "
+        "NOT invent headlines beyond those listed. Reference each headline by its "
+        "index. If the headlines do not support a directional call, use "
+        "'Mixed / Transitional'. Do no arithmetic. Keep everything specific to THIS "
+        "sector's transmission channel.")
     user = (
         f"Sector: {sector_name}\n"
         f"Structural context: {structural}\n\n"
-        f"Recent headlines (last ~72h):\n{heads}\n\n"
+        f"GLOBAL / macro headlines (≤6 months):\n{_heads_block(global_heads)}\n\n"
+        f"INDIA sector headlines (≤6 months):\n{_heads_block(india_heads)}\n\n"
         "Return STRICT JSON with keys:\n"
         f'  "label": one of {list(_CYCLE_LABELS)},\n'
-        '  "lines": array of 4-5 short sentences covering, in order — global market '
-        'trend; India market trend; the main transmission channel FOR THIS SECTOR; '
-        'the specific current volatility drivers (name them, e.g. crude, US yields, '
-        'rupee, FII flows); and what to watch next;\n'
+        '  "global": array of up to 4 objects {"i": <global headline index>, '
+        '"explain": a 3-4 line explanation (roughly 40-65 words) of what that '
+        'development means for the global complex that drives this sector}. Cover the '
+        'most relevant global headlines, one object each.\n'
+        '  "india": array of up to 4 objects {"i": <india headline index>, '
+        '"explain": a 3-4 line explanation (roughly 40-65 words) of the read-through '
+        'to Indian producers/companies in this sector}.\n'
         '  "drivers": array of 2-5 short driver tags actually supported by the '
-        'headlines;\n'
-        '  "tilt": one concise sentence, e.g. "Mixed — earnings supportive but higher '
-        'crude and global yields cap multiple expansion".\n'
+        'headlines (e.g. "Crude oil", "US yields", "Rupee", "FII flows");\n'
+        '  "tilt": 2-3 sentences (the current MARKET tilt) — the directional read '
+        'and the specific factors that support or cap it.\n'
         "No text outside the JSON.")
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
 
+def _merge_items(heads: list[dict], explained: list[dict]) -> list[dict]:
+    """Attach each LLM explanation (by index `i`) to its real headline, keeping the
+    real title/source/url/date. Explanations for missing indices are dropped; items
+    with no explanation fall back to the headline title as the text."""
+    by_i = {}
+    for e in explained or []:
+        try:
+            by_i[int(e.get("i"))] = str(e.get("explain") or "").strip()
+        except (TypeError, ValueError):
+            continue
+    out = []
+    for idx, h in enumerate(heads):
+        out.append({"title": h.get("title"), "source": h.get("source"),
+                    "url": h.get("url"), "date": h.get("date"),
+                    "explain": by_i.get(idx, "")})
+    # prefer items that actually got an explanation, newest order preserved
+    out.sort(key=lambda x: (x["explain"] == "",))
+    return out[:_WANT_EACH]
+
+
 def _synthesize(config: LLMConfig | None, sector_name: str, structural: str,
-                headlines: list[dict]) -> dict | None:
+                global_heads: list[dict], india_heads: list[dict]) -> dict | None:
     live = config is not None and (config.is_live
                                    or any(c.is_live for c in getattr(config, "fallbacks", [])))
     if not live:
         return None
     try:
-        raw = post(config, _messages(sector_name, structural, headlines), json_mode=True)
+        raw = post(config, _messages(sector_name, structural, global_heads, india_heads),
+                   json_mode=True)
     except Exception:                                    # noqa: BLE001 — fail soft
         return None
     try:
@@ -199,32 +236,45 @@ def _synthesize(config: LLMConfig | None, sector_name: str, structural: str,
     except (ValueError, TypeError):
         return None
     label = data.get("label")
-    lines = [str(x).strip() for x in (data.get("lines") or []) if str(x).strip()]
-    if label not in _CYCLE_LABELS or len(lines) < 3:
+    if label not in _CYCLE_LABELS:
         return None
+    g_items = _merge_items(global_heads, data.get("global") or [])
+    i_items = _merge_items(india_heads, data.get("india") or [])
+    if not g_items and not i_items:
+        return None
+    lines = [x["explain"] for x in (g_items + i_items) if x.get("explain")]
     return {
         "label": label,
-        "lines": lines[:5],
+        "global_items": g_items,
+        "india_items": i_items,
+        "lines": lines[:5],                              # legacy consumers
         "drivers": [str(x).strip() for x in (data.get("drivers") or [])][:5],
         "tilt": str(data.get("tilt") or "").strip(),
         "from_llm": True,
     }
 
 
-def _deterministic(sector_name: str, structural: str, headlines: list[dict]) -> dict:
+def _deterministic(sector_name: str, structural: str,
+                   global_heads: list[dict], india_heads: list[dict]) -> dict:
     """No LLM: a factual read built only from real headlines + structural text.
     Names no events that were not retrieved; makes no directional overclaim."""
     first = structural.split(". ")[0].strip()
-    lines = [
-        "Live macro synthesis is unavailable, so this is a structural read plus the "
-        "latest retrieved headlines (shown below) rather than an AI narrative.",
-        f"For {sector_name}, the core transmission channel is: {first}.",
-    ]
-    if headlines:
-        lines.append("Recent context: "
-                     + "; ".join(h["title"] for h in headlines[:2]) + ".")
-    return {"label": "Mixed / Transitional", "lines": lines,
-            "drivers": [], "tilt": "", "from_llm": False}
+    g_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
+                "date": h.get("date"),
+                "explain": "Live AI synthesis is unavailable — shown as a retrieved "
+                           "global headline for context, not an interpreted read."}
+               for h in global_heads[:_WANT_EACH]]
+    i_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
+                "date": h.get("date"),
+                "explain": f"Indian read-through for {sector_name}: {first}."}
+               for h in india_heads[:_WANT_EACH]]
+    return {"label": "Mixed / Transitional",
+            "global_items": g_items, "india_items": i_items,
+            "lines": [first], "drivers": [],
+            "tilt": "Live macro synthesis is unavailable, so this is the sector's "
+                    "structural standing rather than a current directional call. "
+                    "The headlines below are the latest retrieved context.",
+            "from_llm": False}
 
 
 # ---------------------------------------------------------------------------
@@ -265,13 +315,17 @@ def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = No
     if not force and key in cache:
         return cache[key]
 
-    macro = _fetch_rss(_MACRO_QUERY, limit=4)
+    seen: set = set()
+    macro = _fetch_rss(_MACRO_QUERY, limit=_WANT_EACH)
     sector_q = _SECTOR_QUERY.get(sector_key, f"India {sector_name} sector")
-    sector_items = _fetch_rss(sector_q, limit=4)
-    headlines = _select(macro, sector_items, want=4)
+    sector_items = _fetch_rss(sector_q, limit=_WANT_EACH)
+    # Global column = macro/global complex; India column = sector read-through.
+    global_heads = _pick(macro, _WANT_EACH, seen)
+    india_heads = _pick(sector_items, _WANT_EACH, seen)
+    headlines = global_heads + india_heads          # for the Sources strip
 
     structural = TILT.profile(sector_key).get("text", "")
-    read = (_synthesize(config, sector_name, structural, headlines)
+    read = (_synthesize(config, sector_name, structural, global_heads, india_heads)
             if headlines or config else None)
 
     if read is None and not headlines:
@@ -282,7 +336,7 @@ def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = No
             prev["stale"] = True
             return prev
     if read is None:
-        read = _deterministic(sector_name, structural, headlines)
+        read = _deterministic(sector_name, structural, global_heads, india_heads)
 
     entry = {
         "sector_key": sector_key,
@@ -291,7 +345,9 @@ def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = No
         "retrieved_at": datetime.now(timezone.utc).isoformat(),
         "updated_display": datetime.now(timezone.utc).strftime("%d %b %Y"),
         "label": read["label"],
-        "lines": read["lines"],
+        "lines": read.get("lines", []),
+        "global_items": read.get("global_items", []),
+        "india_items": read.get("india_items", []),
         "drivers": read.get("drivers", []),
         "tilt": read.get("tilt", ""),
         "from_llm": read.get("from_llm", False),

@@ -71,10 +71,11 @@ def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
         arrow = "&#9650;" if pricier else "&#9660;"
         dcls = "d-neg" if pricier else "d-pos"
         dtxt = f'{arrow} {abs(gap):.1f}% {"pricier" if pricier else "cheaper"}'
-    else:                                 # returns: pp gap, scale +/-12pp, below=worse
+    else:                                 # returns/growth: pp gap, below=worse
+        cap = 40.0 if kind == "g" else 12.0   # growth swings wider than return ratios
         gap = you - sector
         below = gap < 0
-        width = min(abs(gap) / 12.0, 1.0) * 50.0
+        width = min(abs(gap) / cap, 1.0) * 50.0
         side = "left" if below else "right"
         arrow = "&#9660;" if below else "&#9650;"
         dcls = "d-neg" if below else "d-pos"
@@ -92,19 +93,28 @@ def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
 # structural month strip (qualitative states -> bar height + colour). Never a
 # percentage — the real returns live in the heatmap below.
 # --------------------------------------------------------------------------
-_STATE_BAR = {"Strong": (16, "#1b7f4f"), "Positive": (12, "#57ab7d"),
-              "Neutral": (7, "#D3DBD6"), "Soft": (10, "#e6c07a"), "Weak": (13, "#d09a8f")}
+# Filled-block seasonality strip (height + colour encode the qualitative state).
+_STATE_BLOCK = {"Strong": (48, "#177245"), "Positive": (34, "#2F9E63"),
+                "Neutral": (20, "#C9D3CC"), "Soft": (26, "#E0B876"),
+                "Weak": (34, "#C56B5C")}
+_STATE_ORDER = ("Strong", "Positive", "Neutral", "Soft", "Weak")
 
 
 def _months_strip(qual: dict) -> str:
     cells = (qual or {}).get("cells") or []
     out = []
     for c in cells:
-        h, col = _STATE_BAR.get(c.get("state"), (7, "#D3DBD6"))
+        h, col = _STATE_BLOCK.get(c.get("state"), _STATE_BLOCK["Neutral"])
         out.append(f'<div class="mo" title="{escape(c["month"]+": "+c["state"])}">'
                    f'<i style="height:{h}px;background:{col}"></i>'
                    f'<span>{escape(c["month"]).upper()}</span></div>')
     return "".join(out)
+
+
+def _seas_legend() -> str:
+    return "".join(
+        f'<span class="slg"><i style="background:{_STATE_BLOCK[s][1]}"></i>{s}</span>'
+        for s in _STATE_ORDER)
 
 
 # --------------------------------------------------------------------------
@@ -132,6 +142,49 @@ def _cycle_phase(label: str) -> tuple[str, float]:
     if pos is None:
         return (label or "Mid expansion"), 55.0
     return (name or _PHASE_NAME.get(k, label or "Mid expansion")), float(pos)
+
+
+# --------------------------------------------------------------------------
+# decorative map backgrounds for the two cycle columns (inline SVG, no fetch)
+# --------------------------------------------------------------------------
+_MAP_WORLD = (
+    '<span class="tmap world" aria-hidden="true">'
+    '<svg viewBox="0 0 360 180" fill="#2B7A4B" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M55 40 Q40 46 42 60 Q30 66 38 78 Q34 92 50 96 L64 84 Q58 70 70 66 '
+    'Q66 52 82 52 L96 44 Q78 34 66 38 Z"/>'  # N America
+    '<path d="M96 104 Q88 112 94 128 Q92 146 104 150 Q112 138 108 122 Q116 112 106 104 Z"/>'  # S America
+    '<path d="M170 44 Q158 48 162 58 L176 56 Q186 48 176 42 Z"/>'  # Europe
+    '<path d="M172 66 Q164 84 176 104 Q180 126 194 124 Q198 104 190 88 Q200 74 186 66 Z"/>'  # Africa
+    '<path d="M198 40 Q212 34 240 40 Q276 40 300 54 Q288 70 268 66 Q252 78 236 68 '
+    'Q214 70 206 58 Q196 50 198 40 Z"/>'  # Asia
+    '<path d="M292 116 Q306 110 320 118 Q322 130 308 132 Q296 128 292 116 Z"/>'  # Australia
+    '</svg></span>')
+_MAP_INDIA = (
+    '<span class="tmap india" aria-hidden="true">'
+    '<svg viewBox="0 0 120 140" fill="#177245" xmlns="http://www.w3.org/2000/svg">'
+    '<path d="M58 8 L70 11 L75 6 L82 12 L79 20 L90 22 L98 32 L93 40 L100 46 L95 55 '
+    'L86 60 L84 72 L74 94 L66 114 L60 128 L54 112 L46 94 L40 76 L30 66 L23 55 '
+    'L30 49 L25 40 L34 33 L41 39 L45 30 L51 20 Z"/>'
+    '<circle cx="96" cy="118" r="3.4"/><circle cx="90" cy="126" r="2.4"/>'  # Sri Lanka hint
+    '</svg></span>')
+
+_EXTRA_CSS = """
+/* filled-block seasonality strip + legend */
+.months{display:flex;gap:6px;align-items:flex-end;padding:6px 0 2px}
+.months .mo{flex:1;display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.months .mo i{display:block;width:100%;border-radius:5px 5px 3px 3px}
+.months .mo span{font-family:var(--mono,inherit);font-size:9px;font-weight:700;
+  letter-spacing:.4px;color:#8b918e;text-align:center}
+.seas-lg{display:flex;flex-wrap:wrap;gap:6px 16px;padding:12px 0 2px}
+.slg{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#5b625d}
+.slg i{width:11px;height:11px;border-radius:3px;display:inline-block}
+/* map svgs behind the cycle columns */
+.tmap svg{display:block;width:100%;height:auto}
+/* per-headline source link inside the cycle lists */
+.tlist li .tsrc{display:block;margin-top:5px;font-size:11.5px;font-weight:700;
+  color:var(--brand,#177245);text-decoration:none}
+.tlist li .tsrc:hover{text-decoration:underline}
+"""
 
 
 def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
@@ -262,6 +315,27 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
                         f'{escape(lab)}</div><div class="vital-v">{vv}</div>'
                         f'<div class="vital-s">{escape(s)}</div></div>')
 
+    # ---- growth: company (annual, from the model) vs sector --------------
+    from . import sections as S
+
+    def _comp_growth(*names):
+        s = S.pct_series(S.ser(model, *names))
+        return float(s.iloc[-1]) if not s.empty else None
+    comp_sales_g = _comp_growth("Sales Growth", "Revenue Growth")
+    comp_profit_g = _comp_growth("Net Profit Growth", "PAT Growth", "Net Profit Growth %")
+
+    def _sector_median(key):
+        vals = [_num(r.get(key)) for r in constituents]
+        vals = sorted(v for v in vals if v is not None)
+        if not vals:
+            return None
+        n = len(vals)
+        return vals[n // 2] if n % 2 else (vals[n // 2 - 1] + vals[n // 2]) / 2.0
+    sec_sales_g = _sector_median("revenue_growth_yoy")
+    sec_profit_g = _num(sect.get("growth"))
+    if sec_profit_g is None:
+        sec_profit_g = _sector_median("eps_ttm_growth")
+
     # ---- gap panel -------------------------------------------------------
     gap_html = (
         '<div class="dev-grp">What you pay</div>'
@@ -272,12 +346,23 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
         + _dev("ROCE", comp["roce"], (sect.get("roce") if roce_app else None), "pct",
                note="The widest gap on the page" if (roce_gap is not None and abs(roce_gap) >= 8) else "")
         + _dev("ROA", comp["roa"], sect.get("roa"), "pct")
+        + '<div class="dev-grp">How it’s growing</div>'
+        + _dev("Sales growth", comp_sales_g, sec_sales_g, "g",
+               note="Latest annual YoY vs sector median")
+        + _dev("Profit growth", comp_profit_g, sec_profit_g, "g",
+               note="Latest annual YoY vs sector aggregate")
     )
 
     # ---- behaves: tags + structural text + month strip -------------------
     prof = TILT.profile(sector_key or "generic")
     qual = SEASON.qualitative(sector_key)
     months_html = _months_strip(qual)
+    legend_html = _seas_legend()
+    seas_caption = escape(qual.get("methodology") or
+                          "Structural business pattern, not a price backtest.")
+    seas_sub = ("Q4-weighted &mdash; a structural pattern, not a price backtest"
+                if not qual.get("flat") else
+                "Low intra-year seasonality &mdash; driven by the price cycle, not the calendar")
     tilt_state = (snap or {}).get("current_tilt") or "Stable"
     tags_html = (f'<span class="tag t-warn">{escape(prof.get("nature","Cyclical"))}</span>'
                  f'<span class="tag t-pos">{escape(tilt_state)} tilt</span>')
@@ -287,6 +372,10 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     hm_payload = None
     if hm.get("sufficient"):
         rows = hm.get("rows") or []
+        # Drop under-populated years (e.g. an index that starts mid-December only
+        # has one real month that year) so the grid never shows an all-dash row.
+        rows = [r for r in rows
+                if sum(1 for c in r["cells"] if c is not None) >= 6]
         rows6 = rows[:6]                      # already newest-first
         yrs = [r["year"] for r in rows6]
         win = f"{min(yrs)}–{max(yrs)}" if yrs else ""
@@ -308,29 +397,73 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     # ---- current cycle ---------------------------------------------------
     ctx = context or {}
     phase, phase_pos = _cycle_phase(ctx.get("label") or tilt_state)
-    lines = [str(x) for x in (ctx.get("lines") or []) if str(x).strip()]
-    if lines:
-        half = (len(lines) + 1) // 2
-        glob_lines, india_lines = lines[:half], lines[half:] or lines[:half]
+    glob_items = list(ctx.get("global_items") or [])
+    india_items = list(ctx.get("india_items") or [])
+    have_news = bool(glob_items or india_items)
+
+    def _cyc_li(items):
+        out = []
+        for it in items:
+            title = escape(str(it.get("title") or "").strip())
+            expl = escape(str(it.get("explain") or "").strip())
+            src = escape(str(it.get("source") or "").strip())
+            url = str(it.get("url") or "").strip()
+            dt = escape(str(it.get("date") or "").strip())
+            if not title and not expl:
+                continue
+            body = f'<b>{title}</b>' if title else ""
+            if expl:
+                body += (" &mdash; " if title else "") + expl
+            meta = ""
+            if src:
+                lab = f'{src}{(" &middot; " + dt) if dt else ""}'
+                meta = (f'<a class="tsrc" href="{escape(url)}" target="_blank" '
+                        f'rel="noopener noreferrer">{lab} &#8599;</a>' if url
+                        else f'<span class="tsrc">{lab}</span>')
+            out.append(f'<li>{body}{meta}</li>')
+        return "".join(out)
+
+    if have_news:
+        global_html = _cyc_li(glob_items) or f'<li>{escape(prof.get("text",""))}</li>'
+        india_html = _cyc_li(india_items) or (
+            '<li>Indian producers in this sector track the same structural cycle; '
+            'domestic demand, policy and the rupee shape the pass-through.</li>')
     else:
-        glob_lines = [prof.get("text", "")]
-        india_lines = ["Indian producers in this sector track the same structural cycle; "
-                       "domestic demand, policy and the rupee shape the pass-through."]
+        global_html = f'<li>{escape(prof.get("text",""))}</li>'
+        india_html = ('<li>Indian producers in this sector track the same structural '
+                      'cycle; domestic demand, policy and the rupee shape the '
+                      'pass-through.</li>')
+
     watch = [str(x) for x in (ctx.get("drivers") or []) if str(x).strip()]
-    mkt_tilt = ctx.get("tilt") or f"{phase}."
-    fun_tilt = ((snap or {}).get("tilt_reason")
-                or "Baseline established from the latest snapshot fundamentals.")
+
+    # Market tilt — 2-3 sentences (LLM current read; structural fallback).
+    mkt_tilt = str(ctx.get("tilt") or "").strip()
+    if len(mkt_tilt) < 40:
+        mkt_tilt = (f"{phase}. The current read is built from the live headlines above; "
+                    "watch the named drivers for the next turn in the cycle.")
+
+    # Fundamental tilt — 2-3 sentences from the pooled snapshot itself.
+    sec_g = _num(sect.get("growth"))
+    fun_bits = []
+    base_reason = (snap or {}).get("tilt_reason")
+    if base_reason:
+        fun_bits.append(str(base_reason).rstrip("."). rstrip() + ".")
+    if sec_g is not None:
+        fun_bits.append(f"The pooled snapshot shows sector earnings growth at "
+                        f"{'+' if sec_g >= 0 else '&minus;'}{abs(sec_g):.1f}% year on year.")
+    if pe_gap is not None:
+        fun_bits.append(f"{company} trades {abs(pe_gap):.1f}% "
+                        f"{'above' if pe_gap >= 0 else 'below'} the universe on earnings, "
+                        "so the reported numbers are the read that carries the risk.")
+    fun_tilt = " ".join(fun_bits) or (
+        "Baseline established from the latest snapshot fundamentals.")
+
     cyc_sources = [{"name": s.get("source") or "source", "url": s.get("url") or "#"}
                    for s in (ctx.get("sources") or []) if s.get("title")]
     cyc_updated = ctx.get("updated_display") or ctx.get("news_snapshot_date") or ""
     cyc_note = ("What is moving the sector globally, and how it reaches Indian producers."
-                if lines else "Structural read — live news context was not available, so this "
-                "is the sector's standing cycle profile.")
-
-    def _tlist(items):
-        return "".join(f'<li>{x}</li>' for x in items if x)
-    global_html = _tlist(glob_lines)
-    india_html = _tlist(india_lines)
+                if have_news else "Structural read — live news context was not available, so "
+                "this is the sector's standing cycle profile.")
     watch_html = "".join(f'<span class="wtag">{escape(w)}</span>' for w in watch[:6])
     src_html = "".join(
         f'<a class="srclink" href="{escape(s["url"])}" target="_blank" rel="noopener noreferrer">'
@@ -462,10 +595,11 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
       <div class="p-h"><div class="p-t">How this sector behaves</div><div class="tags">{tags_html}</div></div>
       <p class="cy-body">{escape(prof.get("text",""))}</p>
       <div class="seas">
-        <div class="seas-h"><span class="seas-t">Intra-year seasonality</span>
-          <span class="seas-s">Sector-level structural pattern</span></div>
+        <div class="seas-h"><span class="seas-t">Typical business seasonality</span>
+          <span class="seas-s">{seas_sub}</span></div>
         <div class="months">{months_html}</div>
-        <p class="seas-note">A structural pattern, not a price backtest &mdash; the real monthly price returns are in the heatmap below.</p>
+        <div class="seas-lg">{legend_html}</div>
+        <p class="seas-note">{seas_caption}</p>
         {"" if not hm_payload else f'''<div class="hm">
           <div class="hm-h"><span class="hm-t">Historical market seasonality</span>
             <span class="hm-s">{escape(hm_index)} &middot; monthly price returns by calendar year</span>
@@ -493,11 +627,11 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
       <span class="cy-mark" style="left:{phase_pos:.0f}%"></span></div>
     <div class="cy-names"><span>Trough</span><span>Early</span><span>Mid</span><span class="on">{escape(phase)}</span></div>
     <div class="tsplit">
-      <div class="tcol global"><div class="tc-h">
+      <div class="tcol global">{_MAP_WORLD}<div class="tc-h">
         <span class="tc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"/></svg></span>
         <div><div class="tc-t">Global drivers</div><div class="tc-s">Sector complex</div></div></div>
         <ul class="tlist">{global_html}</ul></div>
-      <div class="tcol india"><div class="tc-h">
+      <div class="tcol india">{_MAP_INDIA}<div class="tc-h">
         <span class="tc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></span>
         <div><div class="tc-t">Indian read-through</div><div class="tc-s">Domestic producers</div></div></div>
         <ul class="tlist">{india_html}</ul></div>
@@ -505,7 +639,7 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     {"" if not watch_html else f'<div class="watch"><span class="watch-l">Watch</span>{watch_html}</div>'}
     <div class="tilts">
       <div class="tilt mkt"><span class="tilt-c">Market tilt</span><div class="tilt-b">{escape(mkt_tilt)}</div></div>
-      <div class="tilt fun"><span class="tilt-c">Fundamental tilt</span><div class="tilt-b">{escape(fun_tilt)}</div></div>
+      <div class="tilt fun"><span class="tilt-c">Fundamental tilt</span><div class="tilt-b">{fun_tilt}</div></div>
     </div>
     {"" if not src_html else f'<div class="cy-src"><b>Sources</b>{src_html}<span class="r">{escape(str(cyc_updated))}</span></div>'}
   </section>
@@ -545,7 +679,7 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
         '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
         '<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:'
         'wght@400;500;600;700;800&display=swap" rel="stylesheet">'
-        f"<style>{_css()}</style></head><body>{body}"
+        f"<style>{_css()}{_EXTRA_CSS}</style></head><body>{body}"
         f"<script>window.__FC_SL__ = {data_json};</script>"
         f"<script>{_SL_JS}</script><script>{_FIT_JS}</script></body></html>"
     )

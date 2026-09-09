@@ -287,6 +287,32 @@ def build_context(model, result, model_filename: str = "") -> dict:
     total = int(round(float(result.total_score)))
     verdict_word = str(result.verdict).capitalize()  # Strong/Neutral/Weak
 
+    # ---- weighted-average breakdown (why the headline isn't a plain average) --
+    _pw = getattr(getattr(result, "sector", None), "weights", {}) or {}
+    _ps = result.pillar_scores or {}
+    _w = {p: float(_pw.get(p, 1.0)) for p in _ps}
+    _wsum = sum(_w.values()) or 1.0
+    weighted_avg = (sum(_ps[p] * _w[p] for p in _ps) / _wsum) if _ps else None
+    simple_avg = (sum(_ps.values()) / len(_ps)) if _ps else None
+    eq = getattr(result, "earnings_quality", None)
+    nudge = 0.0
+    if eq is not None:
+        if eq < 0.5:
+            nudge = -5.0
+        elif eq > 1.0:
+            nudge = 2.5
+    weighted = {
+        "rows": sorted(
+            [{"label": SHORT_PILLAR.get(p, p), "score": round(_ps[p], 1),
+              "weight": round(_w[p], 2)} for p in _ps],
+            key=lambda r: -r["weight"]),
+        "weight_sum": round(_wsum, 2),
+        "weighted_avg": round(weighted_avg, 1) if weighted_avg is not None else None,
+        "simple_avg": round(simple_avg, 1) if simple_avg is not None else None,
+        "nudge": nudge, "earnings_quality": (round(eq, 2) if eq is not None else None),
+        "total": total,
+    }
+
     # growth strip — ANNUAL periods only (never the trailing TTM column)
     sales_a, sales_b = _latest2(model, "Sales", "Revenue", "Net Sales", years=years)
     cogs_a, cogs_b = _latest2(model, "COGS", "Cost of Goods Sold", years=years)
@@ -385,7 +411,7 @@ def build_context(model, result, model_filename: str = "") -> dict:
 
     return {
         "years": years, "scorecard": avail, "missing": missing,
-        "pillars": pillars, "total": total, "verdict": verdict_word,
+        "pillars": pillars, "total": total, "verdict": verdict_word, "weighted": weighted,
         "sector": result.sector.name, "company": model.company,
         "filename": model_filename or str(getattr(model.meta, "get", lambda *a: "")("filename", "") or ""),
         "period_txt": period_txt, "growth": growth,
@@ -441,9 +467,61 @@ def _hero_why(ctx: dict) -> str:
         parts.append(f" The biggest drag is <b>{escape(low['label'])} at {low['score']}/100</b>, where "
                      f"{escape(low_weak['label'].lower())} is the main weak point, which is what keeps "
                      f"the score from being higher.")
-    parts.append(" Each area is scored 0–100 and then blended by how much it matters in this "
-                 "sector, so a strong area can partly offset a weak one to give the headline number.")
+    w = ctx.get("weighted") or {}
+    wavg, savg = w.get("weighted_avg"), w.get("simple_avg")
+    nudge = w.get("nudge") or 0.0
+    if wavg is not None:
+        s = (" The headline is a <b>weighted average</b>, not a plain one: each area is "
+             "scored 0–100 and then weighted by how much it matters for this sector "
+             f"(the heavier areas pull harder). That weighting gives {wavg:g}")
+        if savg is not None and abs(savg - wavg) >= 0.5:
+            s += (f" — versus {savg:g} if every area counted equally, which is why the "
+                  "number differs from a simple average")
+        if nudge:
+            s += (f", and a {'+' if nudge > 0 else '&minus;'}{abs(nudge):g} earnings-quality "
+                  "adjustment (how well profit converts into operating cash) lands it at "
+                  f"<b>{w.get('total')}/100</b>")
+        else:
+            s += f", rounding to <b>{w.get('total')}/100</b>"
+        parts.append(s + ". Tap the ⓘ next to the score for the full breakdown.")
+    else:
+        parts.append(" Each area is scored 0–100 and then blended by how much it matters in "
+                     "this sector, so a strong area can partly offset a weak one.")
     return "".join(parts)
+
+
+def _score_math(ctx: dict) -> str:
+    """The ⓘ popover next to the Funda Score: the exact weighted-average build."""
+    w = ctx.get("weighted") or {}
+    rows = w.get("rows") or []
+    if not rows:
+        return ""
+    body = "".join(
+        f'<div class="smx-r"><span class="smx-l">{escape(r["label"])}</span>'
+        f'<span class="smx-s">{r["score"]:g}</span>'
+        f'<span class="smx-x">&times;</span>'
+        f'<span class="smx-w">{r["weight"]:g}</span></div>' for r in rows)
+    wavg = w.get("weighted_avg")
+    savg = w.get("simple_avg")
+    nudge = w.get("nudge") or 0.0
+    eq = w.get("earnings_quality")
+    foot = (f'<div class="smx-tot"><span>Weighted average '
+            f'(&Sigma; score&times;weight &divide; &Sigma; weight {w.get("weight_sum"):g})</span>'
+            f'<b>{wavg:g}</b></div>')
+    if savg is not None:
+        foot += (f'<div class="smx-sub">Plain average of the areas would be {savg:g} — '
+                 'the weighting is what moves it.</div>')
+    if nudge:
+        foot += (f'<div class="smx-tot"><span>Earnings-quality adjustment'
+                 f'{f" (CFO/PAT {eq:g}&times;)" if eq is not None else ""}</span>'
+                 f'<b>{"+" if nudge > 0 else "&minus;"}{abs(nudge):g}</b></div>')
+    foot += f'<div class="smx-tot smx-final"><span>Funda Score</span><b>{w.get("total")}/100</b></div>'
+    return (f'<div class="smx" id="smx" hidden><div class="smx-h">How the score is built'
+            f'<button class="smx-x2" id="smxClose" aria-label="Close">&times;</button></div>'
+            f'<div class="smx-hd"><span>Area</span><span>Score</span><span></span>'
+            f'<span>Weight</span></div>{body}{foot}'
+            '<div class="smx-note">Each area is scored 0–100 against this sector’s bands, '
+            'then combined as a weighted average — heavier areas matter more here.</div></div>')
 
 
 def _read_margins(ctx: dict) -> str:
@@ -681,6 +759,34 @@ _EXP_CSS = """
 .scr-exp .exv{font-size:13.8px;font-weight:700;color:var(--ink-2);padding-top:2px}
 .scr-exp .exwhy{padding-top:9px}
 .scr-exp .exwhy b{color:var(--ink);font-weight:700}
+/* Funda Score info button + weighted-average popover */
+.score{position:relative}
+.smx-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
+  margin-left:8px;border-radius:50%;border:1.4px solid #C4CCC6;background:#fff;color:#8B918E;
+  font-size:14px;font-weight:700;line-height:1;cursor:pointer;vertical-align:middle;
+  transition:border-color .12s,color .12s,background .12s}
+.smx-btn:hover,.smx-btn[aria-expanded="true"]{border-color:var(--brand);color:var(--brand);background:var(--pos-tint)}
+.smx{position:absolute;z-index:20;top:calc(100% + 10px);left:0;width:min(360px,86vw);
+  background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 44px rgba(20,32,26,.16);
+  padding:14px 16px;font-size:13.4px;color:var(--ink-2);text-align:left}
+.smx-h{display:flex;align-items:center;justify-content:space-between;font-weight:800;
+  color:var(--ink);font-size:14px;padding-bottom:8px;border-bottom:1px solid var(--line-2)}
+.smx-x2{border:0;background:none;font-size:20px;line-height:1;color:#9AA09D;cursor:pointer;padding:0 2px}
+.smx-hd{display:grid;grid-template-columns:1fr auto 14px auto;gap:4px 8px;padding:9px 0 4px;
+  font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--mute-2)}
+.smx-r{display:grid;grid-template-columns:1fr auto 14px auto;gap:4px 8px;padding:4px 0;align-items:baseline}
+.smx-l{color:var(--ink-2);font-weight:600}
+.smx-s{font-weight:800;color:var(--ink);text-align:right}
+.smx-x{color:#9AA09D;text-align:center}
+.smx-w{font-weight:700;color:var(--brand);text-align:right}
+.smx-tot{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin-top:8px;padding-top:8px;border-top:1px solid var(--line-2)}
+.smx-tot span{font-size:12px;color:var(--ink-3)}
+.smx-tot b{font-weight:800;color:var(--ink);font-size:15px}
+.smx-final b{color:var(--brand);font-size:18px}
+.smx-sub{font-size:12px;color:var(--mute-2);padding-top:4px}
+.smx-note{margin-top:10px;padding-top:9px;border-top:1px solid var(--line-2);
+  font-size:12px;line-height:1.55;color:var(--ink-3)}
 """
 
 _EXP_JS = r"""
@@ -711,6 +817,18 @@ _EXP_JS = r"""
       btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     });
   });
+
+  /* Funda Score weighted-average popover */
+  var sBtn = document.getElementById('smxBtn'), sBox = document.getElementById('smx');
+  if (sBtn && sBox){
+    var sClose = document.getElementById('smxClose');
+    function setOpen(on){ sBox.hidden = !on; sBtn.setAttribute('aria-expanded', on ? 'true' : 'false'); }
+    sBtn.addEventListener('click', function(e){ e.stopPropagation(); setOpen(sBox.hidden); });
+    if (sClose) sClose.addEventListener('click', function(e){ e.stopPropagation(); setOpen(false); });
+    document.addEventListener('click', function(e){
+      if (!sBox.hidden && !sBox.contains(e.target) && e.target !== sBtn) setOpen(false); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') setOpen(false); });
+  }
 })();
 """
 
@@ -798,7 +916,7 @@ def render(model, result, model_filename: str = "") -> tuple[str, int]:
   <section class="hero">
     <div class="h-left">
       <div class="h-eyebrow">Funda score</div>
-      <div class="score"><b>{total}</b><small>/100</small><span class="band">{escape(verdict)}</span></div>
+      <div class="score"><b>{total}</b><small>/100</small><span class="band">{escape(verdict)}</span><button class="smx-btn" id="smxBtn" type="button" aria-expanded="false" aria-label="How the Funda Score is built">&#9432;</button>{_score_math(ctx)}</div>
       <p class="h-why">{_hero_why(ctx)}</p>
       <div class="pillars">
         <div class="p-lab">Area scores, weighted for this sector</div>
