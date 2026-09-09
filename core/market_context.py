@@ -102,7 +102,7 @@ def _fresh(items: list[dict], max_age_days: int = _MAX_AGE_DAYS) -> list[dict]:
     return sorted(kept, key=lambda i: i.get("_ts", 0), reverse=True)
 
 
-def _fetch_rss(query: str, limit: int, when: str = "6m") -> list[dict]:
+def _fetch_rss(query: str, limit: int, when: str = "180d") -> list[dict]:
     url = _GNEWS.format(q=quote_plus(f"{query} when:{when}"))
     try:
         resp = requests.get(url, timeout=_TIMEOUT,
@@ -261,12 +261,18 @@ def _deterministic(sector_name: str, structural: str,
     first = structural.split(". ")[0].strip()
     g_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
                 "date": h.get("date"),
-                "explain": "Live AI synthesis is unavailable — shown as a retrieved "
-                           "global headline for context, not an interpreted read."}
+                "explain": (f"A recent global development for the {sector_name} complex. "
+                            f"It matters because {first[:1].lower() + first[1:]}, so moves "
+                            "in the global market feed through to this sector before "
+                            "volumes react. (Live AI commentary was unavailable, so this "
+                            "is the structural read against the real headline.)")}
                for h in global_heads[:_WANT_EACH]]
     i_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
                 "date": h.get("date"),
-                "explain": f"Indian read-through for {sector_name}: {first}."}
+                "explain": (f"The read-through to Indian {sector_name} producers. Domestic "
+                            "demand, policy and the rupee shape how this reaches reported "
+                            "earnings. (Live AI commentary was unavailable, so this is the "
+                            "structural read against the real headline.)")}
                for h in india_heads[:_WANT_EACH]]
     return {"label": "Mixed / Transitional",
             "global_items": g_items, "india_items": i_items,

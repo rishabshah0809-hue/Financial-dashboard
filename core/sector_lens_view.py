@@ -16,6 +16,7 @@ Nothing here recomputes a sector metric or invents a value.
 
 from __future__ import annotations
 
+import base64
 import json
 import re
 from datetime import date
@@ -63,29 +64,33 @@ def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
                 f'<div class="dev-track"><div class="dev-empty"></div></div>'
                 f'<div class="dev-f"><span>{escape(why)}</span>'
                 f'<span>sector {val(sector) or "&mdash;"}</span></div></div>')
-    if kind == "x":                       # valuation: % gap, scale +/-50%, pricier=worse
-        gap = (you / sector - 1) * 100 if sector else 0.0
-        pricier = gap >= 0
+    # Unified rule: BETTER than sector → green bar to the RIGHT; WORSE → red bar to
+    # the LEFT. Centre line is the sector. "Better" is lower for valuation (cheaper)
+    # and higher for returns/growth.
+    if kind == "x":                       # valuation: lower (cheaper) is better
+        gap = (you / sector - 1) * 100 if sector else 0.0     # +ve = pricier
+        better = gap < 0
         width = min(abs(gap) / 50.0, 1.0) * 50.0
-        side = "right" if pricier else "left"
-        arrow = "&#9650;" if pricier else "&#9660;"
-        dcls = "d-neg" if pricier else "d-pos"
-        dtxt = f'{arrow} {abs(gap):.1f}% {"pricier" if pricier else "cheaper"}'
-    else:                                 # returns/growth: pp gap, below=worse
+        mag = f'{abs(gap):.1f}%'
+        word = " cheaper" if better else " pricier"
+    else:                                 # returns/growth: higher is better
         cap = 40.0 if kind == "g" else 12.0   # growth swings wider than return ratios
         gap = you - sector
-        below = gap < 0
+        better = gap >= 0
         width = min(abs(gap) / cap, 1.0) * 50.0
-        side = "left" if below else "right"
-        arrow = "&#9660;" if below else "&#9650;"
-        dcls = "d-neg" if below else "d-pos"
-        dtxt = f'{arrow} {abs(gap):.2f} pp'
-    dcolor = "" if dcls != "d-pos" else ' style="color:#0F5B34;background:#EEF4F0"'
+        mag = f'{abs(gap):.2f} pp'
+        word = ""
+    side = "right" if better else "left"
+    barcls = "good" if better else "bad"
+    arrow = "&#9650;" if better else "&#9660;"
+    dcls = "d-pos" if better else "d-neg"
+    dtxt = f'{arrow} {mag}{word}'
+    dcolor = ' style="color:#0F5B34;background:#EEF4F0"' if better else ""
     fnote = f'<span>{escape(note)}</span>' if note else '<span></span>'
     return (f'<div class="dev"><div class="dev-h"><span class="dev-n">{escape(name)}</span>'
             f'<span class="dev-you">you <b>{val(you)}</b></span>'
             f'<span class="dev-d {dcls}"{dcolor}>{dtxt}</span></div>'
-            f'<div class="dev-track"><div class="dev-bar {side}" style="width:{width:.1f}%"></div></div>'
+            f'<div class="dev-track"><div class="dev-bar {side} {barcls}" style="width:{width:.1f}%"></div></div>'
             f'<div class="dev-f">{fnote}<span>sector {val(sector)}</span></div></div>')
 
 
@@ -168,7 +173,33 @@ _MAP_INDIA = (
     '<circle cx="96" cy="118" r="3.4"/><circle cx="90" cy="126" r="2.4"/>'  # Sri Lanka hint
     '</svg></span>')
 
+_ASSETS = _TEMPLATE.parent
+
+
+def _map_span(cls: str, png_name: str, svg_fallback: str) -> str:
+    """Prefer a user-supplied PNG (assets/<png_name>); fall back to the inline SVG.
+    Drop your dotted map PNGs at assets/map_world.png / assets/map_india.png and
+    they are embedded here verbatim, no code change needed."""
+    for name in (png_name, png_name.replace(".png", ".jpg"),
+                 png_name.replace(".png", ".webp")):
+        p = _ASSETS / name
+        if p.exists():
+            try:
+                b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+                ext = p.suffix.lstrip(".").lower() or "png"
+                mime = "jpeg" if ext == "jpg" else ext
+                return (f'<span class="tmap {cls}" aria-hidden="true">'
+                        f'<img alt="" src="data:image/{mime};base64,{b64}"></span>')
+            except OSError:
+                pass
+    return svg_fallback
+
 _EXTRA_CSS = """
+/* gap bars: green = better than sector (right), red = worse (left) */
+.dev-bar.good.left{background:linear-gradient(270deg,#2F9E63,#7CC49A);border-radius:3px 0 0 3px}
+.dev-bar.good.right{background:linear-gradient(90deg,#2F9E63,#7CC49A);border-radius:0 3px 3px 0}
+.dev-bar.bad.left{background:linear-gradient(270deg,#B4483C,#C86A5F);border-radius:3px 0 0 3px}
+.dev-bar.bad.right{background:linear-gradient(90deg,#B4483C,#C86A5F);border-radius:0 3px 3px 0}
 /* filled-block seasonality strip + legend */
 .months{display:flex;gap:6px;align-items:flex-end;padding:6px 0 2px}
 .months .mo{flex:1;display:flex;flex-direction:column;align-items:stretch;gap:6px}
@@ -224,6 +255,14 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
                      or self_norm in _norm(r.get("name")))), None)
     self_mcap = _num((self_row or {}).get("market_cap"))
     index_wt = (self_mcap / total_mcap * 100) if (self_mcap and total_mcap) else None
+
+    # The uploaded model often omits P/B (needs book value) and sometimes P/E.
+    # Fill them from this company's own Screener row so the gap panel isn't blank.
+    if self_row:
+        if comp.get("pb") is None and _num(self_row.get("pb")) is not None:
+            comp["pb"] = _num(self_row.get("pb"))
+        if comp.get("pe") is None and _num(self_row.get("pe")) is not None:
+            comp["pe"] = _num(self_row.get("pe"))
 
     # ---- verdict facts + reading -----------------------------------------
     pe_gap = ((comp["pe"] / sect.get("pe") - 1) * 100
@@ -372,11 +411,10 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     hm_payload = None
     if hm.get("sufficient"):
         rows = hm.get("rows") or []
-        # Drop under-populated years (e.g. an index that starts mid-December only
-        # has one real month that year) so the grid never shows an all-dash row.
-        rows = [r for r in rows
-                if sum(1 for c in r["cells"] if c is not None) >= 6]
-        rows6 = rows[:6]                      # already newest-first
+        # Keep every year that has any real month (the index price history on the
+        # data source begins 3 Dec 2021, so 2021 legitimately carries December only).
+        rows = [r for r in rows if any(c is not None for c in r["cells"])]
+        rows6 = rows[:6]                      # newest-first, includes partial 2021
         yrs = [r["year"] for r in rows6]
         win = f"{min(yrs)}–{max(yrs)}" if yrs else ""
         n_yrs = len(yrs)
@@ -464,6 +502,8 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     cyc_note = ("What is moving the sector globally, and how it reaches Indian producers."
                 if have_news else "Structural read — live news context was not available, so "
                 "this is the sector's standing cycle profile.")
+    map_world_html = _map_span("world", "map_world.png", _MAP_WORLD)
+    map_india_html = _map_span("india", "map_india.png", _MAP_INDIA)
     watch_html = "".join(f'<span class="wtag">{escape(w)}</span>' for w in watch[:6])
     src_html = "".join(
         f'<a class="srclink" href="{escape(s["url"])}" target="_blank" rel="noopener noreferrer">'
@@ -503,9 +543,13 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
 
     hm_years = (hm_payload or {}).get("n_years", 0)
     hm_index = (hm_payload or {}).get("index") or idx_name
+    hm_earliest = (hm or {}).get("earliest") or ""
     hm_meth = (f"Monthly return = (last close ÷ first close − 1) of each month for "
                f"{hm_index}; average row = mean of each month across {hm_years} years. "
-               f"Real IndianAPI index history — all returns computed in Python.")
+               f"Real IndianAPI index history"
+               + (f" (begins {hm_earliest}, so 2021 carries December only)"
+                  if str(hm_earliest).startswith("2021") else "")
+               + " — all returns computed in Python.")
 
     body = f"""<div id="shell">
   <div class="phead">
@@ -585,10 +629,12 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     <section class="panel">
       <div class="p-h"><div><div class="p-t">The gap, measure by measure</div>
         <div class="p-note">Sector aggregate is the centre line. Bars run left when the company falls below it, right when it clears it.</div></div></div>
-      <div class="dev-scale"><span>Below sector</span><span>Sector aggregate</span><span>Above sector</span></div>
+      <div class="dev-scale"><span>Worse than sector</span><span>Sector aggregate</span><span>Better than sector</span></div>
       {gap_html}
-      <div class="dev-legend"><span><i style="background:linear-gradient(90deg,#B4483C,#C86A5F)"></i>Reads against the company</span>
-        <span style="color:#9AA09D">Valuation scales to &plusmn;50%; returns to &plusmn;12 pp.</span></div>
+      <div class="dev-legend">
+        <span><i style="background:linear-gradient(90deg,#2F9E63,#7CC49A)"></i>Better than sector &middot; right</span>
+        <span><i style="background:linear-gradient(90deg,#B4483C,#C86A5F)"></i>Worse than sector &middot; left</span>
+        <span style="color:#9AA09D">Valuation scales to &plusmn;50%; returns to &plusmn;12 pp; growth to &plusmn;40 pp.</span></div>
     </section>
 
     <section class="panel">
@@ -627,11 +673,11 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
       <span class="cy-mark" style="left:{phase_pos:.0f}%"></span></div>
     <div class="cy-names"><span>Trough</span><span>Early</span><span>Mid</span><span class="on">{escape(phase)}</span></div>
     <div class="tsplit">
-      <div class="tcol global">{_MAP_WORLD}<div class="tc-h">
+      <div class="tcol global">{map_world_html}<div class="tc-h">
         <span class="tc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"/></svg></span>
         <div><div class="tc-t">Global drivers</div><div class="tc-s">Sector complex</div></div></div>
         <ul class="tlist">{global_html}</ul></div>
-      <div class="tcol india">{_MAP_INDIA}<div class="tc-h">
+      <div class="tcol india">{map_india_html}<div class="tc-h">
         <span class="tc-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></span>
         <div><div class="tc-t">Indian read-through</div><div class="tc-s">Domestic producers</div></div></div>
         <ul class="tlist">{india_html}</ul></div>

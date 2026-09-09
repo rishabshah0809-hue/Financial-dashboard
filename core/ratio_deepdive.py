@@ -467,26 +467,8 @@ def _hero_why(ctx: dict) -> str:
         parts.append(f" The biggest drag is <b>{escape(low['label'])} at {low['score']}/100</b>, where "
                      f"{escape(low_weak['label'].lower())} is the main weak point, which is what keeps "
                      f"the score from being higher.")
-    w = ctx.get("weighted") or {}
-    wavg, savg = w.get("weighted_avg"), w.get("simple_avg")
-    nudge = w.get("nudge") or 0.0
-    if wavg is not None:
-        s = (" The headline is a <b>weighted average</b>, not a plain one: each area is "
-             "scored 0–100 and then weighted by how much it matters for this sector "
-             f"(the heavier areas pull harder). That weighting gives {wavg:g}")
-        if savg is not None and abs(savg - wavg) >= 0.5:
-            s += (f" — versus {savg:g} if every area counted equally, which is why the "
-                  "number differs from a simple average")
-        if nudge:
-            s += (f", and a {'+' if nudge > 0 else '&minus;'}{abs(nudge):g} earnings-quality "
-                  "adjustment (how well profit converts into operating cash) lands it at "
-                  f"<b>{w.get('total')}/100</b>")
-        else:
-            s += f", rounding to <b>{w.get('total')}/100</b>"
-        parts.append(s + ". Tap the ⓘ next to the score for the full breakdown.")
-    else:
-        parts.append(" Each area is scored 0–100 and then blended by how much it matters in "
-                     "this sector, so a strong area can partly offset a weak one.")
+    parts.append(" Each area is scored 0–100 and then blended by how much it matters in "
+                 "this sector, so a strong area can partly offset a weak one.")
     return "".join(parts)
 
 
