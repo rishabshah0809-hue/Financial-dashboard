@@ -1801,11 +1801,35 @@ def _season_strip(season: dict) -> str:
            if season.get("flat") else ""))
 
 
+def _heat_mix(a: tuple, b: tuple, t: float) -> str:
+    return "#%02x%02x%02x" % tuple(round(a[i] + (b[i] - a[i]) * t) for i in range(3))
+
+
+def _heat_cell(v: float | None) -> tuple[str, str]:
+    """(background, text) heat colour for a return %: green up, red down, light
+    near zero, intensity by magnitude (~14% = full). Missing -> neutral grey."""
+    if v is None:
+        return "#f4f6f4", "#c3cac6"
+    mag = min(abs(v) / 14.0, 1.0)
+    bg = (_heat_mix((235, 246, 239), (26, 133, 78), mag) if v >= 0
+          else _heat_mix((251, 235, 233), (192, 57, 43), mag))
+    return bg, ("#ffffff" if mag >= 0.5 else "#153223")
+
+
+def _seas_td(v: float | None, *, bold: bool = False) -> str:
+    bg, tx = _heat_cell(v)
+    txt = f"{v:+.2f}%" if isinstance(v, (int, float)) else "—"
+    return (f'<td style="background:{bg};color:{tx};text-align:center;'
+            f'padding:6px 7px;border:1px solid #fff;font-family:{MONO};'
+            f'font-size:11.5px;font-weight:{"800" if bold else "600"};'
+            f'white-space:nowrap">{txt}</td>')
+
+
 def _quant_seasonality(q: dict | None) -> str:
-    """HISTORICAL MARKET SEASONALITY — real observed monthly performance from
-    FundaCheck's accumulated daily Screener history. Shows a clear 'building'
-    state (observation count + date range, no fake numbers) until the
-    configurable threshold is met, then the actual per-month statistics."""
+    """HISTORICAL MARKET SEASONALITY — real observed monthly performance from the
+    sector's reference NIFTY index (IndianAPI price history, computed in Python).
+    Shows a clear 'building' state until the reliability threshold is met, then a
+    year × calendar-month heatmap with an average row and yearly returns."""
     if not q:
         return ""
     head = (_season_hdr("Historical market seasonality")
@@ -1828,31 +1852,47 @@ def _quant_seasonality(q: dict | None) -> str:
             f'<span style="color:#9aa09d">Insufficient observations for a reliable '
             f'backtest ({need}). Accumulating from the daily Screener snapshots.</span>'
             '</div>')
-    # sufficient: real stats
-    tiles = []
-    for c in q.get("cells", []):
-        val, pf, n = c.get("value"), c.get("pos_freq"), c.get("n")
-        num = f'{val:+.1f}%' if isinstance(val, (int, float)) else "—"
-        tip = (f'{c["month"]}: avg {num}'
-               + (f' · median {c["median"]:+.1f}% · {pf}% positive · n={n}'
-                  if isinstance(val, (int, float)) else ' · no observation'))
-        colour = c["colour"] if isinstance(val, (int, float)) else "#eef0ee"
-        tiles.append(
-            f'<div title="{_esc(tip)}" style="flex:1;min-width:0;text-align:center">'
-            f'<div style="height:26px;border-radius:6px;background:{colour};display:flex;'
-            f'align-items:center;justify-content:center;font-size:10.9px;font-weight:700;'
-            f'color:#0f2a1e">{_esc(num)}</div>'
-            f'<div style="font-size:11.5px;color:#8b918e;font-weight:600;padding-top:3px">'
-            f'{_esc(c["month"])}</div>'
-            + (f'<div style="font-size:9.8px;color:#9aa09d">{pf}%+</div>'
-               if isinstance(pf, (int, float)) else "")
-            + '</div>')
-    return (head
-            + f'<div style="display:flex;gap:4px;align-items:flex-end">{"".join(tiles)}</div>'
-            + '<div style="font-size:11.5px;color:#8b918e;padding-top:4px">Cell = average '
-              'monthly change · sub-label = share of positive months</div>'
+    # sufficient: real year x calendar-month heatmap
+    months = q.get("months") or []
+    idx = q.get("index") or ""
+    win = q.get("window") or ""
+    hcell = ('padding:6px 7px;font-family:%s;font-size:10px;font-weight:700;'
+             'letter-spacing:.4px;color:#8b918e;text-transform:uppercase;'
+             'border-bottom:1px solid #e6ebe7;white-space:nowrap') % MONO
+    thead = (f'<th style="{hcell};text-align:left">Year</th>'
+             + "".join(f'<th style="{hcell};text-align:center">{_esc(m)}</th>' for m in months)
+             + f'<th style="{hcell};text-align:right">Yearly Returns</th>')
+
+    rowlbl = ('padding:6px 10px 6px 2px;font-size:12.5px;color:#3f4744;'
+              'white-space:nowrap;text-align:left')
+    # average monthly performance row (first)
+    avg = q.get("avg") or []
+    body = (f'<tr><td style="{rowlbl};font-weight:800;background:#eef1ee">'
+            'Average Monthly Performance</td>'
+            + "".join(_seas_td(v, bold=True) for v in avg)
+            + f'<td style="{rowlbl};text-align:right;background:#eef1ee"></td></tr>')
+
+    for r in q.get("rows", []):
+        yv = r.get("yearly")
+        ybg, ytx = _heat_cell(yv)
+        yr_txt = (f'{yv:+.2f}%' if isinstance(yv, (int, float)) else "—")
+        yr_tag = ('<span style="font-family:%s;font-size:8.5px;font-weight:800;'
+                  'letter-spacing:.6px;color:#8b918e;padding-right:5px">YTD</span>' % MONO
+                  ) if r.get("ytd") else ""
+        body += (f'<tr><td style="{rowlbl};font-weight:700;color:#15201a">{r.get("year")}</td>'
+                 + "".join(_seas_td(v) for v in r.get("cells", []))
+                 + f'<td style="background:{ybg};color:{ytx};text-align:right;padding:6px 9px;'
+                 f'border:1px solid #fff;font-family:{MONO};font-size:11.5px;font-weight:800;'
+                 f'white-space:nowrap">{yr_tag}{yr_txt}</td></tr>')
+
+    caption = (f'<div style="font-size:12.1px;color:#8b918e;padding-bottom:6px">'
+               f'<b style="color:#4a5350">{_esc(idx)}</b>'
+               f'{(" · " + _esc(win)) if win else ""} · within-month index return</div>')
+    return (head + caption
+            + '<div style="overflow-x:auto"><table style="border-collapse:collapse;width:100%">'
+            + f'<thead><tr>{thead}</tr></thead><tbody>{body}</tbody></table></div>'
             + f'<div style="font-size:12.1px;color:#9aa09d;font-style:italic;'
-              f'padding-top:4px">{_esc(q.get("methodology", ""))}</div>')
+            f'padding-top:6px">{_esc(q.get("methodology", ""))}</div>')
 
 
 def _current_cycle(ctx: dict | None) -> str:
@@ -2162,7 +2202,7 @@ def sector_shell(model, result, snap: dict | None,
     #  • quantitative — real observed market seasonality from the accumulating
     #    daily Screener history ('building' until enough real observations exist)
     qual_html = _season_strip(_SEASON.qualitative(sector_key))
-    quant_html = _quant_seasonality(_SEASON.quantitative(sector_key))
+    quant_html = _quant_seasonality(_SEASON.market_heatmap(sector_key))
     # Current cycle (dynamic, news-driven) block, when context was fetched.
     cycle_html = _current_cycle(context)
     _rule = '<div style="border-top:1px solid #eef0ee;margin:14px 0 12px"></div>'

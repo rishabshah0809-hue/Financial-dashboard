@@ -24,13 +24,17 @@ No AI is used here — this is pure Python/data (see project rule §14).
 from __future__ import annotations
 
 import json
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import date
+from functools import lru_cache
 from pathlib import Path
 
 from . import tilt as TILT
 
 HISTORY_DIR = Path(__file__).resolve().parent.parent / "data" / "screener_history"
+MARKET_FILE = Path(__file__).resolve().parent.parent / "data" / "seasonality_history.json"
+CALENDAR_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 FISCAL_MONTHS = TILT.FISCAL_MONTHS  # Apr..Mar
 
@@ -161,6 +165,105 @@ def _sector_series(sector_key: str) -> list[tuple[date, float]]:
         if lvl is not None:
             out.append((d, lvl))
     return out
+
+
+# ---------------------------------------------------------------------------
+# market heatmap — real historical index price seasonality (IndianAPI history,
+# stored by scripts/refresh_seasonality.py; the app only reads + computes here)
+# ---------------------------------------------------------------------------
+_MARKET_CACHE: dict | None = None
+
+
+def _load_market() -> dict:
+    """The stored index-history file (loaded once per process). Never fetches."""
+    global _MARKET_CACHE
+    if _MARKET_CACHE is None:
+        try:
+            _MARKET_CACHE = json.loads(MARKET_FILE.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            _MARKET_CACHE = {}
+    return _MARKET_CACHE
+
+
+@lru_cache(maxsize=64)
+def market_heatmap(sector_key: str | None) -> dict:
+    """Year × calendar-month seasonality for a sector's reference index, computed
+    from the stored real IndianAPI price history. All arithmetic is Python.
+
+    Monthly return  = (last close of month ÷ first close of month − 1) × 100
+    Yearly return   = (last close of year  ÷ first close of year  − 1) × 100
+    Average row     = mean of each calendar month's returns across the years.
+
+    Missing months stay None ("—", never fabricated). The current incomplete year
+    is marked YTD and only carries months that actually have data. Returns a
+    permanent status dict; ``sufficient`` gates the heatmap vs the building state.
+    """
+    entry = (_load_market().get("indices") or {}).get(sector_key or "")
+    base: dict = {"mode": "market", "min_months": _MIN_MONTHS, "min_years": _MIN_YEARS,
+                  "index": (entry or {}).get("index")}
+
+    pts: list[tuple[date, float]] = []
+    for row in (entry or {}).get("closes") or []:
+        try:
+            pts.append((date.fromisoformat(str(row[0])), float(row[1])))
+        except (ValueError, TypeError, IndexError):
+            continue
+    pts.sort()
+    if not pts:
+        base.update({"sufficient": False, "observations": 0, "days": 0,
+                     "earliest": None, "latest": None})
+        return base
+
+    by_ym: dict[tuple[int, int], list[float]] = OrderedDict()
+    by_year: dict[int, list[float]] = OrderedDict()
+    for d, c in pts:
+        by_ym.setdefault((d.year, d.month), []).append(c)   # already date-sorted
+        by_year.setdefault(d.year, []).append(c)
+
+    monthly: dict[tuple[int, int], float] = {}
+    for k, vals in by_ym.items():
+        first_c, last_c = vals[0], vals[-1]
+        if first_c > 0:
+            monthly[k] = (last_c / first_c - 1) * 100.0
+    yearly: dict[int, float] = {}
+    for y, vals in by_year.items():
+        if vals[0] > 0:
+            yearly[y] = (vals[-1] / vals[0] - 1) * 100.0
+
+    years = sorted(by_year)
+    observations = len(monthly)
+    sufficient = observations >= _MIN_MONTHS and len(years) >= _MIN_YEARS
+    base.update({"sufficient": sufficient, "observations": observations, "days": len(pts),
+                 "earliest": pts[0][0].isoformat(), "latest": pts[-1][0].isoformat()})
+    if not sufficient:
+        return base
+
+    latest_year, latest_month = pts[-1][0].year, pts[-1][0].month
+    avg: list[float | None] = []
+    for m in range(1, 13):
+        col = [v for (yy, mm), v in monthly.items() if mm == m]   # real obs only
+        avg.append(round(sum(col) / len(col), 2) if col else None)
+
+    rows: list[dict] = []
+    for y in sorted(years, reverse=True):
+        cells = [round(monthly[(y, m)], 2) if (y, m) in monthly else None
+                 for m in range(1, 13)]
+        rows.append({"year": y,
+                     "cells": cells,
+                     "yearly": round(yearly[y], 2) if y in yearly else None,
+                     "ytd": (y == latest_year and latest_month < 12)})
+
+    base.update({
+        "months": CALENDAR_MONTHS,
+        "avg": avg,
+        "rows": rows,
+        "window": f"{years[0]}–{years[-1]}",
+        "methodology": (
+            f"Monthly return = (last close ÷ first close − 1) of each month for "
+            f"{base['index']}; average row = mean of each month across {len(years)} years. "
+            f"Real IndianAPI index history — all returns computed in Python."),
+    })
+    return base
 
 
 def quantitative(sector_key: str | None) -> dict:
