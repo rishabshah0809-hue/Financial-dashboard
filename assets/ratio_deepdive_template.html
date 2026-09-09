@@ -587,7 +587,7 @@ function barLineChart(elId, svgId, bar, line, fmt, fmtY){
     + '<path d="' + d + '" fill="none" stroke="' + line[1] + '" stroke-width="2" stroke-linejoin="round"/>'
     + '<circle cx="' + xAt(n - 1, n) + '" cy="' + sy(line[2][n - 1]) + '" r="3.4" fill="' + line[1] + '" stroke="#fff" stroke-width="1.6"/>'
     + hitCols(svgId, n) + '</svg>';
-  bindHits(svgId, [bar, line], fmt);
+  bindHits(svgId, [bar, line].filter(function(s){ return s && s[2] && s[2].length; }), fmt);
 }
 
 /* ---- grouped bars around zero (cash flow) ------------------------------- */
@@ -644,7 +644,9 @@ function stackedArea(elId, svgId, series, fmt, fmtY){
 /* ---- working capital: stacked up, payable down, cycle line -------------- */
 function wcChart(elId, svgId){
   var n = Y.length;
-  var ups = Y.map(function(_, i){ return WC_UP[0][2][i] + WC_UP[1][2][i]; });
+  // WC_UP may hold debtor days only (no inventory line) — sum whatever is present.
+  var ups = Y.map(function(_, i){ var t = 0; for (var k = 0; k < WC_UP.length; k++){
+    if (WC_UP[k] && WC_UP[k][2]) t += WC_UP[k][2][i]; } return t; });
   var yMax = niceMax(Math.max.apply(null, ups));
   var yMin = -niceMax(Math.max(Math.max.apply(null, WC_DOWN[2]), Math.abs(Math.min.apply(null, WC_LINE[2]))));
   var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
@@ -672,7 +674,7 @@ function wcChart(elId, svgId){
     + '<path d="' + d + '" fill="none" stroke="' + WC_LINE[1] + '" stroke-width="2" stroke-dasharray="4 3"/>'
     + '<circle cx="' + xAt(n - 1, n) + '" cy="' + sy(WC_LINE[2][n - 1]) + '" r="3.4" fill="' + WC_LINE[1] + '" stroke="#fff" stroke-width="1.6"/>'
     + hitCols(svgId, n) + '</svg>';
-  bindHits(svgId, [WC_UP[0], WC_UP[1], WC_DOWN, WC_LINE], function(v){ return v.toFixed(0) + "d"; });
+  bindHits(svgId, [WC_UP[0], WC_UP[1], WC_DOWN, WC_LINE].filter(Boolean), function(v){ return v.toFixed(0) + "d"; });
 }
 
 /* ---- bullet bars -------------------------------------------------------- */

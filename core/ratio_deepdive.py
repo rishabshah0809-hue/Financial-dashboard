@@ -365,6 +365,19 @@ def build_context(model, result, model_filename: str = "") -> dict:
                           "Return on Capital Employed")
     roa = _tail_complete(model, years, "Return on Assets (ROA) %", "ROA", "Return on Assets")
     de = _tail_complete(model, years, "Debt to Equity Ratio", "Debt to Equity", "D/E")
+    # The D/E ratio row is often sparse for (near-)debt-free companies, so the
+    # leverage chart would read "unavailable" even when borrowings and equity are
+    # both in the workbook. Derive a complete series = Borrowings ÷ (equity capital
+    # + reserves) when the ratio itself is missing. Real lines only, never invented.
+    if de is None:
+        borr = _tail_complete(model, years, "Borrowings", "Total Debt")
+        esc = _tail_complete(model, years, "Equity Share Capital", "Share Capital", "Equity Capital")
+        res = _tail_complete(model, years, "Reserves", "Reserves and Surplus", "Other Equity")
+        if borr is not None and esc is not None and res is not None:
+            de = []
+            for b, e, r in zip(borr, esc, res):
+                eq = (e or 0.0) + (r or 0.0)
+                de.append(round(b / eq, 4) if eq else 0.0)
     ic = _tail_complete(model, years, "Interest Coverage Ratio", "Interest Coverage")
     dd = _tail_complete(model, years, "Debtor Days")
     iv = _tail_complete(model, years, "Inventory Days")
@@ -707,8 +720,12 @@ def _render_js(ctx: dict) -> str:
         parts.append('legend("lg-margins", MARGINS);              lineChart("ch-margins", "svMargins", MARGINS, pc, pcY);')
     if has["returns"]:
         parts.append('legend("lg-returns", RETURNS);              lineChart("ch-returns", "svReturns", RETURNS, pc, pcY);')
-    if has["lev"] and ctx["de"] and ctx["ic"]:
-        parts.append('legend("lg-lev", [LEV_BAR, LEV_LINE], "sq");barLineChart("ch-lev", "svLev", LEV_BAR, LEV_LINE, xx, xxY);')
+    if has["lev"]:
+        # Render with whatever is complete: bars + line when both exist, or just
+        # the interest-cover line for a (near-)debt-free company whose D/E row is
+        # too sparse to plot. Empty series are filtered from the legend + chart.
+        parts.append('legend("lg-lev", [LEV_BAR, LEV_LINE].filter(function(s){return s && s[2] && s[2].length;}), "sq");'
+                     'barLineChart("ch-lev", "svLev", LEV_BAR, LEV_LINE, xx, xxY);')
     if has["cash"]:
         parts.append('legend("lg-cash", CASH, "sq");              groupedBars("ch-cash", "svCash", CASH, cr, crY);')
     if has["wc"] and ctx["ccc"]:
@@ -951,7 +968,7 @@ def render(model, result, model_filename: str = "") -> tuple[str, int]:
 
   <div class="sechead"><h2>Leverage &amp; cash</h2><span class="rule"></span><span class="sc" style="color:#B5761F">Leverage {next((p['score'] for p in ctx['pillars'] if p['key'] == 'leverage'), '—')}</span></div>
   <div class="g2">
-    {_card("Leverage &amp; solvency", "Debt/equity bars · interest cover line", _read_leverage(ctx), "lg-lev", "ch-lev", bool(ctx["de"] and ctx["ic"]))}
+    {_card("Leverage & solvency", "Debt/equity bars · interest cover line", _read_leverage(ctx), "lg-lev", "ch-lev", bool(ctx["de"] or ctx["ic"]))}
     {_card("Cash flow mix", "Operating · investing · financing, ₹ cr", _read_cash(ctx), "lg-cash", "ch-cash", bool(ctx["cfo"]))}
   </div>
 
