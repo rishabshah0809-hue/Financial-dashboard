@@ -1191,14 +1191,28 @@ _READING_PILLAR = {
     "returns": "returns", "efficiency": "efficiency", "leverage_cashflow": "leverage",
 }
 _READING_FIT = """<script>
-(function(){function fit(){try{var s=document.getElementById('rshell');if(!s)return;
-var h=Math.ceil(s.getBoundingClientRect().height)+24;
-try{window.parent.postMessage({isStreamlitMessage:true,type:'streamlit:setFrameHeight',height:h},'*');}catch(e){}
-try{var fe=window.frameElement;if(fe){fe.style.setProperty('height',h+'px','important');fe.setAttribute('height',h);}}catch(e){}}
-function sch(){fit();for(var k=1;k<=10;k++)setTimeout(fit,k*220);}
-window.addEventListener('load',sch);sch();
-if(window.ResizeObserver){var ro=new ResizeObserver(fit);var s=document.getElementById('rshell');if(s)ro.observe(s);}
-window.addEventListener('resize',fit);setInterval(fit,1200);})();
+(function(){
+  function fit(){
+    try{var s=document.getElementById('rshell');if(!s)return;
+      var h=Math.ceil(s.getBoundingClientRect().height)+16;
+      try{window.parent.postMessage({isStreamlitMessage:true,type:'streamlit:setFrameHeight',height:h},'*');}catch(e){}
+      try{var fe=window.frameElement;
+        if(fe){var cur=parseInt(fe.style.height)||0;
+          if(Math.abs(cur-h)>1){fe.style.setProperty('height',h+'px','important');fe.setAttribute('height',h);}
+          var el=fe.parentElement;
+          for(var i=0;i<6&&el;i++){var tid=el.getAttribute&&el.getAttribute('data-testid');
+            if(tid==='stElementContainer'||tid==='stVerticalBlock'||tid==='stVerticalBlockBorderWrapper'){
+              if(el.style.height!=='auto')el.style.height='auto';el.style.minHeight='0px';}
+            if(tid==='stMain'||tid==='stAppViewContainer')break;el=el.parentElement;}}
+      }catch(e){}
+    }catch(e){}
+  }
+  function sch(){fit();for(var k=1;k<=12;k++)setTimeout(fit,k*220);}
+  window.addEventListener('load',sch);sch();
+  if(window.ResizeObserver){var ro=new ResizeObserver(fit);var s=document.getElementById('rshell');
+    if(s)ro.observe(s);ro.observe(document.documentElement);if(document.body)ro.observe(document.body);}
+  window.addEventListener('resize',fit);setInterval(fit,1000);
+})();
 </script>"""
 
 
