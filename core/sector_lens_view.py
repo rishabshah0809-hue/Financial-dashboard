@@ -91,15 +91,28 @@ def _cycle_list(items: list[dict]) -> str:
         expl = escape(str(it.get("explain") or "").strip())
         src = escape(str(it.get("source") or "").strip())
         dt = escape(str(it.get("date") or "").strip())
+        url = escape(str(it.get("url") or "").strip())
         if not title and not expl:
             continue
-        body = f'<b>{title}</b>' if title else ""
+        # The headline itself is the article link (opens in a new tab); the
+        # source + date line below is clickable too, with a small ↗ affordance.
+        if title:
+            body = (f'<a class="h-ttl" href="{url}" target="_blank" '
+                    f'rel="noopener noreferrer">{title}</a>' if url else f'<b>{title}</b>')
+        else:
+            body = ""
         if expl:
             body += (" &mdash; " if title else "") + expl
         meta = ""
         if src:
             lab = f'{src}{(" &middot; " + dt) if dt else ""}'
-            meta = f'<span class="tsrc">{lab}</span>'
+            if url:
+                meta = (f'<a class="tsrc" href="{url}" target="_blank" rel="noopener noreferrer">'
+                        f'{lab}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+                        f'stroke-width="2.2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/>'
+                        f'</svg></a>')
+            else:
+                meta = f'<span class="tsrc">{lab}</span>'
         out.append(f'<li>{body}{meta}</li>')
     return "".join(out)
 
@@ -294,9 +307,13 @@ _EXTRA_CSS = """
 .slg i{width:11px;height:11px;border-radius:3px;display:inline-block}
 /* map svgs behind the cycle columns */
 .tmap svg{display:block;width:100%;height:auto}
-/* per-headline source + date, PLAIN TEXT (no link — links are in Sources) */
+/* headline links to the article; source + date below is clickable too */
+.tlist li a.h-ttl{color:inherit;font-weight:800;text-decoration:none}
+.tlist li a.h-ttl:hover{text-decoration:underline}
 .tlist li .tsrc{display:block;margin-top:5px;font-size:11.5px;font-weight:600;
-  color:var(--ink-3,#8b918e)}
+  color:var(--ink-3,#8b918e);text-decoration:none}
+.tlist li a.tsrc:hover{color:var(--pos-deep,#0F5B34);text-decoration:underline}
+.tlist li a.tsrc svg{width:11px;height:11px;vertical-align:-1px;margin-left:3px}
 /* valuation headline: colour each clause by its comparison state */
 .v-head .vpos{font-style:normal;color:var(--pos-deep,#0F5B34)}
 .v-head .vneg{font-style:normal;color:var(--neg,#B4483C)}
@@ -571,20 +588,12 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     fun_tilt = " ".join(fun_bits) or (
         "Baseline established from the latest snapshot fundamentals.")
 
-    cyc_sources = [{"name": s.get("source") or "source", "url": s.get("url") or "#"}
-                   for s in (ctx.get("sources") or []) if s.get("title")]
-    cyc_updated = ctx.get("updated_display") or ctx.get("news_snapshot_date") or ""
     cyc_note = ("What is moving the sector globally, and how it reaches Indian producers."
                 if have_news else "Structural read — live news context was not available, so "
                 "this is the sector's standing cycle profile.")
     map_world_html = _map_span("world", ("assetsmap_world", "map_world"), _MAP_WORLD, 640)
     map_india_html = _map_span("india", ("assetsmap_india", "map_india"), _MAP_INDIA, 380)
     watch_html = "".join(f'<span class="wtag">{escape(w)}</span>' for w in watch[:6])
-    src_html = "".join(
-        f'<a class="srclink" href="{escape(s["url"])}" target="_blank" rel="noopener noreferrer">'
-        f'{escape(s["name"])}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" '
-        f'stroke-width="2.2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a>'
-        for s in cyc_sources[:5])
 
     # ---- constituents table payload --------------------------------------
     def _w(r):
@@ -759,7 +768,6 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
       <div class="tilt mkt"><span class="tilt-c">Market tilt</span><div class="tilt-b">{escape(mkt_tilt)}</div></div>
       <div class="tilt fun"><span class="tilt-c">Fundamental tilt</span><div class="tilt-b">{fun_tilt}</div></div>
     </div>
-    {"" if not src_html else f'<div class="cy-src"><b>Sources</b>{src_html}<span class="r">{escape(str(cyc_updated))}</span></div>'}
   </section>
 
   <section class="cons">
