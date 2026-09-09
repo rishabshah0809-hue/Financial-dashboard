@@ -505,10 +505,13 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     hm_payload = None
     if hm.get("sufficient"):
         rows = hm.get("rows") or []
-        # Keep every year that has any real month (the index price history on the
-        # data source begins 3 Dec 2021, so 2021 legitimately carries December only).
-        rows = [r for r in rows if any(c is not None for c in r["cells"])]
-        rows6 = rows[:6]                      # newest-first, includes partial 2021
+        # The index price history begins 3 Dec 2021, so 2021 carries December only —
+        # a near-empty row that reads as blank. Drop 2021 and any year too thin to
+        # be meaningful (fewer than 3 real months); the window starts at 2022.
+        rows = [r for r in rows
+                if r.get("year") != 2021
+                and sum(c is not None for c in r["cells"]) >= 3]
+        rows6 = rows[:6]                      # newest-first
         yrs = [r["year"] for r in rows6]
         win = f"{min(yrs)}–{max(yrs)}" if yrs else ""
         n_yrs = len(yrs)
@@ -618,10 +621,7 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     hm_earliest = (hm or {}).get("earliest") or ""
     hm_meth = (f"Monthly return = (last close ÷ first close − 1) of each month for "
                f"{hm_index}; average row = mean of each month across {hm_years} years. "
-               f"Real IndianAPI index history"
-               + (f" (begins {hm_earliest}, so 2021 carries December only)"
-                  if str(hm_earliest).startswith("2021") else "")
-               + " — all returns computed in Python.")
+               f"Real IndianAPI index history from 2022 — all returns computed in Python.")
 
     body = f"""<div id="shell">
   <div class="phead">

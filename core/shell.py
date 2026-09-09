@@ -1133,7 +1133,10 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
         f'<div class="csub">Fundamental metrics to determine fair value</div>'
         f"{_valuation(model)}</div>",
         '<div class="card"><div class="ct-row"><span class="ct">Key Ratios</span>'
-        '<span class="pilltag">All</span></div>' + _key_ratios(model) + "</div>",
+        '<span class="pilltag" style="cursor:pointer" '
+        'title="Open the full Ratio Analysis table" '
+        "onclick=\"fcGotoRatio('__all__')\">All &#8599;</span></div>"
+        + _key_ratios(model) + "</div>",
         "</div>",
         '<div class="grid-300">'
         '<div class="card"><div class="ct-row">'
