@@ -725,6 +725,18 @@ def _render_js(ctx: dict) -> str:
 # Score-explanation UI — appended only to the scorecard ("Every ratio, scored
 # against its sector band"). No other section shows these explanations.
 _EXP_CSS = """
+/* Header: keep the Model/Periods/Sector-bands meta anchored top-RIGHT beside the
+   title. The template's .phead uses flex-wrap:wrap, so a long sector name (e.g.
+   "Infrastructure, Power & Capital Goods") pushed the whole meta block onto its
+   own line and it spread to the left. Let the title column shrink instead and
+   stop the meta from wrapping below. */
+.phead{flex-wrap:nowrap}
+.phead>div:first-child{flex:1 1 auto;min-width:0}
+.phead .feed{flex:0 0 auto;justify-content:flex-end}
+@media (max-width:720px){
+  .phead{flex-wrap:wrap}
+  .phead .feed{justify-content:flex-start;flex:1 1 100%}
+}
 .scr .nm{display:flex;align-items:center;justify-content:flex-end;gap:7px}
 .scr .exi{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
   border-radius:50%;border:1.3px solid #C4CCC6;background:#fff;color:#8B918E;font-size:11.5px;
