@@ -232,24 +232,50 @@ _ROOT = _TEMPLATE.parent.parent
 _MAP_DIRS = (_ROOT / "images", _ROOT / "assets")   # prefer images/, then assets/
 
 
-def _map_span(cls: str, png_name: str, svg_fallback: str) -> str:
-    """Prefer a user-supplied map image (images/<png_name>, then assets/<png_name>);
-    fall back to the inline SVG. Drop your dotted map PNGs at images/map_world.png /
-    images/map_india.png and they are embedded here verbatim, no code change."""
+def _map_span(cls: str, base_names: tuple[str, ...], svg_fallback: str,
+              max_w: int = 640) -> str:
+    """Prefer a user-supplied map image (searched in images/ then assets/, over the
+    given base names and common extensions); fall back to the inline SVG. Drop the
+    dotted map images at images/assetsmap_world.png / images/assetsmap_india.png
+    (or map_world.png / map_india.png) and they are embedded here verbatim."""
     for d in _MAP_DIRS:
-        for name in (png_name, png_name.replace(".png", ".jpg"),
-                     png_name.replace(".png", ".webp")):
-            p = d / name
-            if p.exists():
-                try:
-                    b64 = base64.b64encode(p.read_bytes()).decode("ascii")
-                    ext = p.suffix.lstrip(".").lower() or "png"
-                    mime = "jpeg" if ext == "jpg" else ext
-                    return (f'<span class="tmap {cls}" aria-hidden="true">'
-                            f'<img alt="" src="data:image/{mime};base64,{b64}"></span>')
-                except OSError:
-                    pass
+        for base in base_names:
+            for ext in ("png", "jpg", "jpeg", "webp"):
+                p = d / f"{base}.{ext}"
+                if p.exists():
+                    try:
+                        raw, mime = p.read_bytes(), ("jpeg" if ext == "jpg" else ext)
+                        small = _downscale_png(raw, max_w)   # keep the payload light
+                        if small is not None:
+                            raw, mime = small, "png"
+                        b64 = base64.b64encode(raw).decode("ascii")
+                        return (f'<span class="tmap {cls}" aria-hidden="true">'
+                                f'<img alt="" src="data:image/{mime};base64,{b64}"></span>')
+                    except OSError:
+                        pass
     return svg_fallback
+
+
+def _downscale_png(raw: bytes, max_w: int = 760) -> bytes | None:
+    """Shrink an oversized map to ~display width (2× for retina), preserving
+    transparency. Returns None if Pillow is unavailable or no resize is needed."""
+    try:
+        import io
+        from PIL import Image
+    except Exception:                                    # noqa: BLE001
+        return None
+    try:
+        im = Image.open(io.BytesIO(raw))
+        if im.width <= max_w:
+            return None
+        im = im.convert("RGBA")
+        h = round(im.height * max_w / im.width)
+        im = im.resize((max_w, h), Image.LANCZOS)
+        out = io.BytesIO()
+        im.save(out, format="PNG", optimize=True)
+        return out.getvalue()
+    except Exception:                                    # noqa: BLE001
+        return None
 
 _EXTRA_CSS = """
 /* gap bars: green = better than sector (right), red = worse (left) */
@@ -548,8 +574,8 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     cyc_note = ("What is moving the sector globally, and how it reaches Indian producers."
                 if have_news else "Structural read — live news context was not available, so "
                 "this is the sector's standing cycle profile.")
-    map_world_html = _map_span("world", "map_world.png", _MAP_WORLD)
-    map_india_html = _map_span("india", "map_india.png", _MAP_INDIA)
+    map_world_html = _map_span("world", ("assetsmap_world", "map_world"), _MAP_WORLD, 640)
+    map_india_html = _map_span("india", ("assetsmap_india", "map_india"), _MAP_INDIA, 380)
     watch_html = "".join(f'<span class="wtag">{escape(w)}</span>' for w in watch[:6])
     src_html = "".join(
         f'<a class="srclink" href="{escape(s["url"])}" target="_blank" rel="noopener noreferrer">'
