@@ -1132,8 +1132,8 @@ _READING_CSS = """<style>
 .rd *{box-sizing:border-box}
 .rd .rhead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
   flex-wrap:wrap;padding:8px 4px 14px}
-.rd .rhead h2{font-size:22px;font-weight:800;letter-spacing:-.6px;line-height:1.15}
-.rd .rhead p{font-size:13px;color:var(--mute);padding-top:6px;max-width:74ch;line-height:1.55}
+.rd .rhead .rh-t{font-size:22px;font-weight:800;letter-spacing:-.6px;line-height:1.15}
+.rd .rhead .rh-p{font-size:13px;color:var(--mute);padding-top:6px;max-width:74ch;line-height:1.55}
 .rd .rkey{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--mute);
   white-space:nowrap;padding-top:6px}
 .rd .rkey b{width:9px;height:9px;border-radius:50%;flex:none;margin-left:9px}
@@ -1159,9 +1159,9 @@ _READING_CSS = """<style>
   max-width:58ch}
 .rd .rc-lede b{color:var(--ink);font-weight:800}
 .rd .rc-b{list-style:none;padding-top:12px;display:flex;flex-direction:column;gap:9px;flex:1;margin:0}
-.rd .rc-b li{position:relative;padding-left:17px;font-size:13.5px;line-height:1.62;color:var(--ink-2);
+.rd .rc-b .rc-li{position:relative;padding-left:17px;font-size:13.5px;line-height:1.62;color:var(--ink-2);
   max-width:72ch}
-.rd .rc-b li::before{content:"";position:absolute;left:0;top:.68em;width:8px;height:1.5px;
+.rd .rc-b .rc-li::before{content:"";position:absolute;left:0;top:.68em;width:8px;height:1.5px;
   border-radius:2px;background:var(--k)}
 .rd .rc-b b{color:var(--ink);font-weight:700}
 .rd .rc-none{padding-top:10px;font-size:13px;color:var(--mute);font-style:italic}
@@ -1190,32 +1190,6 @@ _READING_PILLAR = {
     "growth": "growth", "margins": "profitability", "costs": "profitability",
     "returns": "returns", "efficiency": "efficiency", "leverage_cashflow": "leverage",
 }
-_READING_FIT = """<script>
-(function(){
-  function fit(){
-    try{var s=document.getElementById('rshell');if(!s)return;
-      var h=Math.ceil(s.getBoundingClientRect().height)+16;
-      try{window.parent.postMessage({isStreamlitMessage:true,type:'streamlit:setFrameHeight',height:h},'*');}catch(e){}
-      try{var fe=window.frameElement;
-        if(fe){var cur=parseInt(fe.style.height)||0;
-          if(Math.abs(cur-h)>1){fe.style.setProperty('height',h+'px','important');fe.setAttribute('height',h);}
-          var el=fe.parentElement;
-          for(var i=0;i<6&&el;i++){var tid=el.getAttribute&&el.getAttribute('data-testid');
-            if(tid==='stElementContainer'||tid==='stVerticalBlock'||tid==='stVerticalBlockBorderWrapper'){
-              if(el.style.height!=='auto')el.style.height='auto';el.style.minHeight='0px';}
-            if(tid==='stMain'||tid==='stAppViewContainer')break;el=el.parentElement;}}
-      }catch(e){}
-    }catch(e){}
-  }
-  function sch(){fit();for(var k=1;k<=12;k++)setTimeout(fit,k*220);}
-  window.addEventListener('load',sch);sch();
-  if(window.ResizeObserver){var ro=new ResizeObserver(fit);var s=document.getElementById('rshell');
-    if(s)ro.observe(s);ro.observe(document.documentElement);if(document.body)ro.observe(document.body);}
-  window.addEventListener('resize',fit);setInterval(fit,1000);
-})();
-</script>"""
-
-
 def _reading_verdict(section_key: str, result) -> tuple[str, str]:
     """(verdict word, colour class) from the real pillar score for this area.
     Valuation and any unscored area read 'Noted' (neutral) — never invented."""
@@ -1249,9 +1223,9 @@ def _reading_richtext(raw: str) -> str:
 def _reading_card(idx: int, section_key: str, heading: str,
                   bullets: list[str], result, wide: bool) -> str:
     word, kcls = _reading_verdict(section_key, result)
-    head = (f'<header class="rc-h"><span class="rc-n">{idx:02d}</span>'
-            f'<h3 class="rc-t">{html.escape(heading)}</h3>'
-            f'<span class="rc-v">{html.escape(word)}</span></header>')
+    head = (f'<div class="rc-h"><span class="rc-n">{idx:02d}</span>'
+            f'<span class="rc-t">{html.escape(heading)}</span>'
+            f'<span class="rc-v">{html.escape(word)}</span></div>')
     fallback = (len(bullets) == 1
                 and bullets[0].lower().startswith(_INTERP_FALLBACK_PREFIXES))
     if not bullets:
@@ -1259,33 +1233,30 @@ def _reading_card(idx: int, section_key: str, heading: str,
     elif fallback:
         body = f'<div class="rc-none">{html.escape(bullets[0])}</div>'
     else:
-        lede = f'<p class="rc-lede">{_reading_richtext(bullets[0])}</p>'
+        lede = f'<div class="rc-lede">{_reading_richtext(bullets[0])}</div>'
         rest = bullets[1:]
-        lis = "".join(f'<li>{_reading_richtext(b)}</li>' for b in rest)
-        body = lede + (f'<ul class="rc-b">{lis}</ul>' if lis else "")
+        lis = "".join(f'<div class="rc-li">{_reading_richtext(b)}</div>' for b in rest)
+        body = lede + (f'<div class="rc-b">{lis}</div>' if lis else "")
     cls = f'rcard {kcls}' + (" iwide" if wide else "")
-    return f'<article class="{cls}">{head}{body}</article>'
+    return f'<div class="{cls}">{head}{body}</div>'
 
 
 def _reading_component(interp, result, company: str, sector_name: str) -> None:
     head = (
-        '<div class="rhead"><div><h2>Financial model interpretation</h2>'
-        f'<p>{html.escape(company)} &middot; {html.escape(sector_name)} &middot; seven readings '
-        'taken directly from the uploaded model. Each carries the verdict it earns on its '
-        'own sector-weighted evidence.</p></div>'
+        '<div class="rhead"><div><div class="rh-t">Financial model interpretation</div>'
+        f'<div class="rh-p">{html.escape(company)} &middot; {html.escape(sector_name)} &middot; seven '
+        'readings taken directly from the uploaded model. Each carries the verdict it earns on '
+        'its own sector-weighted evidence.</div></div>'
         '<div class="rkey"><b class="b-pos"></b>Holding up<b class="b-warn"></b>Mixed'
         '<b class="b-neg"></b>Weak</div></div>')
 
-    height = 1500
     if interp.offline:
         note = ("No Groq or Gemini API key is detected in this app's Secrets, so the written "
                 "interpretation can't be generated. Your parsed model data is available in the "
                 "tabs above, and the ask box above still works.")
         body = f'{head}<div class="rnote">{html.escape(note)}</div>'
-        height = 260
     elif interp.error:
         body = f'{head}<div class="rnote">{html.escape(interp.error)}</div>'
-        height = 260
     else:
         cards = []
         for i, (skey, heading) in enumerate(INTERP_SECTIONS, 1):
@@ -1301,7 +1272,9 @@ def _reading_component(interp, result, company: str, sector_name: str) -> None:
                 '<span class="foot-r">No external commentary used</span></div>')
         body = f'{head}{grid}{foot}'
 
-    vcomp(_READING_CSS + f'<div id="rshell" class="rd">{body}</div>' + _READING_FIT, height)
+    # Render in the MAIN DOM (not an iframe): the grid is pure HTML/CSS, so this
+    # flows with the page and leaves no reserved iframe height / empty space.
+    st.markdown(_READING_CSS + f'<div class="rd">{body}</div>', unsafe_allow_html=True)
 
 
 def _reading_block(model, result, sector_key: str, config: LLMConfig) -> None:
