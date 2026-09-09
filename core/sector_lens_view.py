@@ -173,25 +173,27 @@ _MAP_INDIA = (
     '<circle cx="96" cy="118" r="3.4"/><circle cx="90" cy="126" r="2.4"/>'  # Sri Lanka hint
     '</svg></span>')
 
-_ASSETS = _TEMPLATE.parent
+_ROOT = _TEMPLATE.parent.parent
+_MAP_DIRS = (_ROOT / "images", _ROOT / "assets")   # prefer images/, then assets/
 
 
 def _map_span(cls: str, png_name: str, svg_fallback: str) -> str:
-    """Prefer a user-supplied PNG (assets/<png_name>); fall back to the inline SVG.
-    Drop your dotted map PNGs at assets/map_world.png / assets/map_india.png and
-    they are embedded here verbatim, no code change needed."""
-    for name in (png_name, png_name.replace(".png", ".jpg"),
-                 png_name.replace(".png", ".webp")):
-        p = _ASSETS / name
-        if p.exists():
-            try:
-                b64 = base64.b64encode(p.read_bytes()).decode("ascii")
-                ext = p.suffix.lstrip(".").lower() or "png"
-                mime = "jpeg" if ext == "jpg" else ext
-                return (f'<span class="tmap {cls}" aria-hidden="true">'
-                        f'<img alt="" src="data:image/{mime};base64,{b64}"></span>')
-            except OSError:
-                pass
+    """Prefer a user-supplied map image (images/<png_name>, then assets/<png_name>);
+    fall back to the inline SVG. Drop your dotted map PNGs at images/map_world.png /
+    images/map_india.png and they are embedded here verbatim, no code change."""
+    for d in _MAP_DIRS:
+        for name in (png_name, png_name.replace(".png", ".jpg"),
+                     png_name.replace(".png", ".webp")):
+            p = d / name
+            if p.exists():
+                try:
+                    b64 = base64.b64encode(p.read_bytes()).decode("ascii")
+                    ext = p.suffix.lstrip(".").lower() or "png"
+                    mime = "jpeg" if ext == "jpg" else ext
+                    return (f'<span class="tmap {cls}" aria-hidden="true">'
+                            f'<img alt="" src="data:image/{mime};base64,{b64}"></span>')
+                except OSError:
+                    pass
     return svg_fallback
 
 _EXTRA_CSS = """

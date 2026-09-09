@@ -10,6 +10,7 @@ Run it with:   streamlit run app.py
 
 from __future__ import annotations
 
+import base64
 import html
 import json
 import logging
@@ -1104,41 +1105,181 @@ def _model_interpretation_block(model, sector_key: str, config: LLMConfig,
     _layout(f'<div class="interp">{head}{grid}{srccard}</div>', 1600)
 
 
+# ==========================================================================
+# Ask the analyst — console redesign (reference: fundacheck_ask_analyst_v2.html)
+# The analyst identity + PFP are rendered in the MAIN DOM via st.markdown (not an
+# iframe) so the exact reference console and the real Streamlit input/chips live
+# in one card. The AI/data layer (answer_question, the scored Assessment) is
+# reused unchanged — no fake answers, no new calculation path.
+# ==========================================================================
+
+# Reference chips: visible label -> the actual question sent to the analyst.
+_QA_CHIPS = [
+    ("Is the debt load sustainable?", "Is the debt load sustainable given the cash flows?"),
+    ("What single ratio changes the verdict?",
+     "What single ratio would change the verdict fastest?"),
+    ("How does it compare with its sector?",
+     "How does this company compare with its sector on the key ratios?"),
+]
+
+_PFP_PATH = Path(__file__).resolve().parent / "images" / "analyst_pfp.png"
+
+
+@st.cache_data(show_spinner=False)
+def _analyst_pfp_uri() -> str:
+    """The EXACT reference AI PFP (images/analyst_pfp.png, extracted verbatim from
+    the reference HTML). Embedded as a data URI so it survives the Streamlit
+    static-asset boundary. Never substituted with an icon or generated avatar."""
+    try:
+        b64 = base64.b64encode(_PFP_PATH.read_bytes()).decode("ascii")
+        return f"data:image/png;base64,{b64}"
+    except OSError:
+        return ""
+
+
+# Console CSS — reference values, scoped to the keyed container so it cannot leak
+# into other pages. Styles the real Streamlit input / submit / chip widgets to
+# match the reference field, Ask button and chips.
+_QA_CONSOLE_CSS = """
+<style>
+@keyframes fcPulseGlow{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.07);opacity:.5}}
+.st-key-qa_console{background:#fff;border:1px solid #E6EBE7;border-radius:24px;
+  padding:22px 26px;box-shadow:0 1px 2px rgba(21,32,26,.04),0 10px 30px -14px rgba(21,32,26,.22)}
+.fc-av-wrap{position:relative;width:104px;height:104px;margin:2px auto 6px}
+.fc-av-glow{position:absolute;inset:-10px;border-radius:50%;
+  background:radial-gradient(circle,rgba(55,160,106,.32) 0%,rgba(55,160,106,.10) 46%,transparent 70%);
+  filter:blur(8px);animation:fcPulseGlow 3.4s ease-in-out infinite;z-index:1}
+.fc-av{position:relative;z-index:2;width:100%;height:100%;object-fit:contain;
+  image-rendering:pixelated;border-radius:50%;background:#fff}
+.fc-av-status{position:absolute;left:50%;bottom:-7px;transform:translateX(-50%);z-index:3;
+  display:flex;align-items:center;gap:5px;background:#fff;border:1px solid #CFE2D7;
+  border-radius:20px;padding:3px 8px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:8.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:#1E6B43;
+  box-shadow:0 2px 6px rgba(21,32,26,.08)}
+.fc-av-status i{width:5px;height:5px;border-radius:50%;background:#2F9E63;flex:none}
+.fc-c-top{display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;padding-bottom:8px}
+.fc-c-t{font-size:23px;font-weight:800;letter-spacing:-.7px;line-height:1.15;color:#15201A}
+.fc-c-s{font-size:13.5px;color:#8B918E;padding-top:6px;line-height:1.55;max-width:62ch}
+.fc-pill{display:inline-flex;align-items:center;gap:7px;background:#EEF4F0;border:1px solid #CFE2D7;
+  color:#1E6B43;border-radius:20px;padding:6px 12px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:9.5px;font-weight:700;letter-spacing:.9px;text-transform:uppercase;white-space:nowrap;
+  margin-left:auto}
+.fc-pill i{width:6px;height:6px;border-radius:50%;background:#2F9E63;flex:none}
+/* real text input styled as the reference .field */
+.st-key-qa_console div[data-baseweb="input"]{background:#FBFCFB;border:1.5px solid #DFE6E1;
+  border-radius:16px;transition:border-color .15s,box-shadow .15s}
+.st-key-qa_console div[data-baseweb="input"]:focus-within{border-color:#2F9E63;background:#fff;
+  box-shadow:0 0 0 3px rgba(47,158,99,.12)}
+.st-key-qa_console div[data-baseweb="input"] input{font-size:14.5px;color:#15201A;padding:9px 4px}
+.st-key-qa_console div[data-baseweb="base-input"]{background:transparent}
+/* Ask (form submit) */
+.st-key-qa_console [data-testid="stFormSubmitButton"] button{
+  background:linear-gradient(135deg,#2A9C62,#177245);color:#fff;border:0;border-radius:12px;
+  font-weight:700;font-size:13.5px;box-shadow:0 5px 13px -5px rgba(23,114,69,.6)}
+.st-key-qa_console [data-testid="stFormSubmitButton"] button:hover{filter:brightness(1.07)}
+.st-key-qa_console [data-testid="stFormSubmitButton"] button p{font-weight:700}
+/* suggested chips (plain buttons) */
+.st-key-qa_console [data-testid="stButton"] button{background:#fff;border:1px solid #E2E8E4;
+  border-radius:20px;color:#3F4744;font-size:12.5px;font-weight:600;padding:8px 14px}
+.st-key-qa_console [data-testid="stButton"] button:hover{border-color:#2F9E63;color:#15201A}
+/* answer block — reference .answer */
+.fc-answer{margin-top:4px;background:#FBFCFB;border:1px solid #E6EBE7;border-left:3px solid #2F9E63;
+  border-radius:14px;padding:15px 18px}
+.fc-a-h{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding-bottom:8px}
+.fc-a-l{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:9.5px;font-weight:700;
+  letter-spacing:1.2px;text-transform:uppercase;color:#9AA09D}
+.fc-a-q{font-size:13px;font-weight:700;color:#15201A}
+.fc-a-b{font-size:13.8px;line-height:1.68;color:#3F4744;max-width:88ch}
+.fc-a-f{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:9.5px;letter-spacing:.7px;
+  text-transform:uppercase;color:#9AA09D;padding-top:10px;margin-top:10px;border-top:1px solid #F0F3F0}
+.fc-chip-lbl{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:9.5px;font-weight:700;
+  letter-spacing:1px;text-transform:uppercase;color:#9AA09D;padding:6px 0 2px}
+</style>
+"""
+
+
+def _analyst_avatar_html() -> str:
+    uri = _analyst_pfp_uri()
+    img = (f'<img class="fc-av" alt="FundaCheck analyst" src="{uri}">' if uri
+           else '<div class="fc-av" style="background:#E9ECE8"></div>')
+    return (f'<div class="fc-av-wrap"><div class="fc-av-glow"></div>{img}'
+            f'<span class="fc-av-status"><i></i>Ready</span></div>')
+
+
+def _analyst_identity_html() -> str:
+    return (
+        '<div class="fc-c-top"><div style="min-width:0">'
+        '<div class="fc-c-t">Ask the analyst</div>'
+        '<div class="fc-c-s">Answers are written only from the loaded model&rsquo;s scored '
+        'ratios and its sector profile. No web sources, no house view.</div></div>'
+        '<span class="fc-pill"><i></i>Grounded in uploaded model</span></div>'
+    )
+
+
+def _analyst_answer_html(question: str, answer: str, source: str) -> str:
+    q = html.escape(question)
+    body = html.escape(answer).replace("\n", "<br>")
+    return (
+        f'<div class="fc-answer"><div class="fc-a-h"><span class="fc-a-l">Analyst answer</span>'
+        f'<span class="fc-a-q">{q}</span></div>'
+        f'<div class="fc-a-b">{body}</div>'
+        f'<div class="fc-a-f">{html.escape(source)}</div></div>'
+    )
+
+
 def qa_tab(model, result, config: LLMConfig) -> None:
     sector_key = st.session_state.get("sector_pref", "generic")
-    # Interpretation on the left, the working "Ask the analyst" box on the right —
-    # instead of a full-width ask box stranded at the bottom of the page.
-    left, right = st.columns([2, 1], gap="large")
-    with left:
-        _model_interpretation_block(model, sector_key, config, with_rail=False)
-    with right:
-        st.markdown(
-            '<div style="background:linear-gradient(135deg,#0d1d16,#0a1610);'
-            'border-radius:16px;padding:16px 18px;color:#eaf3ee">'
-            '<div style="font-size:18.4px;font-weight:800">Ask the analyst</div>'
-            '<div style="font-size:13.2px;color:#9fb4a8;padding-top:3px;line-height:1.5">'
-            'Groq · Gemini — grounded only in the scored ratios and sector profile of '
-            'the loaded model, so it cannot invent outside facts.</div></div>',
-            unsafe_allow_html=True,
-        )
-        picked = st.radio("Suggested questions", _SUGGESTED_QS, index=None,
-                          label_visibility="collapsed")
-        question = st.text_input(
-            "Your question", value=picked or "",
-            placeholder="e.g. why is the return profile weak despite profit growth?",
-            label_visibility="collapsed",
-        )
-        if st.button("Ask", type="primary") and question.strip():
-            with st.spinner("Analysing…"):
-                answer = answer_question(result, question.strip(), config)
-            safe = html.escape(answer).replace("\n", "<br>")
-            st.markdown(
-                '<div style="background:#fff;border:1px solid #e6ebe7;border-radius:14px;'
-                'padding:14px 16px;margin-top:12px;font-size:15.5px;line-height:1.65;'
-                f'color:#3f4744"><div style="font-size:12.6px;font-weight:700;letter-spacing:.6px;'
-                f'color:#177245;padding-bottom:6px">ANSWER</div>{safe}</div>',
-                unsafe_allow_html=True,
-            )
+    company = (model.company or "This company").title()
+    sector_name = get_sector(sector_key).name
+
+    answers = st.session_state.setdefault("qa_answers", {})   # {question: answer}
+    last = st.session_state.get("qa_last")                    # (question, answer)
+
+    with st.container(key="qa_console"):
+        st.markdown(_QA_CONSOLE_CSS, unsafe_allow_html=True)
+        col_av, col_main = st.columns([1, 6], gap="medium")
+        with col_av:
+            st.markdown(_analyst_avatar_html(), unsafe_allow_html=True)
+        with col_main:
+            st.markdown(_analyst_identity_html(), unsafe_allow_html=True)
+
+            with st.form("qa_form", border=False, clear_on_submit=False):
+                fi, fb = st.columns([5, 1], gap="small", vertical_alignment="bottom")
+                typed = fi.text_input(
+                    "Your question", key="qa_input", label_visibility="collapsed",
+                    placeholder="Why is the return profile weak despite profit growth?")
+                submitted = fb.form_submit_button("Ask", type="primary",
+                                                  use_container_width=True)
+
+            st.markdown('<div class="fc-chip-lbl">Suggested</div>', unsafe_allow_html=True)
+            chip_cols = st.columns(len(_QA_CHIPS))
+            chosen = None
+            for i, (label, dq) in enumerate(_QA_CHIPS):
+                if chip_cols[i].button(label, key=f"qa_chip{i}", use_container_width=True):
+                    chosen = dq
+
+            question = None
+            if submitted and (typed or "").strip():
+                question = typed.strip()
+            elif chosen:
+                question = chosen
+
+            if question:
+                if question not in answers:
+                    with st.spinner("Analysing…"):
+                        answers[question] = answer_question(result, question, config)
+                last = (question, answers[question])
+                st.session_state["qa_last"] = last
+
+            if last:
+                src = (f"{company} · {sector_name} · written from the loaded model"
+                       if not last[1].lower().startswith("the analyst is not connected")
+                       else "Analyst not connected — add API keys in the app secrets")
+                st.markdown(_analyst_answer_html(last[0], last[1], src),
+                            unsafe_allow_html=True)
+
+    # The reading below is the existing interpretation block, unchanged.
+    _model_interpretation_block(model, sector_key, config, with_rail=False)
 
 
 # SPLICE_END
