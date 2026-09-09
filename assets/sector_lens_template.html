@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FundaCheck — Sector lens</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ===========================================================================
+   FundaCheck — Sector lens · NIFTY METAL
+   Type: Plus Jakarta Sans + ui-monospace for figures (existing system)
+   Colour: existing FundaCheck palette, unchanged
+   Ships as a Streamlit component: #shell + frame-fit script preserved.
+   =========================================================================== */
+:root{
+  --ink:#15201A; --ink-2:#3F4744; --ink-3:#5F6663; --mute:#8B918E; --mute-2:#9AA09D;
+  --panel:#FFFFFF; --line:#E6EBE7; --line-2:#F0F3F0; --tray:#E9ECE8;
+  --brand:#177245;
+  --pos:#2F9E63; --pos-deep:#0F5B34; --pos-tint:#EEF4F0; --pos-soft:#9ECFB4;
+  --neg:#B4483C; --neg-tint:#FBEEEC;
+  --warn:#C68A2E; --warn-deep:#B5761F; --warn-tint:#FDF3E2;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{background:#D9DED9;color-scheme:light}
+body{padding:6px 20px 14px;background:linear-gradient(180deg,#E7EBE7,#D9DED9);
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);
+  display:flex;justify-content:center;align-items:flex-start;
+  font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"lnum" 1;
+  -webkit-font-smoothing:antialiased}
+#shell{width:1320px;max-width:100%;background:var(--tray);border-radius:24px;padding:18px;
+  box-shadow:0 10px 30px rgba(21,32,26,.06);display:flex;flex-direction:column;gap:14px}
+svg{display:block}
+a{color:var(--brand);text-decoration:none}
+::selection{background:#CFE7DA;color:#0F2A1E}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:8px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ------------------------------------------------------------ page head --- */
+.phead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  flex-wrap:wrap;padding:2px 6px 0}
+.phead h1{font-size:26px;font-weight:800;letter-spacing:-.7px;line-height:1.1}
+.phead .sub{font-size:13px;color:var(--mute);padding-top:5px}
+.feed{display:flex;align-items:center;gap:20px;flex-wrap:wrap;justify-content:flex-end}
+.feed-i{text-align:right}
+.feed-l{font-family:var(--mono);font-size:9px;letter-spacing:1.2px;text-transform:uppercase;
+  color:var(--mute-2)}
+.feed-v{font-size:12.5px;font-weight:700;color:var(--ink-2);padding-top:2px}
+.feed-v i{font-style:normal;color:var(--pos)}
+
+/* ============================================================ 1. VERDICT === */
+.verdict{background:var(--panel);border:1px solid var(--line);border-radius:24px;
+  display:grid;grid-template-columns:minmax(0,1fr) 500px;overflow:hidden;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 10px 30px -14px rgba(21,32,26,.22)}
+.v-left{padding:28px 30px 26px;display:flex;flex-direction:column;min-width:0}
+.v-sector{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:18px}
+.v-name{font-size:15px;font-weight:800;letter-spacing:-.2px;white-space:nowrap}
+.v-match{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;
+  font-weight:700;letter-spacing:.9px;text-transform:uppercase;color:var(--brand);
+  background:var(--pos-tint);border:1px solid #CFE2D7;border-radius:20px;padding:4px 10px}
+.v-match b{width:5px;height:5px;border-radius:50%;background:var(--pos)}
+.v-univ{font-family:var(--mono);font-size:10.5px;letter-spacing:.6px;color:var(--mute-2);
+  white-space:nowrap}
+.v-why{margin-left:auto;font-size:11.5px;font-weight:700;color:var(--brand);background:none;
+  border:0;cursor:pointer;font-family:inherit;border-bottom:1px solid #C7DDD1;padding:0 0 1px;
+  white-space:nowrap}
+.v-why:hover{border-bottom-color:var(--brand)}
+.v-eyebrow{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:1.4px;
+  text-transform:uppercase;color:var(--warn-deep);padding-bottom:12px}
+.v-head{font-size:36px;font-weight:800;letter-spacing:-1.5px;line-height:1.1;max-width:15ch}
+.v-head em{font-style:normal;color:var(--neg)}
+.v-body{font-size:14px;line-height:1.68;color:var(--ink-3);max-width:54ch;padding-top:15px}
+.v-body b{color:var(--ink);font-weight:700}
+.v-facts{display:flex;flex-wrap:wrap;margin-top:auto;padding-top:24px}
+.v-fact{padding-right:24px;margin-right:24px;border-right:1px solid var(--line-2)}
+.v-fact:last-child{border-right:0;margin-right:0;padding-right:0}
+.v-fact-l{font-family:var(--mono);font-size:9px;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--mute-2)}
+.v-fact-v{font-size:22px;font-weight:800;letter-spacing:-.7px;padding-top:5px;line-height:1}
+.v-fact-v small{font-size:12px;font-weight:700;color:var(--mute)}
+.is-neg{color:var(--neg)}
+
+/* --- the plot ----------------------------------------------------------- */
+.v-right{background:#FBFCFB;border-left:1px solid var(--line);padding:20px 22px 16px;
+  display:flex;flex-direction:column;position:relative}
+.v-right-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  padding-bottom:2px}
+.v-right-t{font-size:13px;font-weight:800;letter-spacing:-.1px}
+.v-right-s{font-family:var(--mono);font-size:9.5px;letter-spacing:.7px;color:var(--mute-2);
+  text-transform:uppercase}
+.plot{width:100%;height:auto;overflow:visible}
+.plot .qlab{font-size:8.4px;font-weight:700;letter-spacing:.7px;text-transform:uppercase}
+.plot .axlab{font-size:8.6px;font-weight:600;fill:#9AA09D}
+.plot .tick{font-family:ui-monospace,Menlo,monospace;font-size:7.6px;fill:#B4BAB6}
+.plot .dotlab{font-size:10px;font-weight:800;fill:#15201A}
+.pt{cursor:pointer}
+.pt circle.hit{fill:transparent}
+.pt circle.core{fill:#8B918E;opacity:.45;transition:opacity .12s ease,r .12s ease}
+.pt:hover circle.core{opacity:1;fill:#177245}
+.pt.edge circle.core{opacity:.55}
+.plot-key{display:flex;align-items:center;gap:15px;flex-wrap:wrap;padding-top:10px;
+  border-top:1px solid var(--line-2);margin-top:8px}
+.pk{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--ink-3)}
+.pk .dot{width:9px;height:9px;border-radius:50%;background:var(--neg);flex:none;
+  box-shadow:0 0 0 3px rgba(180,72,60,.16)}
+.pk .pdot{width:7px;height:7px;border-radius:50%;background:#8B918E;opacity:.5;flex:none}
+.pk .cross{width:11px;height:11px;flex:none;position:relative}
+.pk .cross::before,.pk .cross::after{content:"";position:absolute;background:#8B918E}
+.pk .cross::before{left:5px;top:0;width:1.5px;height:11px}
+.pk .cross::after{top:5px;left:0;height:1.5px;width:11px}
+
+/* hover card for the plot */
+#ptip{position:absolute;z-index:40;pointer-events:none;display:none;
+  background:var(--panel);border:1px solid #DCE3DD;border-radius:12px;padding:11px 13px;
+  box-shadow:0 8px 26px -8px rgba(21,32,26,.28);min-width:186px}
+#ptip .n{font-size:13px;font-weight:800;letter-spacing:-.2px;color:var(--ink);
+  padding-bottom:2px}
+#ptip .tk{font-family:var(--mono);font-size:9px;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--mute-2);padding-bottom:9px}
+#ptip .r{display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+  font-size:11.5px;color:var(--ink-3);padding:3px 0}
+#ptip .r b{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--ink)}
+#ptip .gap{border-top:1px solid var(--line-2);margin-top:7px;padding-top:7px}
+#ptip .up{color:var(--pos-deep)}
+#ptip .dn{color:var(--neg)}
+
+/* ============================================================= 2. VITALS === */
+.vitals{background:var(--panel);border:1px solid var(--line);border-radius:20px;
+  display:flex;flex-wrap:wrap;overflow:hidden}
+.vital{flex:1 1 160px;min-width:0;padding:16px 20px;border-right:1px solid var(--line-2);
+  border-bottom:1px solid var(--line-2)}
+.vital:last-of-type{border-right:0}
+.vital-l{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:9.5px;
+  font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--mute)}
+.vital-l i{width:5px;height:5px;border-radius:1.5px;flex:none}
+.vital-v{font-size:25px;font-weight:800;letter-spacing:-.9px;padding-top:9px;line-height:1}
+.vital-v small{font-size:14px;color:var(--mute);font-weight:700}
+.vital-s{font-size:11px;color:var(--mute-2);padding-top:8px}
+.vitals-foot{flex:1 1 100%;padding:11px 20px;background:#FBFCFB;font-size:11.5px;
+  color:var(--mute-2);display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.vitals-foot b{color:var(--ink-3);font-weight:700}
+
+/* ========================================================= 3. TWO COLUMNS === */
+.cols{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);gap:14px;
+  align-items:stretch}
+.cols>.panel{display:flex;flex-direction:column}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px 22px;
+  box-shadow:var(--shadow)}
+.p-h{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.p-t{font-size:16.5px;font-weight:800;letter-spacing:-.3px}
+.p-note{font-size:12px;color:var(--mute-2);padding-top:5px;max-width:60ch}
+
+.dev-scale{display:flex;align-items:center;justify-content:space-between;font-family:var(--mono);
+  font-size:9px;letter-spacing:.9px;text-transform:uppercase;color:var(--mute-2);
+  padding:16px 0 8px;border-bottom:1px solid var(--line-2)}
+.dev-scale span:nth-child(2){color:var(--ink-2);font-weight:700}
+.dev-grp{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--mute);padding:16px 0 2px}
+.dev{padding:8px 0}
+.dev-h{display:flex;align-items:baseline;gap:10px;padding-bottom:6px}
+.dev-n{font-size:14px;font-weight:700}
+.dev-you{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+.dev-you b{color:var(--ink);font-weight:700}
+.dev-d{margin-left:auto;font-family:var(--mono);font-size:11px;font-weight:700;border-radius:6px;
+  padding:3px 9px}
+.d-neg{color:var(--neg);background:var(--neg-tint)}
+.d-na{color:var(--mute);background:#F1F3F1}
+.dev-track{position:relative;height:24px}
+.dev-track::before{content:"";position:absolute;left:50%;top:0;bottom:0;width:1.5px;
+  background:#C9D2CC;transform:translateX(-50%)}
+.dev-bar{position:absolute;top:6px;height:12px}
+.dev-bar.left{right:50%;background:linear-gradient(270deg,#B4483C,#C86A5F);border-radius:3px 0 0 3px}
+.dev-bar.right{left:50%;background:linear-gradient(90deg,#B4483C,#C86A5F);border-radius:0 3px 3px 0}
+.dev-empty{position:absolute;left:50%;top:10.5px;height:3px;width:44%;
+  background:repeating-linear-gradient(90deg,#DDE3DE 0 5px,transparent 5px 10px)}
+.dev-f{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
+  color:var(--mute-2);padding-top:3px}
+.dev-legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding-top:14px;margin-top:auto;
+  border-top:1px solid var(--line-2);font-size:11.5px;color:var(--ink-3)}
+.dev-legend span{display:flex;align-items:center;gap:7px}
+.dev-legend i{width:16px;height:8px;border-radius:2px;flex:none}
+
+/* seasonality */
+.tags{display:flex;gap:7px;flex-wrap:wrap}
+.tag{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;border-radius:20px;padding:4px 11px}
+.t-warn{color:var(--warn-deep);background:var(--warn-tint);border:1px solid #F0DDBB}
+.t-pos{color:var(--brand);background:var(--pos-tint);border:1px solid #CFE2D7}
+.cy-body{font-size:13.5px;line-height:1.7;color:var(--ink-2);padding:14px 0 2px;max-width:62ch}
+.seas{padding-top:18px;margin-top:16px;border-top:1px solid var(--line-2)}
+.seas-h{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;
+  padding-bottom:14px}
+.seas-t{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--mute)}
+.seas-s{font-size:11.5px;color:var(--ink-3);font-weight:600}
+.months{display:flex;gap:4px;align-items:center}
+.mo{flex:1;min-width:0;text-align:center}
+.mo i{display:block;height:7px;border-radius:4px;background:#D3DBD6}
+.mo span{display:block;font-family:var(--mono);font-size:8.5px;color:var(--mute-2);
+  padding-top:7px;letter-spacing:.3px}
+.seas-note{font-size:11.5px;line-height:1.6;color:var(--mute-2);padding-top:12px;max-width:62ch}
+.gather{margin-top:16px;border:1px solid var(--line);border-radius:16px;padding:15px 17px;
+  background:#FBFCFB}
+.gather-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding-bottom:10px}
+.gather-t{font-size:13px;font-weight:700}
+.gather-c{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--mute);background:#EEF1EE;border-radius:20px;padding:3px 9px;
+  margin-left:auto}
+.meter{height:7px;border-radius:5px;background:#E7EBE7;overflow:hidden}
+.meter i{display:block;height:100%;width:2%;border-radius:5px;background:var(--pos-soft)}
+.meter-f{display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;
+  color:var(--mute-2);padding-top:8px}
+.gather-p{font-size:11.5px;line-height:1.6;color:var(--mute-2);padding-top:10px;max-width:60ch}
+
+/* ==================================================== 4. THE CURRENT CYCLE === */
+.cycle{background:var(--panel);border:1px solid var(--line);border-radius:20px;overflow:hidden;
+  box-shadow:var(--shadow)}
+.cy-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:20px 22px 16px}
+.cy-band{display:flex;height:8px;margin:0 22px;border-radius:5px;overflow:hidden;position:relative}
+.cy-band i{flex:1}
+.cy-mark{position:absolute;top:-7px;width:3px;height:22px;border-radius:3px;background:var(--ink);
+  transform:translateX(-50%)}
+.cy-names{display:flex;padding:9px 22px 0}
+.cy-names span{flex:1;font-size:11.5px;color:var(--mute-2);text-align:center;font-weight:600}
+.cy-names span.on{color:var(--ink);font-weight:800}
+
+.tsplit{display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:18px;
+  border-top:1px solid var(--line)}
+.tcol{padding:20px 22px 18px}
+.tcol+.tcol{border-left:1px solid var(--line)}
+.tcol.india{background:#FBFCFB}
+.tc-h{display:flex;align-items:center;gap:11px;padding-bottom:4px}
+.tc-ic{width:30px;height:30px;border-radius:9px;flex:none;display:flex;align-items:center;
+  justify-content:center}
+.tcol.global .tc-ic{background:#EDF1EF;color:var(--ink-2)}
+.tcol.india  .tc-ic{background:var(--pos-tint);color:var(--brand)}
+.tc-ic svg{width:17px;height:17px}
+.tc-t{font-size:15px;font-weight:800;letter-spacing:-.2px}
+.tc-s{font-family:var(--mono);font-size:9px;letter-spacing:1.1px;text-transform:uppercase;
+  color:var(--mute-2);padding-top:2px}
+.tlist{list-style:none;padding-top:14px;display:flex;flex-direction:column;gap:0}
+.tlist li{position:relative;padding:11px 0 11px 34px;font-size:13.5px;line-height:1.6;
+  color:var(--ink-2);border-top:1px solid var(--line-2)}
+.tlist li:first-child{border-top:0;padding-top:2px}
+.tlist li b{color:var(--ink);font-weight:700}
+.tlist li::before{counter-increment:tl;content:counter(tl,decimal-leading-zero);
+  position:absolute;left:0;top:12px;font-family:var(--mono);font-size:9.5px;font-weight:700;
+  letter-spacing:.5px;color:var(--mute-2);background:#F1F4F1;border-radius:5px;padding:2px 5px}
+.tlist li:first-child::before{top:3px}
+.tlist{counter-reset:tl}
+.tcol.india .tlist li::before{color:var(--brand);background:var(--pos-tint)}
+
+.watch{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:14px 22px;
+  border-top:1px solid var(--line);background:#FBFCFB}
+.watch-l{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.1px;
+  text-transform:uppercase;color:var(--mute);margin-right:2px}
+.wtag{font-size:12px;font-weight:600;color:var(--warn-deep);background:var(--warn-tint);
+  border:1px solid #F0DDBB;border-radius:20px;padding:5px 12px}
+
+.tilts{display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--line)}
+.tilt{padding:16px 22px;display:flex;gap:12px;align-items:flex-start}
+.tilt+.tilt{border-left:1px solid var(--line)}
+.tilt-c{font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.9px;
+  text-transform:uppercase;border-radius:20px;padding:4px 9px;flex:none;margin-top:1px;
+  white-space:nowrap}
+.tilt.mkt .tilt-c{color:var(--brand);background:var(--pos-tint)}
+.tilt.fun .tilt-c{color:var(--warn-deep);background:var(--warn-tint)}
+.tilt-b{font-size:13px;line-height:1.62;color:var(--ink-2)}
+.tilt-b b{color:var(--ink);font-weight:700}
+.disagree{display:flex;gap:11px;align-items:flex-start;padding:14px 22px;
+  border-top:1px solid var(--line);background:var(--warn-tint);font-size:12.5px;line-height:1.62;
+  color:#5C4A22}
+.disagree b{color:#3E3116;font-weight:700}
+.disagree .chip{font-family:var(--mono);font-size:9px;font-weight:800;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--warn-deep);background:#F7E9CE;border-radius:20px;
+  padding:4px 9px;flex:none;margin-top:1px}
+.cy-src{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:13px 22px;
+  border-top:1px solid var(--line);font-size:11.5px;color:var(--mute-2)}
+.cy-src b{color:var(--ink-3);font-weight:700}
+.cy-src .r{margin-left:auto}
+
+/* ========================================================= 5. CONSTITUENTS === */
+.cons{background:var(--panel);border:1px solid var(--line);border-radius:20px;overflow:hidden;
+  box-shadow:var(--shadow)}
+.cons-h{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;
+  padding:20px 22px 14px}
+.cons-ctl{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.tbtn{font-family:inherit;font-size:12px;font-weight:700;color:var(--ink-2);background:#F4F6F4;
+  border:1px solid #E4E9E5;border-radius:20px;padding:7px 14px;cursor:pointer}
+.tbtn:hover{border-color:#C9D6CD}
+.tbtn.on{background:var(--brand);border-color:var(--brand);color:#fff}
+.twrap{overflow-x:auto;border-top:1px solid var(--line)}
+table.ct{width:100%;border-collapse:collapse;min-width:1080px}
+table.ct th{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.9px;
+  text-transform:uppercase;color:var(--mute);text-align:right;padding:11px 10px;background:#FBFCFB;
+  border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer;user-select:none;
+  position:sticky;top:0;z-index:2}
+table.ct th:hover{color:var(--ink-2)}
+table.ct th.lft{text-align:left}
+table.ct th.srt::after{content:" \25BE";color:var(--brand)}
+table.ct th.srt.asc::after{content:" \25B4";color:var(--brand)}
+table.ct td{font-family:var(--mono);font-size:12px;color:var(--ink-2);text-align:right;padding:10px;
+  border-bottom:1px solid var(--line-2);white-space:nowrap}
+table.ct tbody tr:nth-child(even) td{background:#FBFCFB}
+table.ct tbody tr:hover td{background:#F2F7F4}
+table.ct tbody tr.self td{background:#FCF6E4}
+table.ct tbody tr.self:hover td{background:#F8F0D8}
+table.ct td.rk{color:#C3CAC6;font-weight:700;width:34px;text-align:left}
+table.ct td.nm{text-align:left;font-family:'Plus Jakarta Sans';font-size:13px;font-weight:700;
+  color:var(--ink);min-width:200px}
+table.ct td.nm a{color:var(--ink)}
+table.ct td.nm a:hover{color:var(--brand)}
+table.ct td.nm em{display:block;font-family:var(--mono);font-size:9.5px;font-weight:600;
+  font-style:normal;color:var(--mute-2);letter-spacing:.5px;padding-top:2px}
+table.ct td.nm .you{font-family:var(--mono);font-size:8.5px;font-weight:800;letter-spacing:.7px;
+  text-transform:uppercase;color:var(--warn-deep);background:#F7E9CE;border-radius:4px;
+  padding:2px 5px;margin-left:7px;vertical-align:2px}
+table.ct td.cmp{font-weight:700;color:var(--ink)}
+table.ct td.wt{color:var(--mute-2)}
+.above{color:var(--pos-deep);font-weight:700}
+.below{color:var(--neg)}
+.cons-f{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:13px 22px;background:#FBFCFB;
+  border-top:1px solid var(--line);font-size:11.5px;color:var(--mute-2)}
+.cons-f b{color:var(--ink-3);font-weight:700}
+.cons-f .r{margin-left:auto}
+
+/* ---------------------------------------------------------------- foot --- */
+.foot{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:0 8px}
+.foot-l{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--mute)}
+.foot-v{font-size:12px;color:var(--mute-2)}
+.foot-r{margin-left:auto;font-size:11.5px;color:var(--mute-2)}
+
+@media (max-width:1080px){
+  .verdict{grid-template-columns:1fr}
+  .v-right{border-left:0;border-top:1px solid var(--line)}
+  .cols,.tsplit,.tilts{grid-template-columns:1fr}
+  .tcol+.tcol,.tilt+.tilt{border-left:0;border-top:1px solid var(--line)}
+  .v-head{font-size:30px;max-width:none}
+}
+@media (max-width:700px){
+  body{padding:6px 10px 12px}
+  #shell{padding:12px;border-radius:18px}
+  .v-left{padding:22px 18px}
+  .v-facts{gap:16px}
+  .v-fact{border-right:0;margin-right:0;padding-right:0}
+}
+
+
+
+/* --- source links --------------------------------------------------------- */
+.srclink{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;
+  color:var(--ink-2);background:var(--panel);border:1px solid #E3E8E4;border-radius:20px;
+  padding:5px 11px;text-decoration:none}
+.srclink:hover{border-color:var(--pos);color:var(--ink);text-decoration:none}
+.srclink svg{width:10px;height:10px;flex:none;opacity:.55}
+
+
+/* --- dotted maps sitting behind each read-through column ----------------- */
+.tcol{position:relative;overflow:hidden}
+.tmap{position:absolute;pointer-events:none;user-select:none}
+.tmap img{display:block;width:100%;height:auto}
+.tmap.world{right:-14px;top:16px;width:320px;opacity:.30}
+.tmap.india{right:14px;top:12px;width:168px;opacity:.30}
+.tcol .tc-h,.tcol .tlist{position:relative;z-index:1}
+.tcol .tlist{max-width:44ch}
+@media (max-width:760px){.tmap{display:none}}
+
+
+/* --- monthly seasonality heat map --------------------------------------- */
+.hm{margin-top:16px;border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  background:var(--panel)}
+.hm-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px 12px}
+.hm-t{font-size:13.5px;font-weight:800;letter-spacing:-.2px}
+.hm-s{font-size:11.5px;color:var(--mute-2)}
+.hm-c{margin-left:auto;font-family:var(--mono);font-size:9.5px;font-weight:700;
+  letter-spacing:.8px;text-transform:uppercase;color:var(--brand);background:var(--pos-tint);
+  border-radius:20px;padding:3px 9px}
+.hm-w{overflow-x:auto;border-top:1px solid var(--line)}
+table.hmt{border-collapse:collapse;width:100%;min-width:760px}
+table.hmt th{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.7px;
+  text-transform:uppercase;color:var(--mute);padding:9px 4px;background:#FBFCFB;
+  border-bottom:1px solid var(--line);text-align:center;white-space:nowrap}
+table.hmt th.yr{text-align:left;padding-left:14px;min-width:74px}
+table.hmt th.tot{border-left:1px solid var(--line);min-width:66px}
+table.hmt td{font-family:var(--mono);font-size:10.5px;font-weight:600;text-align:center;
+  padding:7px 4px;border-bottom:1px solid #F4F6F4;white-space:nowrap;color:#2B332F}
+table.hmt td.yr{text-align:left;padding-left:14px;font-family:'Plus Jakarta Sans';
+  font-size:12px;font-weight:700;color:var(--ink);background:#FBFCFB}
+table.hmt td.tot{border-left:1px solid var(--line);font-weight:800}
+table.hmt tr.avg td{border-bottom:1px solid #DDE4DF}
+table.hmt tr.avg td.yr{font-size:11px;line-height:1.3;color:var(--ink-2)}
+table.hmt tr:hover td{outline:1px solid rgba(21,32,26,.10);outline-offset:-1px}
+.hm-f{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:12px 16px;
+  background:#FBFCFB;border-top:1px solid var(--line);font-size:11.5px;color:var(--mute-2)}
+.hm-key{display:flex;align-items:center;gap:6px}
+.hm-key i{width:15px;height:11px;border-radius:2px;display:block}
+.hm-f b{color:var(--ink-3);font-weight:700}
+
+table.ct td.pend{color:#C9CFCB}
+</style>
+</head>
+<body>
+<div id="shell">
+
+  <div class="phead">
+    <div>
+      <h1>Sector lens</h1>
+      <div class="sub">Where Adani Enterprises sits inside its reference universe, and what that universe is doing.</div>
+    </div>
+    <div class="feed">
+      <div class="feed-i"><div class="feed-l">Market data</div><div class="feed-v">Screener.in &middot; <i>daily</i></div></div>
+      <div class="feed-i"><div class="feed-l">Fundamentals</div><div class="feed-v">IndianAPI + NSE &middot; periodic</div></div>
+      <div class="feed-i"><div class="feed-l">Period</div><div class="feed-v">FY2026</div></div>
+    </div>
+  </div>
+
+  <!-- ========================== 1. THE VERDICT ============================ -->
+  <section class="verdict">
+    <div class="v-left">
+      <div class="v-sector">
+        <span class="v-name">Metal</span>
+        <span class="v-match"><b></b>Exact match</span>
+        <span class="v-univ">NIFTY METAL &middot; 15 of 15 matched</span>
+        <button class="v-why">Why this universe?</button>
+      </div>
+
+      <div class="v-eyebrow">The reading</div>
+      <h2 class="v-head">Priced <em>above</em> the sector. Earning <em>below</em> it.</h2>
+      <p class="v-body">
+        Adani Enterprises trades <b>27.3% above</b> the universe on earnings while returning
+        <b>9.44 points less</b> on capital employed. All three returns measures sit below the
+        aggregate, and the gap widens the further down the return stack you look. This is an
+        <b>exact sector match</b> &mdash; the comparison set is the company's own index, not a
+        fallback basket.
+      </p>
+
+      <div class="v-facts">
+        <div class="v-fact">
+          <div class="v-fact-l">Valuation gap</div>
+          <div class="v-fact-v is-neg">+27.3<small>%</small></div>
+        </div>
+        <div class="v-fact">
+          <div class="v-fact-l">ROCE gap</div>
+          <div class="v-fact-v is-neg">&minus;9.44<small> pp</small></div>
+        </div>
+        <div class="v-fact">
+          <div class="v-fact-l">Measures below sector</div>
+          <div class="v-fact-v">3<small> of 3</small></div>
+        </div>
+        <div class="v-fact">
+          <div class="v-fact-l">Index weight</div>
+          <div class="v-fact-v">18.3<small>%</small></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="v-right">
+      <div class="v-right-h">
+        <span class="v-right-t">Position against the universe</span>
+        <span class="v-right-s">Hover any point</span>
+      </div>
+      <svg class="plot" id="plot" viewBox="0 0 440 300" role="img"
+           aria-label="Positioning plot. Adani Enterprises sits in the pricier, earning-less quadrant: 27.3% above the sector P/E with ROCE 9.44 points below the sector aggregate. Grey points are the other 14 NIFTY METAL constituents.">
+        <rect x="46" y="26" width="164" height="112" fill="#2F9E63" opacity=".055"/>
+        <rect x="210" y="26" width="164" height="112" fill="#C68A2E" opacity=".055"/>
+        <rect x="46" y="138" width="164" height="112" fill="#C68A2E" opacity=".05"/>
+        <rect x="210" y="138" width="164" height="112" fill="#B4483C" opacity=".075"/>
+
+        <g stroke="#E6EBE7" stroke-width="1">
+          <line x1="46" y1="63"  x2="374" y2="63"/><line x1="46" y1="101" x2="374" y2="101"/>
+          <line x1="46" y1="175" x2="374" y2="175"/><line x1="46" y1="213" x2="374" y2="213"/>
+          <line x1="113" y1="26" x2="113" y2="250"/><line x1="177" y1="26" x2="177" y2="250"/>
+          <line x1="243" y1="26" x2="243" y2="250"/><line x1="308" y1="26" x2="308" y2="250"/>
+        </g>
+        <rect x="46" y="26" width="328" height="224" fill="none" stroke="#DCE3DD"/>
+        <line x1="210" y1="26" x2="210" y2="250" stroke="#9AA09D" stroke-width="1.5"/>
+        <line x1="46" y1="138" x2="374" y2="138" stroke="#9AA09D" stroke-width="1.5"/>
+
+        <text class="qlab" x="54"  y="40"  fill="#2F9E63">Cheaper &middot; earning more</text>
+        <text class="qlab" x="366" y="40"  fill="#C68A2E" text-anchor="end">Pricier &middot; earning more</text>
+        <text class="qlab" x="54"  y="244" fill="#C68A2E">Cheaper &middot; earning less</text>
+        <text class="qlab" x="366" y="244" fill="#B4483C" text-anchor="end">Pricier &middot; earning less</text>
+
+        <text class="tick" x="113" y="264" text-anchor="middle">&minus;60%</text>
+        <text class="tick" x="177" y="264" text-anchor="middle">&minus;20%</text>
+        <text class="tick" x="210" y="264" text-anchor="middle">0</text>
+        <text class="tick" x="243" y="264" text-anchor="middle">+20%</text>
+        <text class="tick" x="308" y="264" text-anchor="middle">+60%</text>
+        <text class="tick" x="40" y="66"  text-anchor="end">+20pp</text>
+        <text class="tick" x="40" y="104" text-anchor="end">+10pp</text>
+        <text class="tick" x="40" y="141" text-anchor="end">0</text>
+        <text class="tick" x="40" y="178" text-anchor="end">&minus;10pp</text>
+        <text class="tick" x="40" y="216" text-anchor="end">&minus;20pp</text>
+
+        <text class="axlab" x="210" y="284" text-anchor="middle">P/E versus sector aggregate &rarr;</text>
+        <text class="axlab" x="14" y="138" text-anchor="middle" transform="rotate(-90 14 138)">ROCE versus sector &rarr;</text>
+
+        <g id="peers"></g>
+
+        <line x1="210" y1="173.2" x2="254.8" y2="173.2" stroke="#B4483C" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>
+        <line x1="254.8" y1="138" x2="254.8" y2="173.2" stroke="#B4483C" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>
+        <g class="pt" id="selfpt" data-i="-1">
+          <circle cx="254.8" cy="173.2" r="15" fill="#B4483C" opacity=".13"/>
+          <circle cx="254.8" cy="173.2" r="7.5" fill="#B4483C" stroke="#fff" stroke-width="2.2"/>
+          <circle class="hit" cx="254.8" cy="173.2" r="16"/>
+        </g>
+        <text class="dotlab" x="242" y="196" text-anchor="end">Adani Enterprises</text>
+
+        <g stroke="#8B918E" stroke-width="1.6">
+          <line x1="203" y1="138" x2="217" y2="138"/><line x1="210" y1="131" x2="210" y2="145"/>
+        </g>
+      </svg>
+      <div id="ptip"></div>
+      <div class="plot-key">
+        <span class="pk"><i class="dot"></i>This company</span>
+        <span class="pk"><i class="pdot"></i>14 constituents</span>
+        <span class="pk"><i class="cross"></i>Sector aggregate</span>
+        <span class="pk" style="color:#9AA09D">Points beyond &plusmn;100% sit on the edge</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================ 2. SECTOR VITALS ======================== -->
+  <section class="vitals">
+    <div class="vital">
+      <div class="vital-l"><i style="background:#177245"></i>Constituents</div>
+      <div class="vital-v">15</div>
+      <div class="vital-s">All 15 in the universe matched</div>
+    </div>
+    <div class="vital">
+      <div class="vital-l"><i style="background:#C68A2E"></i>Sector P/E</div>
+      <div class="vital-v">18.41<small>x</small></div>
+      <div class="vital-s">Loss-makers excluded</div>
+    </div>
+    <div class="vital">
+      <div class="vital-l"><i style="background:#C68A2E"></i>Sector P/B</div>
+      <div class="vital-v">3.08<small>x</small></div>
+      <div class="vital-s">On year-end equity</div>
+    </div>
+    <div class="vital">
+      <div class="vital-l"><i style="background:#2F9E63"></i>Sector ROE</div>
+      <div class="vital-v">16.73<small>%</small></div>
+      <div class="vital-s">Pooled aggregate</div>
+    </div>
+    <div class="vital">
+      <div class="vital-l"><i style="background:#2F9E63"></i>Sector ROCE</div>
+      <div class="vital-v">13.63<small>%</small></div>
+      <div class="vital-s">Pooled aggregate</div>
+    </div>
+    <div class="vital">
+      <div class="vital-l"><i style="background:#2F9E63"></i>Sector ROA</div>
+      <div class="vital-v">6.22<small>%</small></div>
+      <div class="vital-s">Pooled aggregate</div>
+    </div>
+    <div class="vitals-foot">
+      <b>Pooled, not averaged</b>
+      <span>&mdash; totals are summed across the universe before the ratio is taken, so large constituents carry proportionate weight. The published NIFTY METAL headline P/E on 08 Sep was 16.0x; the difference is the pooling basis, not a data error.</span>
+    </div>
+  </section>
+
+  <div class="cols">
+
+    <!-- =================== 3. THE GAP, MEASURE BY MEASURE ================= -->
+    <section class="panel">
+      <div class="p-h">
+        <div>
+          <div class="p-t">The gap, measure by measure</div>
+          <div class="p-note">Sector aggregate is the centre line. Bars run left when the company falls below it, right when it clears it.</div>
+        </div>
+      </div>
+
+      <div class="dev-scale"><span>Below sector</span><span>Sector aggregate</span><span>Above sector</span></div>
+
+      <div class="dev-grp">What you pay</div>
+      <div class="dev">
+        <div class="dev-h"><span class="dev-n">P/E</span><span class="dev-you">you <b>23.43x</b></span>
+          <span class="dev-d d-neg">&#9650; 27.3% pricier</span></div>
+        <div class="dev-track"><div class="dev-bar right" style="width:27.3%"></div></div>
+        <div class="dev-f"><span></span><span>sector 18.41x</span></div>
+      </div>
+      <div class="dev">
+        <div class="dev-h"><span class="dev-n">P/B</span><span class="dev-you">you <b>&mdash;</b></span>
+          <span class="dev-d d-na">Not available</span></div>
+        <div class="dev-track"><div class="dev-empty"></div></div>
+        <div class="dev-f"><span>Book value missing from the uploaded model</span><span>sector 3.08x</span></div>
+      </div>
+
+      <div class="dev-grp">What you get</div>
+      <div class="dev">
+        <div class="dev-h"><span class="dev-n">ROE</span><span class="dev-you">you <b>11.98%</b></span>
+          <span class="dev-d d-neg">&#9660; 4.75 pp</span></div>
+        <div class="dev-track"><div class="dev-bar left" style="width:19.8%"></div></div>
+        <div class="dev-f"><span></span><span>sector 16.73%</span></div>
+      </div>
+      <div class="dev">
+        <div class="dev-h"><span class="dev-n">ROCE</span><span class="dev-you">you <b>4.19%</b></span>
+          <span class="dev-d d-neg">&#9660; 9.44 pp</span></div>
+        <div class="dev-track"><div class="dev-bar left" style="width:39.3%"></div></div>
+        <div class="dev-f"><span>The widest gap on the page</span><span>sector 13.63%</span></div>
+      </div>
+      <div class="dev">
+        <div class="dev-h"><span class="dev-n">ROA</span><span class="dev-you">you <b>3.72%</b></span>
+          <span class="dev-d d-neg">&#9660; 2.50 pp</span></div>
+        <div class="dev-track"><div class="dev-bar left" style="width:10.4%"></div></div>
+        <div class="dev-f"><span></span><span>sector 6.22%</span></div>
+      </div>
+
+      <div class="dev-legend">
+        <span><i style="background:linear-gradient(90deg,#B4483C,#C86A5F)"></i>Reads against the company</span>
+        <span style="color:#9AA09D">Valuation scales to &plusmn;50%; returns to &plusmn;12 pp.</span>
+      </div>
+    </section>
+
+    <!-- ==================== 4. SEASONALITY & STRUCTURE ==================== -->
+    <section class="panel">
+      <div class="p-h">
+        <div class="p-t">How this sector behaves</div>
+        <div class="tags">
+          <span class="tag t-warn">Highly cyclical (global)</span>
+        </div>
+      </div>
+
+      <p class="cy-body">
+        Metals and mining is geared to global commodity prices, Chinese demand and the dollar.
+        Earnings swing with LME and steel prices and the spread over input costs, and heavy fixed
+        costs amplify every turn. The calendar matters far less than the price cycle.
+      </p>
+
+      <div class="seas">
+        <div class="seas-h">
+          <span class="seas-t">Intra-year seasonality</span>
+          <span class="seas-s">Sector-level structural pattern</span>
+        </div>
+        <div class="months">
+          <div class="mo"><i></i><span>APR</span></div><div class="mo"><i></i><span>MAY</span></div>
+          <div class="mo"><i></i><span>JUN</span></div><div class="mo"><i></i><span>JUL</span></div>
+          <div class="mo"><i></i><span>AUG</span></div><div class="mo"><i></i><span>SEP</span></div>
+          <div class="mo"><i></i><span>OCT</span></div><div class="mo"><i></i><span>NOV</span></div>
+          <div class="mo"><i></i><span>DEC</span></div><div class="mo"><i></i><span>JAN</span></div>
+          <div class="mo"><i></i><span>FEB</span></div><div class="mo"><i></i><span>MAR</span></div>
+        </div>
+        <p class="seas-note">
+          A structural pattern, not a price backtest. Every month reads neutral because this sector
+          is driven by the commodity cycle rather than the calendar &mdash; the flat line is the
+          finding, not missing data.
+        </p>
+
+        <div class="hm">
+          <div class="hm-h">
+            <span class="hm-t">Historical market seasonality</span>
+            <span class="hm-s">Adani Enterprises &middot; monthly price returns by calendar year</span>
+            <span class="hm-c">13 years</span>
+          </div>
+          <div class="hm-w"><table class="hmt" id="hmt"></table></div>
+          <div class="hm-f">
+            <b>Read down a column, not across a row.</b>
+            <span>April, May and October carry the strongest averages; February, June and September are the soft spots.</span>
+            <span class="hm-key" style="margin-left:auto"><i style="background:#B4483C"></i>Worst</span>
+            <span class="hm-key"><i style="background:#E6BDB6"></i></span>
+            <span class="hm-key"><i style="background:#F2F4F2"></i>Flat</span>
+            <span class="hm-key"><i style="background:#A9D6BE"></i></span>
+            <span class="hm-key"><i style="background:#2F9E63"></i>Best</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ========================== 5. THE CURRENT CYCLE ====================== -->
+  <section class="cycle">
+    <div class="cy-head">
+      <div>
+        <div class="p-t">Where the cycle sits now</div>
+        <div class="p-note">What is moving the metal complex globally, and how it reaches Indian producers.</div>
+      </div>
+      <div class="tags"><span class="tag t-pos">Late expansion</span></div>
+    </div>
+
+    <div class="cy-band">
+      <i style="background:#B4483C;opacity:.5"></i>
+      <i style="background:#D9A441;opacity:.55"></i>
+      <i style="background:#2F9E63;opacity:.7"></i>
+      <i style="background:#C68A2E;opacity:.75"></i>
+      <span class="cy-mark" style="left:81%"></span>
+    </div>
+    <div class="cy-names">
+      <span>Trough</span><span>Early</span><span>Mid</span><span class="on">Late expansion</span>
+    </div>
+
+    <div class="tsplit">
+      <div class="tcol global"><span class="tmap world"><img alt="" src=""></span>
+        <div class="tc-h">
+          <span class="tc-ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18"/></svg>
+          </span>
+          <div><div class="tc-t">Global drivers</div><div class="tc-s">Commodity complex</div></div>
+        </div>
+        <ul class="tlist">
+          <li><b>Copper has surged to record levels</b> on tight mine supply and tariff concerns &mdash; a bullish global commodity cycle.</li>
+          <li><b>LME copper movements set the earnings clock.</b> Price swings pass through the whole complex before volumes react.</li>
+          <li><b>Tariff developments are the largest swing factor</b> on trade flows, and the hardest to price in advance.</li>
+          <li><b>Chinese industrial demand sets the floor</b> under volumes. It is the single indicator to watch from here.</li>
+        </ul>
+      </div>
+
+      <div class="tcol india"><span class="tmap india"><img alt="" src=""></span>
+        <div class="tc-h">
+          <span class="tc-ic">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-5.7 7-11a7 7 0 1 0-14 0c0 5.3 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg>
+          </span>
+          <div><div class="tc-t">Indian read-through</div><div class="tc-s">Domestic producers</div></div>
+        </div>
+        <ul class="tlist">
+          <li><b>Indian metal stocks should benefit</b> from higher global copper prices, improving the earnings outlook.</li>
+          <li><b>The pass-through runs through spreads</b> &mdash; export and import margins and input cost differentials, not domestic pricing power.</li>
+          <li><b>RBI's large liquidity surplus is shaping policy and the rupee</b>, which moves realised margins on every tonne exported.</li>
+          <li><b>Crude oil dynamics feed straight into costs</b> through freight and conversion, and are currently volatile.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="watch">
+      <span class="watch-l">Watch</span>
+      <span class="wtag">Copper supply</span>
+      <span class="wtag">Tariff developments</span>
+      <span class="wtag">Chinese demand</span>
+      <span class="wtag">Crude oil</span>
+      <span class="wtag">RBI liquidity</span>
+    </div>
+
+    <div class="tilts">
+      <div class="tilt mkt">
+        <span class="tilt-c">Market tilt</span>
+        <div class="tilt-b"><b>Late expansion.</b> Record copper prices boost earnings, but RBI
+          liquidity and crude oil volatility temper the upside.</div>
+      </div>
+      <div class="tilt fun">
+        <span class="tilt-c">Fundamental tilt</span>
+        <div class="tilt-b"><b>Late cycle, slowing.</b> The first model snapshot shows earnings
+          growth contracting at <b>&minus;55.5%</b> across the universe.</div>
+      </div>
+    </div>
+
+    <div class="disagree">
+      <span class="chip">Note</span>
+      <div>
+        <b>The two readings do not agree, and that is the useful part.</b> Prices are pricing an
+        expansion; reported earnings are already contracting. Either the market is early to a
+        recovery the numbers have not caught, or the multiple is running ahead of the cycle. For a
+        company already <b>27.3% above</b> the sector on P/E, the second reading is the one that costs money.
+      </div>
+    </div>
+
+    <div class="cy-src">
+      <b>Sources</b>
+      <a class="srclink" href="https://www.livemint.com/market/commodities" target="_blank" rel="noopener noreferrer">Livemint<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a><a class="srclink" href="https://www.scanx.trade" target="_blank" rel="noopener noreferrer">scanx.trade<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a><a class="srclink" href="https://www.moneycontrol.com/news/business/commodities/" target="_blank" rel="noopener noreferrer">Moneycontrol<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a><a class="srclink" href="https://www.financialexpress.com/market/commodities/" target="_blank" rel="noopener noreferrer">Financial Express<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 17L17 7M9 7h8v8"/></svg></a>
+      <span class="r">Updated 08 Sep 2026 &middot; publication feeds; article-level URLs pending from the generator</span>
+    </div>
+  </section>
+
+  <!-- ========================== 6. CONSTITUENTS =========================== -->
+  <section class="cons">
+    <div class="cons-h">
+      <div>
+        <div class="p-t">The universe, company by company</div>
+        <div class="p-note">Ranked by market cap. ROCE is shaded against the sector aggregate of 13.63%. Sort any column; company names open the Screener page.</div>
+      </div>
+      <div class="cons-ctl">
+        <button class="tbtn on" id="btn10">Top 10</button>
+        <button class="tbtn" id="btnAll">All 15</button>
+      </div>
+    </div>
+    <div class="twrap">
+      <table class="ct" id="ctab">
+        <thead>
+          <tr>
+            <th class="lft" data-k="rank" data-t="n">#</th>
+            <th class="lft" data-k="name" data-t="s">Company</th>
+            <th class="cmp" data-k="cmp" data-t="n">CMP &#8377;</th>
+            <th data-k="mcap" data-t="n" class="srt">Market cap</th>
+            <th data-k="pe"   data-t="n">P/E</th>
+            <th data-k="pb"   data-t="n">P/B</th>
+            <th data-k="roce" data-t="n">ROCE</th>
+            <th data-k="roa"  data-t="n">ROA</th>
+            <th data-k="opm"  data-t="n">OPM</th>
+            <th data-k="npm"  data-t="n">NPM</th>
+            <th data-k="rev"  data-t="n">Rev gr</th>
+            <th data-k="eps"  data-t="n">EPS gr</th>
+            <th data-k="de"   data-t="n">D/E</th>
+            <th data-k="ic"   data-t="n">Int cov</th>
+            <th data-k="dy"   data-t="n">Div yld</th>
+            <th data-k="wt"   data-t="n">Index wt</th>
+          </tr>
+        </thead>
+        <tbody id="ctbody"></tbody>
+      </table>
+    </div>
+    <div class="cons-f">
+      <b>Live market data</b>
+      <span>CMP, P/E, ROCE, growth and dividend yield from the Screener.in snapshot, 08 Sep 2026. NPM is derived as quarterly net profit over quarterly sales; EPS gr is the quarterly profit variation.</span>
+      <span class="r">P/B, ROA, OPM, D/E and Int cov are not in this snapshot &mdash; send the fuller metal export and they fill in.</span>
+    </div>
+  </section>
+
+  <div class="foot">
+    <span class="foot-l">Sources</span>
+    <span class="foot-v">Screener.in &middot; IndianAPI &middot; NSE &middot; uploaded model</span>
+    <span class="foot-r">Matched to NIFTY METAL &middot; FY2026</span>
+  </div>
+
+</div>
+
+<script>
+/* =========================================================================
+   NIFTY METAL constituents — Screener.in snapshot, 08 Sep 2026.
+   [rank, name, ticker, cmp, pe, mcap, divYld, npQtr, npVar, salesQtr, salesVar, roce, idxWt]
+   ========================================================================= */
+var SEC_PE = 18.41, SEC_ROCE = 13.63;
+var C = [
+ [1,"Adani Enterprises","ADANIENT",2953.10,168.99,401177,0.04,-1461.54,-35.82,32923.98,49.92,5.80,18.29,true],
+ [2,"JSW Steel","JSWSTEEL",1297.30,26.31,316835,0.55,4696.00,112.96,47364.00,9.77,10.96,14.21],
+ [3,"Hindustan Zinc","HINDZINC",595.50,14.87,251490,1.85,5425.00,146.14,13687.00,77.22,69.25,11.20],
+ [4,"Tata Steel","TATASTEEL",184.15,19.44,230020,2.17,2385.24,16.77,60794.29,14.32,12.52,10.50],
+ [5,"Hindalco Industries","HINDALCO",1009.00,10.88,226554,0.50,7013.00,116.70,84825.00,32.06,13.21,10.95],
+ [6,"Jindal Steel","JINDALSTEL",1136.30,37.62,116155,0.18,843.80,-43.45,15482.13,25.93,9.70,5.09],
+ [7,"Vedanta","VEDL",272.00,9.67,106382,12.50,7918.00,143.61,24205.00,53.64,16.08,4.88],
+ [8,"Lloyds Metals & Energy","LLOYDSME",1799.30,21.24,101245,0.06,1733.89,169.11,7354.40,208.55,27.29,4.83],
+ [9,"Steel Authority of India","SAIL",186.10,15.91,76869,1.26,1644.05,134.30,26245.67,1.25,7.92,3.26],
+ [10,"NMDC","NMDC",84.71,9.97,74342,2.95,1976.23,0.44,6795.25,0.84,27.58,3.40],
+ [11,"Welspun Corp","WELCORP",2599.50,29.68,68537,0.19,1047.88,198.64,4081.12,14.91,22.89,2.23],
+ [12,"National Aluminium","NATIONALUM",371.05,10.06,67944,3.10,2003.14,90.87,5302.38,39.28,39.59,3.49],
+ [13,"APL Apollo Tubes","APLAPOLLO",2185.00,49.68,61054,0.39,263.11,10.94,5606.71,8.45,31.75,2.51],
+ [14,"Jindal Stainless","JSL",738.75,18.49,60883,0.54,768.66,7.73,11278.54,10.50,19.28,2.76],
+ [15,"Hindustan Copper","HINDCOPPER",532.85,42.62,51548,0.54,352.61,162.59,936.50,81.36,42.38,2.40]
+];
+var K = ["rank","name","tk","cmp","pe","mcap","dy","npq","npv","slq","slv","roce","wt"];
+
+/* ---------- the plot: peers are every constituent except the company ----- */
+var XR = 100, YR = 30;                       /* +/-100% on P/E, +/-30pp on ROCE */
+function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+/* draw-clamp sits a shade inside the frame; the tooltip always shows the true gap */
+function px(gap){ return 210 + clamp(gap,-XR,XR) * (164/XR) * 0.955; }
+function py(gap){ return 138 - clamp(gap,-YR,YR) * (112/YR) * 0.945; }
+
+var pts = C.filter(function(r){ return !r[13]; }).map(function(r){
+  var peGap = (r[4]/SEC_PE - 1) * 100, roceGap = r[11] - SEC_ROCE;
+  return {n:r[1], tk:r[2], cmp:r[3], pe:r[4], roce:r[11],
+          peGap:peGap, roceGap:roceGap,
+          x:px(peGap), y:py(roceGap),
+          edge: Math.abs(peGap) > XR || Math.abs(roceGap) > YR};
+});
+var SELF = {n:"Adani Enterprises", tk:"ADANIENT", cmp:2953.10, pe:23.43, roce:4.19,
+            peGap:27.3, roceGap:-9.44, self:true};
+
+document.getElementById("peers").innerHTML = pts.map(function(p,i){
+  return '<g class="pt' + (p.edge ? " edge" : "") + '" data-i="' + i + '">'
+    + '<circle class="core" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="4"/>'
+    + '<circle class="hit" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="12"/></g>';
+}).join("");
+
+var tip = document.getElementById("ptip"), plot = document.getElementById("plot");
+function sgn(v,u,dp){ return (v>=0?"+":"\u2212") + Math.abs(v).toFixed(dp||1) + u; }
+function tipHTML(p){
+  return '<div class="n">'+p.n+'</div><div class="tk">'+p.tk+'</div>'
+    + '<div class="r"><span>CMP</span><b>\u20B9'+p.cmp.toLocaleString("en-US",{minimumFractionDigits:2})+'</b></div>'
+    + '<div class="r"><span>P/E</span><b>'+p.pe.toFixed(2)+'x</b></div>'
+    + '<div class="r"><span>ROCE</span><b>'+p.roce.toFixed(2)+'%</b></div>'
+    + '<div class="r gap"><span>vs sector P/E</span>'
+      + '<b class="'+(p.peGap>0?"dn":"up")+'">'+sgn(p.peGap,"%")+'</b></div>'
+    + '<div class="r"><span>vs sector ROCE</span>'
+      + '<b class="'+(p.roceGap>=0?"up":"dn")+'">'+sgn(p.roceGap," pp",2)+'</b></div>';
+}
+function showTip(p, ev){
+  tip.innerHTML = tipHTML(p);
+  tip.style.display = "block";
+  var host = plot.parentElement.getBoundingClientRect();
+  var x = ev.clientX - host.left + 14, y = ev.clientY - host.top - tip.offsetHeight/2;
+  if (x + tip.offsetWidth > host.width - 6) x = ev.clientX - host.left - tip.offsetWidth - 14;
+  tip.style.left = Math.max(6, x) + "px";
+  tip.style.top  = clamp(y, 6, host.height - tip.offsetHeight - 6) + "px";
+}
+function bindPt(el, p){
+  el.addEventListener("mousemove", function(ev){ showTip(p, ev); });
+  el.addEventListener("mouseleave", function(){ tip.style.display = "none"; });
+}
+plot.querySelectorAll("#peers .pt").forEach(function(g){ bindPt(g, pts[+g.dataset.i]); });
+bindPt(document.getElementById("selfpt"), SELF);
+
+/* --------------------------- constituents table ------------------------- */
+var showAll = false, sortKey = "mcap", sortAsc = false;
+function n2(v){ return v.toFixed(2); }
+function inr(v){ return "\u20B9" + v.toLocaleString("en-US",{minimumFractionDigits:2}); }
+function pct(v){ var c = v>=0?"above":"below";
+  return '<span class="'+c+'">'+(v>=0?"+":"\u2212")+Math.abs(v).toFixed(2)+"%</span>"; }
+function money(v){
+  var t = "\u20B9" + Math.abs(v).toLocaleString("en-US",{minimumFractionDigits:2});
+  return v < 0 ? '<span class="below">\u2212'+t+'</span>' : t; }
+function roceCell(v){ return '<td class="'+(v>=SEC_ROCE?"above":"below")+'">'+v.toFixed(2)+"%</td>"; }
+
+function na(){ return '<td class="pend">&mdash;</td>'; }
+function render(){
+  var rows = C.slice(), idx = K.indexOf(sortKey);
+  rows.sort(function(a,b){
+    var x=a[idx], y=b[idx];
+    if (typeof x === "string") return sortAsc ? (x<y?-1:x>y?1:0) : (x>y?-1:x<y?1:0);
+    return sortAsc ? x-y : y-x;
+  });
+  if (!showAll) rows = rows.slice(0,10);
+
+  document.getElementById("ctbody").innerHTML = rows.map(function(r){
+    var npm = (r[7] !== null && r[9]) ? (r[7] / r[9] * 100) : null;   /* net profit Q / sales Q */
+    return '<tr class="'+(r[13]?"self":"")+'">'
+      + '<td class="rk">'+String(r[0]).padStart(2,"0")+'</td>'
+      + '<td class="nm"><a href="https://www.screener.in/company/'+r[2]+'/" target="_blank" rel="noopener noreferrer">'
+        + r[1] + '</a>' + (r[13] ? '<span class="you">You</span>' : '')
+        + '<em>'+r[2]+' \u2197</em></td>'
+      + '<td class="cmp">'+inr(r[3])+'</td>'
+      + '<td>\u20B9'+r[5].toLocaleString("en-US")+' Cr</td>'
+      + '<td>'+n2(r[4])+'x</td>'
+      + na()                       /* P/B      */
+      + roceCell(r[11])
+      + na()                       /* ROA      */
+      + na()                       /* OPM      */
+      + (npm === null ? na() : '<td>'+n2(npm)+'%</td>')
+      + '<td>'+pct(r[10])+'</td>'  /* Rev gr   = sales variation   */
+      + '<td>'+pct(r[8])+'</td>'   /* EPS gr   = profit variation  */
+      + na()                       /* D/E      */
+      + na()                       /* Int cov  */
+      + '<td>'+n2(r[6])+'%</td>'
+      + '<td class="wt">'+r[12].toFixed(2)+'%</td>'
+      + '</tr>';
+  }).join("");
+
+  document.querySelectorAll("#ctab th").forEach(function(th){
+    th.classList.toggle("srt", th.dataset.k === sortKey);
+    th.classList.toggle("asc", th.dataset.k === sortKey && sortAsc);
+  });
+}
+document.querySelectorAll("#ctab th").forEach(function(th){
+  th.addEventListener("click", function(){
+    var k = th.dataset.k;
+    if (k === sortKey) sortAsc = !sortAsc;
+    else { sortKey = k; sortAsc = (th.dataset.t === "s"); }
+    render();
+  });
+});
+document.getElementById("btn10").addEventListener("click", function(){
+  showAll = false; this.classList.add("on");
+  document.getElementById("btnAll").classList.remove("on"); render();
+});
+document.getElementById("btnAll").addEventListener("click", function(){
+  showAll = true; this.classList.add("on");
+  document.getElementById("btn10").classList.remove("on"); render();
+});
+render();
+</script>
+
+<script>
+/* Streamlit frame fit — preserved from the original component. */
+(function(){
+  function fit(){
+    try{
+      var s=document.getElementById('shell'); if(!s) return;
+      var h=Math.ceil(s.getBoundingClientRect().height)+58;
+      try{ window.parent.postMessage(
+        {isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*'); }catch(e){}
+      try{
+        var fe=window.frameElement;
+        if(fe){
+          var cur=parseInt(fe.style.height)||0;
+          if(Math.abs(cur-h)>1){
+            fe.style.setProperty('height', h+'px', 'important');
+            fe.setAttribute('height', h);
+          }
+          var el=fe.parentElement;
+          for(var i=0;i<5 && el;i++){
+            var tid=el.getAttribute && el.getAttribute('data-testid');
+            if(tid==='stElementContainer'||tid==='stVerticalBlock'||tid==='stVerticalBlockBorderWrapper'){
+              if(el.style.height!=='auto') el.style.height='auto';
+              el.style.minHeight='0px';
+            }
+            if(tid==='stMain'||tid==='stAppViewContainer') break;
+            el=el.parentElement;
+          }
+        }
+      }catch(e){}
+    }catch(e){}
+  }
+  function schedule(){fit();for(var k=1;k<=12;k++)setTimeout(fit,k*250);}
+  window.addEventListener('load',schedule); schedule();
+  if(window.ResizeObserver){
+    var ro=new ResizeObserver(fit);
+    var s=document.getElementById('shell'); if(s) ro.observe(s);
+    ro.observe(document.documentElement);
+    if(document.body) ro.observe(document.body);
+  }
+  window.addEventListener('resize',fit);
+  if(window.visualViewport){
+    window.visualViewport.addEventListener('resize',fit);
+    window.visualViewport.addEventListener('scroll',fit);
+  }
+  setInterval(fit, 1000);
+})();
+</script>
+
+<script>
+/* =========================================================================
+   Monthly price returns, Adani Enterprises. Calendar years, % per month.
+   null = month not yet complete. Source: Screener.in seasonality snapshot.
+   ========================================================================= */
+var HM_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+var HM_AVG = [2.41,-0.76,4.24,8.93,8.43,-2.01,1.33,1.95,-0.18,9.13,2.38,5.03];
+var HM = [
+ [2026,[-9.79,7.00,-18.64,36.93,21.96,3.36,-0.87,-5.00,3.29,null,null,null], null],
+ [2025,[-9.52,-8.38,10.49,-0.63,9.50,3.95,-7.20,-7.65,11.64,-0.99,-8.09,-1.78], -11.43],
+ [2024,[10.29,4.56,-2.69,-4.45,11.68,-6.87,-0.24,-4.73,3.86,-6.01,-16.43,2.66], -11.24],
+ [2023,[-22.92,-54.14,28.35,9.97,29.53,-4.22,4.36,-2.93,-0.22,-4.94,2.78,20.79], -26.16],
+ [2022,[0.32,-4.11,22.52,15.75,-7.05,1.08,17.27,24.33,8.18,-3.13,17.04,-1.52], 125.71],
+ [2021,[5.65,64.54,23.69,12.37,13.60,14.53,-5.79,11.78,-7.53,-3.03,16.81,2.80], 256.47],
+ [2020,[10.13,-4.71,-37.07,2.76,4.92,5.33,12.16,59.51,6.28,14.34,17.28,20.37], 130.17],
+ [2019,[-14.81,-6.05,13.89,-13.42,21.80,-2.75,-14.42,6.64,6.19,36.89,7.64,-3.05], 29.41],
+ [2018,[28.16,-4.53,-23.16,-10.42,-13.63,-6.49,72.74,15.25,-42.02,30.17,-2.94,-2.42], -3.22],
+ [2017,[13.85,13.02,10.20,0.37,7.21,13.53,4.00,-3.88,-12.26,13.76,10.81,13.47], 117.31],
+ [2016,[-12.65,-19.35,25.62,17.48,-15.97,19.08,-7.03,-9.73,-9.75,1.98,1.57,12.49], -8.21],
+ [2015,[28.99,11.19,-11.78,9.56,4.76,-87.14,-4.07,-13.77,7.58,14.29,-10.82,1.21], -82.85],
+ [2014,[-9.01,6.45,44.74,13.55,14.61,-4.98,-4.67,10.40,-1.71,2.88,-5.22,5.96], 85.26]
+];
+
+/* white -> brand green for gains, white -> terracotta for losses.
+   Scaled to 30% so the routine months stay readable and only the
+   genuine outliers saturate. */
+function hmMix(a, b, t){
+  return "rgb(" + [0,1,2].map(function(i){
+    return Math.round(a[i] + (b[i]-a[i]) * t);
+  }).join(",") + ")";
+}
+function hmCell(v, cap){
+  if (v === null || v === undefined)
+    return '<td style="background:#FCFDFC;color:#C9CFCB">&middot;</td>';
+  var t = Math.min(Math.abs(v) / (cap || 30), 1);
+  var base = [255,255,255];
+  var bg = v >= 0 ? hmMix(base,[47,158,99],t) : hmMix(base,[180,72,60],t);
+  var fg = t > 0.58 ? "#FFFFFF" : "#2B332F";
+  return '<td style="background:' + bg + ';color:' + fg + '">'
+       + (v >= 0 ? "" : "\u2212") + Math.abs(v).toFixed(2) + '%</td>';
+}
+(function(){
+  var t = document.getElementById("hmt");
+  if (!t) return;
+  var h = '<thead><tr><th class="yr">Year</th>'
+        + HM_MONTHS.map(function(m){ return '<th>' + m + '</th>'; }).join("")
+        + '<th class="tot">Year</th></tr></thead><tbody>';
+  h += '<tr class="avg"><td class="yr">Average<br>by month</td>'
+     + HM_AVG.map(function(v){ return hmCell(v, 12); }).join("")
+     + '<td class="tot" style="background:#FBFCFB;color:#9AA09D">&mdash;</td></tr>';
+  HM.forEach(function(r){
+    h += '<tr><td class="yr">' + r[0] + '</td>'
+       + r[1].map(function(v){ return hmCell(v, 30); }).join("")
+       + hmCell(r[2], 120).replace('<td ', '<td class="tot" ') + '</tr>';
+  });
+  t.innerHTML = h + '</tbody>';
+})();
+</script>
+
+</body>
+</html>

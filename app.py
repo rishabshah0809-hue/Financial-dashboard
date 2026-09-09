@@ -805,7 +805,8 @@ def sector_lens_tab(model, result) -> None:
     need = tuple(sorted({s for s in members
                          if s not in snap_rows
                          or snap_rows[s].get("pe") is None
-                         or snap_rows[s].get("roe") is None}))
+                         or snap_rows[s].get("roe") is None
+                         or snap_rows[s].get("cmp") is None}))   # ensure live CMP from Screener
     live = {}
     if need:
         with st.spinner("Fetching latest data from Screener…"):
