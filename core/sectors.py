@@ -16,6 +16,7 @@ Each sector profile holds:
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 # The five pillars every company is scored on.
@@ -244,7 +245,9 @@ def get_sector(key: str) -> SectorProfile:
     for profile in SECTORS.values():
         if probe == profile.name.lower() or probe in profile.aliases:
             return profile
-        if any(alias in probe for alias in profile.aliases):
+        # Alias match must be at a word boundary — never a raw substring — so a
+        # tiny alias like "it" can't hijack a key/name such as "itc" (the ITC bug).
+        if any(re.search(r"\b" + re.escape(alias) + r"\b", probe) for alias in profile.aliases):
             return profile
     return SECTORS["generic"]
 
@@ -258,6 +261,167 @@ def sector_choices() -> list[tuple[str, str]]:
 # --------------------------------------------------------------------------
 # sector detection
 # --------------------------------------------------------------------------
+# Classification precedence (deterministic, most authoritative first):
+#   1. KNOWN_COMPANIES  — an exact, hand-maintained identity map (ticker / name)
+#   2. NAME_HINTS       — token/phrase-aware sector keywords in the name
+#   3. _structure_guess — coarse balance-sheet-shape inference (last resort)
+#   4. generic          — no confident signal; the user picks
+# A confident company-identity match (1) is NEVER overridden by (2) or (3):
+# once we know the company is ITC, its FMCG mapping wins regardless of how the
+# balance sheet looks. Add a future company by editing ONE dict below.
+
+
+@dataclass(frozen=True)
+class SectorDetection:
+    """Explainable classification result. `detect_sector` returns the compact
+    (sector, reason) pair for existing callers; this carries the full trail."""
+    sector: str                 # scoring sector key (a key of SECTORS)
+    confidence: str             # "high" | "medium" | "low" | "none"
+    reason: str                 # human sentence for the UI ("why this sector")
+    source: str                 # "known_company" | "name_hint" | "financials" | "fallback"
+    match_type: str             # "exact_known_company" | "strong_name_match" | ...
+
+
+# Authoritative identity map: normalized company name / ticker -> scoring sector
+# key. Keys are stored in the SAME normalized form `_normalize_name` produces
+# (lower-case, punctuation→space, "&"→"and", corporate suffixes like Ltd/Limited
+# stripped). One company may appear under several aliases (ticker + short name).
+# This is the single place to add a company — never hard-code identities in
+# app.py, the parser, or rendering code.
+KNOWN_COMPANIES: dict[str, str] = {}
+
+
+# Corporate-form tokens stripped from the tail of a name during normalization.
+_SUFFIX_TOKENS = {"ltd", "limited", "pvt", "private", "plc", "inc", "incorporated",
+                  "corp", "corporation", "company", "co"}
+
+
+def _normalize_name(name: str) -> str:
+    """Fold a raw company string to a stable identity key: lower-case, "&"→"and",
+    punctuation→space, whitespace collapsed, a leading "the" and trailing
+    corporate suffixes (Ltd/Limited/Pvt/…) removed. "ITC Ltd.", "ITC Limited"
+    and "ITC LTD" all fold to "itc"."""
+    s = (name or "").lower().strip()
+    s = s.replace("&", " and ")
+    s = re.sub(r"[^a-z0-9]+", " ", s)
+    tokens = [t for t in s.split() if t and t not in _SUFFIX_TOKENS]  # drop Ltd/Limited anywhere
+    if tokens and tokens[0] == "the":
+        tokens = tokens[1:]
+    return " ".join(tokens)
+
+
+def _register(sector: str, *aliases: str) -> None:
+    for a in aliases:
+        KNOWN_COMPANIES[_normalize_name(a)] = sector
+
+
+# FMCG & consumer staples
+_FMCG = ("itc", "hindustan unilever", "hul", "nestle india", "nestle",
+         "britannia", "britannia industries", "dabur", "dabur india", "marico",
+         "godrej consumer", "colgate", "colgate palmolive", "emami",
+         "tata consumer", "tata consumer products", "varun beverages",
+         "united spirits", "radico khaitan", "jyothy labs", "gillette india",
+         "procter and gamble", "p and g hygiene", "patanjali foods",
+         "bajaj consumer", "hatsun agro", "ccl products", "zydus wellness")
+# IT services & software
+_IT = ("tcs", "tata consultancy services", "infosys", "wipro",
+       "hcl technologies", "hcl tech", "tech mahindra", "ltimindtree",
+       "lti mindtree", "mphasis", "coforge", "persistent systems",
+       "persistent", "cyient", "l and t technology services", "lt technology",
+       "oracle financial services", "ofss", "kpit technologies", "kpit",
+       "tata elxsi", "birlasoft", "zensar", "zensar technologies",
+       "sonata software", "happiest minds", "newgen software", "intellect design")
+# Banking & financial services
+_BANK = ("hdfc bank", "icici bank", "state bank of india", "sbi", "axis bank",
+         "kotak mahindra bank", "kotak mahindra", "indusind bank",
+         "bank of baroda", "punjab national bank", "pnb", "canara bank",
+         "union bank of india", "federal bank", "idfc first bank",
+         "au small finance bank", "bandhan bank", "bajaj finance",
+         "bajaj finserv", "cholamandalam", "shriram finance", "muthoot finance",
+         "sbi cards", "hdfc life", "sbi life", "icici prudential",
+         "icici lombard", "life insurance corporation", "lic", "hdfc amc",
+         "power finance corporation", "pfc", "rec", "paytm", "one 97 communications")
+# Pharma & healthcare
+_PHARMA = ("sun pharma", "sun pharmaceutical", "dr reddys", "dr reddys laboratories",
+           "cipla", "lupin", "aurobindo pharma", "divis laboratories", "divis",
+           "torrent pharmaceuticals", "torrent pharma", "alkem", "alkem laboratories",
+           "zydus lifesciences", "mankind pharma", "ipca laboratories", "glenmark",
+           "biocon", "apollo hospitals", "fortis healthcare", "max healthcare",
+           "laurus labs", "syngene", "abbott india", "gland pharma", "ajanta pharma")
+# Infrastructure, power, energy, oil & gas, capital goods
+_INFRA = ("larsen and toubro", "larsen", "l and t", "ntpc", "power grid",
+          "adani ports", "adani green", "adani energy", "adani power",
+          "adani total gas", "adani enterprises", "reliance industries",
+          "oil and natural gas corporation", "ongc", "indian oil", "ioc",
+          "bharat petroleum", "bpcl", "hindustan petroleum", "hpcl", "gail",
+          "coal india", "tata power", "jsw energy", "nhpc", "sjvn", "siemens",
+          "abb india", "cummins india", "bhel", "irfc", "ircon", "rvnl",
+          "torrent power", "petronet lng", "indraprastha gas", "gujarat gas",
+          "gmr airports")
+# Manufacturing & industrials (metals, cement, auto, chemicals, durables)
+_MFG = ("tata steel", "jsw steel", "hindalco", "vedanta", "nmdc", "sail",
+        "jindal steel", "jindal steel and power", "ultratech cement", "shree cement",
+        "ambuja cements", "acc", "dalmia bharat", "grasim", "grasim industries",
+        "maruti suzuki", "tata motors", "mahindra and mahindra", "bajaj auto",
+        "hero motocorp", "eicher motors", "tvs motor", "ashok leyland", "bosch",
+        "samvardhana motherson", "motherson", "balkrishna industries", "mrf",
+        "apollo tyres", "asian paints", "berger paints", "pidilite", "upl",
+        "srf", "aarti industries", "deepak nitrite", "tata chemicals",
+        "pi industries", "coromandel international", "bharat forge",
+        "aia engineering", "supreme industries", "astral", "polycab", "havells",
+        "crompton greaves consumer", "voltas", "blue star", "kajaria ceramics",
+        "dixon technologies", "amber enterprises")
+# Retail & e-commerce / consumer discretionary
+_RETAIL = ("avenue supermarts", "dmart", "trent", "aditya birla fashion",
+           "vedant fashions", "shoppers stop", "v mart retail", "jubilant foodworks",
+           "devyani international", "sapphire foods", "westlife foodworld",
+           "titan", "titan company", "eternal", "zomato", "swiggy", "nykaa",
+           "fsn e commerce", "page industries", "info edge")
+# Real estate
+_REALTY = ("dlf", "oberoi realty", "godrej properties", "prestige estates",
+           "brigade enterprises", "sobha", "phoenix mills", "macrotech developers",
+           "lodha", "sunteck realty", "mahindra lifespace")
+# Telecom / media / conglomerate-with-no-scoring-bucket -> generic (safe, no tilt)
+_GENERIC = ("bharti airtel", "vodafone idea", "indus towers", "zee entertainment",
+            "sun tv network", "pvr inox")
+
+_register("fmcg", *_FMCG)
+_register("it_services", *_IT)
+_register("banking", *_BANK)
+_register("pharma", *_PHARMA)
+_register("infrastructure", *_INFRA)
+_register("manufacturing", *_MFG)
+_register("retail", *_RETAIL)
+_register("realestate", *_REALTY)
+_register("generic", *_GENERIC)
+
+
+def _match_known_company(norm: str) -> tuple[str, str] | None:
+    """(sector, matched_alias) for a known company, else None.
+
+    Exact normalized-name match wins (any length). A known alias is otherwise
+    only accepted when it is *distinctive* — multi-word, or ≥5 chars — and
+    appears as a whole word-run inside the name; short tickers (itc, tcs, sbi)
+    match ONLY as the exact whole name, so they can never fire on a fragment of
+    a longer, unrelated company."""
+    if not norm:
+        return None
+    if norm in KNOWN_COMPANIES:
+        return KNOWN_COMPANIES[norm], norm
+    # A trailing geographic qualifier ("ITC India" style) — try the name without
+    # it, but only as a fallback so registered "... India" identities (Nestle
+    # India, Indian Oil) still match on their full form above.
+    if norm.endswith(" india") and norm[:-6] in KNOWN_COMPANIES:
+        return KNOWN_COMPANIES[norm[:-6]], norm[:-6]
+    best: tuple[str, str] | None = None
+    for alias, sector in KNOWN_COMPANIES.items():
+        if (" " in alias or len(alias) >= 5) and \
+                re.search(r"\b" + re.escape(alias) + r"\b", norm):
+            if best is None or len(alias) > len(best[1]):
+                best = (sector, alias)
+    return best
+
+
 # Words that reliably name a sector inside an Indian listed-company name.
 NAME_HINTS: list[tuple[str, tuple[str, ...]]] = [
     ("banking", ("bank", "finserv", "financ", "nbfc", "capital first", "housing fin",
@@ -287,12 +451,34 @@ NAME_HINTS: list[tuple[str, tuple[str, ...]]] = [
 ]
 
 
+def _match_name_hints(norm: str) -> tuple[str, str] | None:
+    """(sector, matched_hint) from NAME_HINTS, or None. Token/phrase-aware so a
+    fragment can never classify: multi-word hints match as phrases; single-word
+    hints match a whole token, or (only when ≥4 chars) a token that *starts*
+    with the hint so stems like "financ"→"financial" still work. A 2-3 char
+    fragment such as "it" therefore can only ever match a whole "it" token — it
+    can NOT match inside "itc"."""
+    if not norm:
+        return None
+    tokens = norm.split()
+    for key, hints in NAME_HINTS:
+        for hint in hints:
+            if " " in hint:
+                if hint in norm:                       # distinctive phrase
+                    return key, hint
+            elif any(t == hint or (len(hint) >= 4 and t.startswith(hint))
+                     for t in tokens):
+                return key, hint
+    return None
+
+
 def _structure_guess(metrics: dict[str, float | None]) -> str:
     """
     Fall back to the shape of the balance sheet when the name says nothing.
 
     These are deliberately coarse: they only need to beat "always infrastructure",
-    and the user can override the answer in one click.
+    and the user can override the answer in one click. Used ONLY when neither the
+    known-company map nor the name hints matched.
     """
     debt_equity = metrics.get("Debt to Equity Ratio")
     interest_pct = metrics.get("Interest % Sales")
@@ -306,10 +492,13 @@ def _structure_guess(metrics: dict[str, float | None]) -> str:
         if interest_pct is None or interest_pct > 0.2:
             return "banking"
 
-    # Asset-light, high-margin, barely any debt reads as services.
+    # Asset-light, high-margin, barely-any-debt reads as services — but only when
+    # the asset-light signal is *positive*. High margin + low debt alone is also
+    # true of a strong staples/FMCG name (ITC), so we require a genuinely high
+    # fixed-asset turnover rather than accepting a missing value.
     if (ebitda_margin is not None and ebitda_margin > 0.18
             and (debt_equity is None or debt_equity < 0.25)
-            and (fixed_turnover is None or fixed_turnover > 2.0)):
+            and fixed_turnover is not None and fixed_turnover > 2.5):
         return "it_services"
 
     # Heavy balance sheet, thin margins, meaningful debt reads as capital-intensive.
@@ -324,23 +513,46 @@ def _structure_guess(metrics: dict[str, float | None]) -> str:
     return "generic"
 
 
-def detect_sector(company: str, metrics: dict[str, float | None] | None = None
-                  ) -> tuple[str, str]:
-    """
-    Guess a company's sector from its name, falling back to its financials.
+def classify_sector(company: str, metrics: dict[str, float | None] | None = None
+                    ) -> SectorDetection:
+    """Deterministic, explainable sector classification (see the precedence note
+    above). Known-company identity beats name keywords beats balance-sheet shape.
+    A confident company match is never overridden by the financials."""
+    norm = _normalize_name(company)
 
-    Returns (sector key, how it was decided) so the UI can say why — a guess the
-    user cannot see the reasoning for is worse than no guess at all.
-    """
-    name = (company or "").lower()
-    for key, hints in NAME_HINTS:
-        for hint in hints:
-            if hint in name:
-                return key, f"matched “{hint}” in the company name"
+    known = _match_known_company(norm)
+    if known:
+        sector, alias = known
+        pretty = (company or "").strip() or alias
+        return SectorDetection(sector, "high",
+                               f"matched known company: {pretty}",
+                               "known_company", "exact_known_company")
+
+    hinted = _match_name_hints(norm)
+    if hinted:
+        sector, hint = hinted
+        return SectorDetection(sector, "medium",
+                               f"matched “{hint}” in the company name",
+                               "name_hint", "strong_name_match")
 
     if metrics:
         guess = _structure_guess(metrics)
         if guess != "generic":
-            return guess, "inferred from the balance-sheet shape"
+            return SectorDetection(guess, "low",
+                                   "inferred from the balance-sheet shape",
+                                   "financials", "financial_structure")
 
-    return "generic", "no clear signal — pick the sector yourself"
+    return SectorDetection("generic", "none",
+                           "no high-confidence sector signal — choose the sector manually",
+                           "fallback", "generic")
+
+
+def detect_sector(company: str, metrics: dict[str, float | None] | None = None
+                  ) -> tuple[str, str]:
+    """
+    Guess a company's sector. Returns (sector key, how it was decided) so the UI
+    can say why. Backward-compatible thin wrapper over `classify_sector` — call
+    that directly when you need the confidence / source / match_type trail.
+    """
+    d = classify_sector(company, metrics)
+    return d.sector, d.reason

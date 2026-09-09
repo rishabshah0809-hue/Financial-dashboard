@@ -45,6 +45,7 @@ from core.scoring import assess, compare_sectors
 from core.sectors import (
     PERCENT_METRICS,
     SECTORS,
+    classify_sector,
     detect_sector,
     get_sector,
     sector_choices,
@@ -1239,7 +1240,7 @@ def main() -> None:
     # A new workbook gets its sector detected once; after that the dropdown is
     # the source of truth, so changing it by hand sticks.
     if st.session_state.get("detected_for") != model.company:
-        detected, why = detect_sector(model.company, {
+        det = classify_sector(model.company, {
             "Debt to Equity Ratio": model.latest("Debt to Equity Ratio"),
             "Interest % Sales": model.latest("Interest % Sales"),
             "EBITDA Margin": model.latest("EBITDA Margin"),
@@ -1247,8 +1248,15 @@ def main() -> None:
             "Net Profit Margin": model.latest("Net Profit Margin"),
         })
         st.session_state.detected_for = model.company
-        st.session_state.sector_pref = detected
-        LOGGER.info("sector detected for %s: %s (%s)", model.company, detected, why)
+        st.session_state.sector_pref = det.sector
+        # Audit trail for the UI ("why this sector") — never overrides a manual
+        # pick: this branch only runs once per newly-loaded company.
+        st.session_state.sector_detection = {
+            "sector": det.sector, "confidence": det.confidence,
+            "reason": det.reason, "source": det.source,
+        }
+        LOGGER.info("sector detected for %s: %s (%s, %s)",
+                    model.company, det.sector, det.confidence, det.reason)
         st.rerun()
 
     sector = get_sector(sector_key)
