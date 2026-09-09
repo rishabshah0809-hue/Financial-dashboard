@@ -404,21 +404,46 @@ def build_context(model, result, model_filename: str = "") -> dict:
 # --------------------------------------------------------------------------
 
 def _hero_why(ctx: dict) -> str:
-    pillars = ctx["pillars"]
+    """Plain-English reasoning for the Funda Score: what it is, the band and its
+    meaning, the strongest area + its top contributor, the biggest drag + its weak
+    point, and the sector-weighted blend (which is why the headline is not a plain
+    average of the area scores)."""
+    from .scoring import METRIC_PILLARS
+
+    pillars = ctx["pillars"]                       # sorted strongest-first
     if not pillars:
         return "Not enough scored data to explain this score yet."
     top, low = pillars[0], pillars[-1]
-    # strongest / weakest scored ratios overall
     sc = ctx["scorecard"]
-    top_r = sc[0] if sc else None
-    low_r = sc[-1] if sc else None
-    if top_r and low_r:
-        return (f"A mixed picture: real strengths, but clear weak spots. <b>{escape(top['label'])}</b> carries the "
-                f"score at {top['score']}, led by {escape(top_r['label'].lower())}. <b>{escape(low['label'])}</b> drags it "
-                f"down at {low['score']}, where <b>{escape(low_r['label'])} scores {low_r['score']} of 100</b> — the single "
-                f"largest deduction on the page.")
-    return (f"<b>{escape(top['label'])}</b> leads at {top['score']}, while "
-            f"<b>{escape(low['label'])}</b> trails at {low['score']}.")
+
+    def _in_pillar(pkey):
+        return [r for r in sc if METRIC_PILLARS.get(r.get("metric")) == pkey]
+    top_led = max(_in_pillar(top["key"]), key=lambda r: r["score"], default=None)
+    low_weak = min(_in_pillar(low["key"]), key=lambda r: r["score"], default=None)
+
+    company = escape((ctx.get("company") or "This company").title())
+    sector = escape(ctx.get("sector") or "its sector")
+    total = ctx.get("total")
+    band = str(ctx.get("verdict") or "Neutral")
+    band_meaning = {
+        "Strong": "fundamentally solid — more real strengths than weak spots",
+        "Neutral": "a mixed picture, with real strengths but also clear weak spots",
+        "Weak": "under pressure — the weak spots outweigh the strengths",
+    }.get(band, "a mixed picture")
+
+    parts = [f"The Funda Score is a 0–100 health check built for how {sector} "
+             f"companies actually work, and {company} scores <b>{total}/100</b> — the "
+             f"{band.lower()} band, meaning {band_meaning}."]
+    if top_led is not None:
+        parts.append(f" Its strongest area is <b>{escape(top['label'])} at {top['score']}/100</b>, "
+                     f"helped most by {escape(top_led['label'].lower())}.")
+    if low_weak is not None:
+        parts.append(f" The biggest drag is <b>{escape(low['label'])} at {low['score']}/100</b>, where "
+                     f"{escape(low_weak['label'].lower())} is the main weak point, which is what keeps "
+                     f"the score from being higher.")
+    parts.append(" Each area is scored 0–100 and then blended by how much it matters in this "
+                 "sector, so a strong area can partly offset a weak one to give the headline number.")
+    return "".join(parts)
 
 
 def _read_margins(ctx: dict) -> str:
