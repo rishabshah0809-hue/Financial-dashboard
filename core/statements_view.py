@@ -344,6 +344,46 @@ document.getElementById("swd").addEventListener("click", function(){
   document.getElementById("st").classList.toggle("hide-d", !showD);
 });
 render();
+
+/* Deep-link from a Dashboard KPI arrow (or the "All" chip): the dashboard stashes
+   the target ratio on the parent window, then switches to this page. We open the
+   sheet the ratio actually lives on (Ratio analysis preferred) and scroll to it —
+   so clicking P/E lands on P/E wherever it sits, not just the page. Match is
+   punctuation-insensitive so "pe ratio" finds "P/E Ratio". */
+(function(){
+  var target=null; try{ target=window.parent.__fcGotoRatio; }catch(e){}
+  if(!target) return;
+  try{ window.parent.__fcGotoRatio=null; }catch(e){}
+  function nrm(s){ return String(s||"").toLowerCase().replace(/[^a-z0-9]/g,""); }
+  function openTab(tk){
+    var b=document.querySelector('#tabs .tab[data-t="'+tk+'"]');
+    document.querySelectorAll('#tabs .tab').forEach(function(x){x.classList.remove('on');});
+    if(b) b.classList.add('on');
+    tab=tk; render();
+  }
+  if(String(target)==="__all__"){ openTab("ra"); return; }   // "All" -> Ratio analysis
+  var want=nrm(target), order=["ra","is","bs","cs"], exact=null, fuzzy=null;
+  order.forEach(function(tk){ var S=SHEETS[tk]; if(!S) return;
+    (S.data||[]).forEach(function(g){ (g.rows||[]).forEach(function(r){
+      var n=nrm(r.n);
+      if(!exact && n===want) exact={tab:tk,name:r.n};
+      if(!fuzzy && n.length>3 && (n.indexOf(want)>-1 || want.indexOf(n)>-1)) fuzzy={tab:tk,name:r.n};
+    }); }); });
+  var hit=exact||fuzzy; if(!hit) return;
+  openTab(hit.tab);
+  setTimeout(function(){
+    var w=nrm(hit.name), row=null;
+    document.querySelectorAll('#stbody tr.r').forEach(function(tr){
+      var lbl=(tr.querySelector('.lbl')||{}).textContent||"";
+      if(!row && nrm(lbl)===w) row=tr;
+    });
+    if(!row) return;
+    row.scrollIntoView({behavior:'smooth', block:'center'});
+    var cells=row.querySelectorAll('td');
+    cells.forEach(function(c){ c.style.transition='background .5s'; c.style.background='#FFF6CF'; });
+    setTimeout(function(){ cells.forEach(function(c){ c.style.background=''; }); }, 2000);
+  }, 160);
+})();
 """
 
 # Streamlit frame-fit — preserved verbatim from the reference component.
