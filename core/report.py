@@ -58,8 +58,11 @@ PAGE_W, PAGE_H = 210.0, 297.0
 MARGIN = 18.0
 CONTENT_W = PAGE_W - 2 * MARGIN
 
+# The reference report is set in DejaVu Sans (headings/body), DejaVu Sans Mono
+# (eyebrows, labels, numbers) and Liberation Serif (table row labels). These are
+# bundled under assets/fonts so the output matches it exactly, rupee glyph and all.
 _FONT_DIR = Path(__file__).resolve().parent.parent / "assets" / "fonts"
-SANS, MONO = "PJS", "Mono"     # family names once registered (else helvetica/courier)
+SANS, MONO, SERIF = "DJS", "Mono", "Serif"   # family names once registered
 
 
 # --------------------------------------------------------------------------
@@ -177,10 +180,12 @@ class _Doc(FPDF):
         self.set_margins(MARGIN, MARGIN, MARGIN)
         self.unicode = False
         try:
-            self.add_font(SANS, "", str(_FONT_DIR / "PlusJakartaSans-Regular.ttf"))
-            self.add_font(SANS, "B", str(_FONT_DIR / "PlusJakartaSans-Bold.ttf"))
+            self.add_font(SANS, "", str(_FONT_DIR / "DejaVuSans.ttf"))
+            self.add_font(SANS, "B", str(_FONT_DIR / "DejaVuSans-Bold.ttf"))
             self.add_font(MONO, "", str(_FONT_DIR / "DejaVuSansMono.ttf"))
             self.add_font(MONO, "B", str(_FONT_DIR / "DejaVuSansMono-Bold.ttf"))
+            self.add_font(SERIF, "", str(_FONT_DIR / "LiberationSerif-Regular.ttf"))
+            self.add_font(SERIF, "B", str(_FONT_DIR / "LiberationSerif-Bold.ttf"))
             self.unicode = True
         except Exception:                                  # noqa: BLE001
             pass
@@ -195,6 +200,10 @@ class _Doc(FPDF):
 
     def mono(self, size, bold=False, color=INK, spacing=None):
         self.set_font(MONO if self.unicode else "courier", "B" if bold else "", size)
+        self.set_text_color(*color)
+
+    def serif(self, size, bold=False, color=INK):
+        self.set_font(SERIF if self.unicode else "times", "B" if bold else "", size)
         self.set_text_color(*color)
 
     def txt(self, s):
@@ -284,7 +293,10 @@ def _para(pdf, x, y, w, text, size=9.4, lh=4.9, color=BODY, bold_color=INK,
             tokens.append((chunk, False, color))
     space_w = None
     cx, cy = x, y
-    fam = font if pdf.unicode else ("helvetica" if font == SANS else "courier")
+    if pdf.unicode:
+        fam = font
+    else:
+        fam = {SANS: "helvetica", MONO: "courier", SERIF: "times"}.get(font, "helvetica")
     for seg_text, is_bold, col in tokens:
         words = re.split(r"(\s+)", seg_text)
         for word in words:
@@ -1137,76 +1149,145 @@ def _waterfall_steps(ctx):
     return steps
 
 
+_COST_PINK = (222, 158, 152)
+_COST_GREY = (176, 182, 178)
+
+
+def _dev(c):
+    from fpdf.drawing import DeviceRGB
+    return DeviceRGB(c[0] / 255, c[1] / 255, c[2] / 255)
+
+
+def _fill_ribbon(pdf, top_pts, base_fn, color):
+    """Filled flowing band: smooth S-curve top edge through top_pts (left→right),
+    straight bottom edge along base_fn. No stroke."""
+    with pdf.new_path() as p:
+        p.style.fill_color = _dev(color)
+        p.style.stroke_color = None
+        p.style.stroke_width = 0
+        xL, xR = top_pts[0][0], top_pts[-1][0]
+        p.move_to(xL, base_fn(xL))
+        p.line_to(xR, base_fn(xR))
+        p.line_to(top_pts[-1][0], top_pts[-1][1])
+        for i in range(len(top_pts) - 2, -1, -1):
+            x0, y0 = top_pts[i + 1]
+            x1, y1 = top_pts[i]
+            mx = (x0 + x1) / 2
+            p.curve_to(mx, y0, mx, y1, x1, y1)
+        p.close()
+
+
+def _tongue(pdf, cx, base_y, thick, color, up=True, half=4.0):
+    """A broad colour ribbon that lifts `thick` mm of the flow up (a cost) or
+    joins from below (a gain), with a rounded outer cap via bezier. It overlaps
+    the band a little at its base so it reads as peeling off the flow."""
+    rise = max(thick, 1.4) + 3.0
+    r = min(half, 2.2)
+    with pdf.new_path() as p:
+        p.style.fill_color = _dev(color)
+        p.style.stroke_color = None
+        p.style.stroke_width = 0
+        if up:
+            p.move_to(cx - half, base_y + 1.2)
+            p.line_to(cx - half, base_y - rise + r)
+            p.curve_to(cx - half, base_y - rise, cx - half + r, base_y - rise, cx, base_y - rise)
+            p.curve_to(cx + half - r, base_y - rise, cx + half, base_y - rise, cx + half, base_y - rise + r)
+            p.line_to(cx + half, base_y + 1.2)
+        else:
+            p.move_to(cx - half, base_y - 1.2)
+            p.line_to(cx - half, base_y + rise - r)
+            p.curve_to(cx - half, base_y + rise, cx - half + r, base_y + rise, cx, base_y + rise)
+            p.curve_to(cx + half - r, base_y + rise, cx + half, base_y + rise, cx + half, base_y + rise - r)
+            p.line_to(cx + half, base_y - 1.2)
+        p.close()
+    return rise
+
+
 def _draw_waterfall(pdf, x, y, w, h, steps):
-    """A horizontal floating-bar waterfall approximating the reference ribbon."""
-    # legend
-    legend = [("Money remaining", LIGHT), ("Operating cost", (214, 150, 145)),
-              ("Interest", RED), ("Other income", AMBER), ("Tax", (170, 176, 172)),
+    """The sales→profit flow as a continuous Sankey ribbon: a light-green
+    'money remaining' band that narrows as costs peel off the top and swells
+    where other income joins, ending in the dark-green net-profit block."""
+    legend = [("Money remaining", LIGHT), ("Operating cost", _COST_PINK),
+              ("Interest", RED), ("Other income", AMBER), ("Tax", _COST_GREY),
               ("Net profit", GREEN)]
     lx = x
     for name, col in legend:
         pdf.set_fill_color(*col)
-        pdf.rect(lx, y, 3, 3, style="F")
+        pdf.rect(lx, y, 3, 3, style="F", round_corners=True, corner_radius=0.6)
         pdf.sans(7, False, BODY)
-        pdf.set_xy(lx + 4, y - 0.4)
+        pdf.set_xy(lx + 4.4, y - 0.6)
         pdf.cell(2 + pdf.get_string_width(name), 4, name)
-        lx += 8 + pdf.get_string_width(name)
-    y += 8
-    peak = 100.0
-    base = y + h
-    plot_h = h - 6
+        lx += 9 + pdf.get_string_width(name)
+    y += 9
+
     n = len(steps)
-    sw = w / n
-    running = 0.0
-    prev_top = None
-    for i, (name, val, kind) in enumerate(steps):
-        bx = x + i * sw + sw * 0.16
-        bw = sw * 0.68
+    xL, xR = x + 3, x + w - 3
+    W = xR - xL
+    seg = W / n
+    xc = [xL + (i + 0.5) * seg for i in range(n)]
+    scale = 38.0 / 100.0
+    base0 = y + 8 + 100 * scale        # baseline at far left (bottom of Sales)
+    drift = 7.0                         # ribbon drifts gently downward to the right
+    def base_at(xx):
+        return base0 + (xx - xL) / W * drift
+
+    # running remaining at each node
+    rem, run = [], 0.0
+    for name, val, kind in steps:
         if kind in ("level", "net"):
-            top = base - (val / peak) * plot_h
-            bh = base - top
-            col = GREEN if kind == "net" else LIGHT
-            if kind == "net":
-                pass
-            pdf.set_fill_color(*col)
-            pdf.rect(bx, top, bw, bh, style="F")
-            running = val
-            cur_top = top
+            run = val
+        else:
+            run += val
+        rem.append(run)
+    top = [base_at(xc[i]) - rem[i] * scale for i in range(n)]
+
+    # 1) the money-remaining band (light green), with a tall Sales cap at the left
+    band_top = [(xL, base_at(xL) - rem[0] * scale)] + [(xc[i], top[i]) for i in range(n)]
+    _fill_ribbon(pdf, band_top, base_at, LIGHT)
+
+    # 2) dark-green net-profit block at the end
+    ni = n - 1
+    with pdf.new_path() as p:
+        p.style.fill_color = _dev(GREEN)
+        p.style.stroke_color = None
+        p.style.stroke_width = 0
+        x0 = xc[ni] - seg * 0.42
+        p.move_to(x0, base_at(x0))
+        p.line_to(xR, base_at(xR))
+        p.line_to(xR, top[ni])
+        mx = (xR + x0) / 2
+        p.curve_to(mx, top[ni], mx, base_at(x0) - rem[ni] * scale, x0, base_at(x0) - rem[ni] * scale)
+        p.close()
+
+    # 3) cost tongues (peel up) and the other-income tongue (join from below)
+    tw = seg * 0.30                    # tongue half-width, proportional to node gap
+    for i, (name, val, kind) in enumerate(steps):
+        if kind == "cost":
+            col = RED if name == "Interest" else (_COST_GREY if name == "Tax" else _COST_PINK)
+            rise = _tongue(pdf, xc[i], top[i], abs(val) * scale, col, up=True, half=tw)
+            pdf.mono(5.6, True, RED_TXT if name != "Tax" else MUTED)
+            pdf.set_xy(xc[i] - seg * 0.5, top[i] - rise - 3.2)
+            pdf.cell(seg, 3, pdf.txt(f"−₹{abs(val):.2f}"), align="C")
         elif kind == "gain":
-            new = running + val
-            top = base - (new / peak) * plot_h
-            bh = (new - running) / peak * plot_h
-            pdf.set_fill_color(*AMBER)
-            pdf.rect(bx, top, bw, bh, style="F")
-            running = new
-            cur_top = top
-        else:  # cost
-            new = running + val   # val negative
-            top = base - (running / peak) * plot_h
-            bh = (running - new) / peak * plot_h
-            col = RED if name == "Interest" else (214, 150, 145)
-            pdf.set_fill_color(*col)
-            pdf.rect(bx, top, bw, bh, style="F")
-            running = new
-            cur_top = base - (running / peak) * plot_h
-        # connector
-        if prev_top is not None:
-            pdf.set_draw_color(210, 214, 210)
-            pdf.set_line_width(0.2)
-            pdf.line(bx - sw * 0.16, prev_top, bx, base - (running / peak) * plot_h
-                     if kind == "cost" else cur_top)
-        prev_top = base - (running / peak) * plot_h if kind != "level" and kind != "net" else cur_top
-        # labels
-        pdf.sans(6.2, True if kind in ("net", "level") else False,
-                 INK if kind in ("net", "level") else BODY)
-        pdf.set_xy(bx - sw * 0.16, base + 1.5)
-        pdf.multi_cell(sw, 2.6, pdf.txt(name), align="C")
-        pdf.mono(6, True, GREEN if kind == "net" else (RED_TXT if kind == "cost"
-                 else AMBER_TXT if kind == "gain" else INK))
-        pdf.set_xy(bx - sw * 0.16, (prev_top if kind != 'cost' else base - (running/peak)*plot_h) - 4)
-        sign = "−" if val < 0 else ""
-        pdf.cell(sw, 3, pdf.txt(f"{sign}₹{abs(val):.2f}"), align="C")
-    return base + 12
+            rise = _tongue(pdf, xc[i], base_at(xc[i]), abs(val) * scale, AMBER, up=False, half=tw)
+            pdf.mono(5.6, True, AMBER_TXT)
+            pdf.set_xy(xc[i] - seg * 0.5, base_at(xc[i]) + rise + 0.5)
+            pdf.cell(seg, 3, pdf.txt(f"+₹{abs(val):.2f}"), align="C")
+        else:  # level / net — value sits above the band
+            pdf.mono(5.6, True, GREEN if kind == "net" else INK)
+            pdf.set_xy(xc[i] - seg * 0.5, top[i] - 4.4)
+            pdf.cell(seg, 3, pdf.txt(f"₹{abs(val):.2f}"), align="C")
+
+    # 4) node names under the baseline (abbreviate the long ones to avoid wrap)
+    abbrev = {"Cost of goods": "Cost of\ngoods", "Other operating": "Other\noperating",
+              "After interest": "After\ninterest", "Other income": "Other\nincome",
+              "Gross profit": "Gross\nprofit", "Net profit": "Net\nprofit"}
+    base_lab = base_at(xR) + 2.5
+    for i, (name, val, kind) in enumerate(steps):
+        pdf.sans(5.8, kind in ("level", "net"), INK if kind in ("level", "net") else BODY)
+        pdf.set_xy(xc[i] - seg * 0.5, base_lab)
+        pdf.multi_cell(seg, 2.6, pdf.txt(abbrev.get(name, name)), align="C")
+    return base_lab + 12
 
 
 def _waterfall_note(ctx):
@@ -1251,7 +1332,7 @@ def _revenue_bars(pdf, x, y, w, h, ctx):
         bh = max(2, float(v) / peak * (h - 8))
         bx = x + i * sw + sw * 0.16
         pdf.set_fill_color(*shade[i])
-        pdf.rect(bx, base - bh, sw * 0.68, bh, style="F", round_corners=True, corner_radius=1)
+        pdf.rect(bx, base - bh, sw * 0.68, bh, style="F")
         pdf.mono(6.6, False, MUTED)
         pdf.set_xy(x + i * sw, base - bh - 4)
         val = f"{v/1e5:.2f}L" if v >= 1e5 else f"{v:,.0f}"
@@ -1319,7 +1400,7 @@ def _margin_table(pdf, x, y, w, ctx):
             pdf.set_fill_color(247, 249, 247)
             pdf.rect(x, y - 0.6, w, 6, style="F")
         cx = x
-        pdf.sans(8.4, head, INK if head else BODY)
+        pdf.serif(9.6, head, INK if head else BODY)
         pdf.set_xy(cx, y)
         pdf.cell(cols[0], 5, pdf.txt(name)); cx += cols[0]
         pdf.mono(8, head, INK if head else BODY)
@@ -1649,8 +1730,8 @@ def _constituents_table(pdf, x, y, w, ctx):
             pdf.set_fill_color(247, 249, 247)
             pdf.rect(x, y - 0.5, w, 6, style="F")
         cx = x
-        pdf.sans(7.8, True, INK)
-        pdf.set_xy(cx, y); pdf.cell(cols[0], 5, pdf.txt(str(c.get("name", ""))[:22])); cx += cols[0]
+        pdf.serif(9.2, True, INK)
+        pdf.set_xy(cx, y); pdf.cell(cols[0], 5, pdf.txt(str(c.get("name", ""))[:24])); cx += cols[0]
         pdf.mono(6.8, False, BODY)
         vals = [_cr(c.get("market_cap")), _x(c.get("pe")), _x(c.get("pb")),
                 (f"{c['roce']:.2f}%" if c.get("roce") is not None else "—"),
@@ -1716,7 +1797,7 @@ def _page_income(pdf, ctx):
         if ri % 2 == 0:
             pdf.set_fill_color(247, 249, 247)
             pdf.rect(MARGIN, y - 0.5, CONTENT_W, 6, style="F")
-        pdf.sans(7.8, head, INK if head else BODY)
+        pdf.serif(9.0, head, INK if head else BODY)
         pdf.set_xy(MARGIN, y)
         pdf.cell(label_w, 5, pdf.txt(name))
         for j, v in enumerate(vals):
@@ -1825,7 +1906,7 @@ def _balance_table(pdf, x, y, w, ctx):
             pdf.set_fill_color(247, 249, 247)
             pdf.rect(x, y - 0.5, w, 6.4, style="F")
         cx = x
-        pdf.sans(8, True, INK); pdf.set_xy(cx, y); pdf.cell(cols[0], 5, pdf.txt(label)); cx += cols[0]
+        pdf.serif(9.2, True, INK); pdf.set_xy(cx, y); pdf.cell(cols[0], 5, pdf.txt(label)); cx += cols[0]
         pdf.mono(7, False, BODY)
         pdf.set_xy(cx, y); pdf.cell(cols[1], 5, pdf.txt(_fmt_bs(a, unit)), align="R"); cx += cols[1]
         pdf.set_xy(cx, y); pdf.cell(cols[2], 5, pdf.txt(_fmt_bs(b, unit)), align="R"); cx += cols[2]
@@ -2178,7 +2259,7 @@ def _sensitivity_table(pdf, x, y, w, ctx):
         if ri % 2 == 0:
             pdf.set_fill_color(247, 249, 247); pdf.rect(x, y - 0.5, w, 6, style="F")
         cx = x
-        pdf.sans(7.8, head, INK if head else BODY); pdf.set_xy(cx, y)
+        pdf.serif(9.2, head, INK if head else BODY); pdf.set_xy(cx, y)
         pdf.cell(cols[0], 5, pdf.txt(label)); cx += cols[0]
         is_margin = "margin" in label.lower()
         pdf.mono(6.9, head, INK if head else BODY)
