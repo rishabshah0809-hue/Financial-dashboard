@@ -1115,6 +1115,189 @@ def _model_interpretation_block(model, sector_key: str, config: LLMConfig,
 
 
 # ==========================================================================
+# Financial model interpretation — "THE READING" grid, redesigned to the
+# reference (fundacheck_ask_analyst_v2.html). Design-only: it renders the exact
+# interpretation the LLM already produced (_ensure_interpretation → interp.sections),
+# with each card's verdict badge + colour driven by the real sector-weighted
+# pillar score for that area. No new AI call, no fabricated text.
+# ==========================================================================
+_READING_CSS = """<style>
+.rd{--ink:#15201A;--ink-2:#3F4744;--ink-3:#5F6663;--mute:#8B918E;--mute-2:#9AA09D;
+  --panel:#fff;--line:#E6EBE7;--line-2:#F0F3F0;--brand:#177245;
+  --pos:#2F9E63;--pos-deep:#0F5B34;--pos-tint:#EEF4F0;--neg:#B4483C;--neg-tint:#FBEEEC;
+  --warn:#C68A2E;--warn-deep:#B5761F;--warn-tint:#FDF3E2;--mono:ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(21,32,26,.04),0 6px 18px rgba(21,32,26,.06);
+  font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:var(--ink);
+  font-variant-numeric:tabular-nums}
+.rd *{box-sizing:border-box}
+.rd .rhead{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;
+  flex-wrap:wrap;padding:8px 4px 14px}
+.rd .rhead h2{font-size:22px;font-weight:800;letter-spacing:-.6px;line-height:1.15}
+.rd .rhead p{font-size:13px;color:var(--mute);padding-top:6px;max-width:74ch;line-height:1.55}
+.rd .rkey{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--mute);
+  white-space:nowrap;padding-top:6px}
+.rd .rkey b{width:9px;height:9px;border-radius:50%;flex:none;margin-left:9px}
+.rd .rkey b:first-child{margin-left:0}
+.rd .b-pos{background:var(--pos)}.rd .b-warn{background:var(--warn)}.rd .b-neg{background:var(--neg)}
+.rd .rgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:stretch}
+@media(max-width:820px){.rd .rgrid{grid-template-columns:1fr}}
+.rd .rcard{background:var(--panel);border:1px solid var(--line);border-radius:18px;
+  padding:20px 22px 18px 24px;position:relative;box-shadow:var(--shadow);
+  display:flex;flex-direction:column}
+.rd .rcard::before{content:"";position:absolute;left:0;top:20px;bottom:20px;width:3px;
+  border-radius:0 3px 3px 0;background:var(--k)}
+.rd .rcard.k-pos{--k:var(--pos);--kt:var(--pos-tint);--kd:var(--pos-deep)}
+.rd .rcard.k-warn{--k:var(--warn);--kt:var(--warn-tint);--kd:var(--warn-deep)}
+.rd .rcard.k-neg{--k:var(--neg);--kt:var(--neg-tint);--kd:var(--neg)}
+.rd .rc-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rd .rc-n{font-family:var(--mono);font-size:11px;font-weight:700;color:#C3CAC6;letter-spacing:.5px}
+.rd .rc-t{font-size:16.5px;font-weight:800;letter-spacing:-.3px;flex:1 1 auto}
+.rd .rc-v{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.9px;
+  text-transform:uppercase;color:var(--kd);background:var(--kt);
+  border:1px solid rgba(21,32,26,.07);border-radius:6px;padding:4px 9px;white-space:nowrap}
+.rd .rc-lede{font-size:13px;line-height:1.55;color:var(--ink);font-weight:600;padding-top:10px;
+  max-width:58ch}
+.rd .rc-lede b{color:var(--ink);font-weight:800}
+.rd .rc-b{list-style:none;padding-top:12px;display:flex;flex-direction:column;gap:9px;flex:1;margin:0}
+.rd .rc-b li{position:relative;padding-left:17px;font-size:13.5px;line-height:1.62;color:var(--ink-2);
+  max-width:72ch}
+.rd .rc-b li::before{content:"";position:absolute;left:0;top:.68em;width:8px;height:1.5px;
+  border-radius:2px;background:var(--k)}
+.rd .rc-b b{color:var(--ink);font-weight:700}
+.rd .rc-none{padding-top:10px;font-size:13px;color:var(--mute);font-style:italic}
+.rd .rc-ext{display:block;padding-top:6px;font-size:12px;color:var(--mute-2);font-style:italic}
+.rd .iwide{grid-column:1/-1}
+@media(min-width:820px){
+  .rd .iwide{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);
+    grid-template-areas:"h h" "lede bul";column-gap:30px;row-gap:12px;align-items:start}
+  .rd .iwide .rc-h{grid-area:h}
+  .rd .iwide .rc-lede{grid-area:lede;font-size:15px;line-height:1.5;padding-top:0;align-self:center;
+    max-width:32ch}
+  .rd .iwide .rc-b{grid-area:bul;padding-top:0;border-left:1px solid var(--line-2);padding-left:26px}
+}
+.rd .foot{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:16px 6px 2px}
+.rd .foot-l{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.2px;
+  text-transform:uppercase;color:var(--mute)}
+.rd .src{font-size:12px;font-weight:600;color:var(--brand);background:var(--pos-tint);
+  border:1px solid #CFE2D7;border-radius:20px;padding:4px 11px}
+.rd .foot-r{margin-left:auto;font-size:11.5px;color:var(--mute-2)}
+.rd .rnote{background:#FBFCFB;border:1px solid var(--line);border-radius:16px;padding:18px 20px;
+  font-size:14px;color:var(--ink-2);line-height:1.6}
+</style>"""
+
+# interpretation section -> scoring pillar whose real score drives the verdict.
+_READING_PILLAR = {
+    "growth": "growth", "margins": "profitability", "costs": "profitability",
+    "returns": "returns", "efficiency": "efficiency", "leverage_cashflow": "leverage",
+}
+_READING_FIT = """<script>
+(function(){function fit(){try{var s=document.getElementById('rshell');if(!s)return;
+var h=Math.ceil(s.getBoundingClientRect().height)+24;
+try{window.parent.postMessage({isStreamlitMessage:true,type:'streamlit:setFrameHeight',height:h},'*');}catch(e){}
+try{var fe=window.frameElement;if(fe){fe.style.setProperty('height',h+'px','important');fe.setAttribute('height',h);}}catch(e){}}
+function sch(){fit();for(var k=1;k<=10;k++)setTimeout(fit,k*220);}
+window.addEventListener('load',sch);sch();
+if(window.ResizeObserver){var ro=new ResizeObserver(fit);var s=document.getElementById('rshell');if(s)ro.observe(s);}
+window.addEventListener('resize',fit);setInterval(fit,1200);})();
+</script>"""
+
+
+def _reading_verdict(section_key: str, result) -> tuple[str, str]:
+    """(verdict word, colour class) from the real pillar score for this area.
+    Valuation and any unscored area read 'Noted' (neutral) — never invented."""
+    pillar = _READING_PILLAR.get(section_key)
+    score = (result.pillar_scores or {}).get(pillar) if pillar else None
+    if score is None:
+        return "Noted", "k-warn"
+    s = float(score)
+    if s >= 66:
+        return "Strong", "k-pos"
+    if s >= 55:
+        return "Solid", "k-pos"
+    if s >= 45:
+        return "Mixed", "k-warn"
+    if s >= 40:
+        return "Soft", "k-warn"
+    return "Weak", "k-neg"
+
+
+def _reading_richtext(raw: str) -> str:
+    """One bullet -> HTML: **bold** lead-ins, and an 'External context:' tail as a
+    muted note line (mirrors _interp_bullets, so both renderers read the same)."""
+    text = html.escape(raw)
+    text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+    m = re.search(r"(External context:\s*.+)$", text)
+    if m:
+        return text[: m.start()].rstrip() + f'<span class="rc-ext">{m.group(1)}</span>'
+    return text
+
+
+def _reading_card(idx: int, section_key: str, heading: str,
+                  bullets: list[str], result, wide: bool) -> str:
+    word, kcls = _reading_verdict(section_key, result)
+    head = (f'<header class="rc-h"><span class="rc-n">{idx:02d}</span>'
+            f'<h3 class="rc-t">{html.escape(heading)}</h3>'
+            f'<span class="rc-v">{html.escape(word)}</span></header>')
+    fallback = (len(bullets) == 1
+                and bullets[0].lower().startswith(_INTERP_FALLBACK_PREFIXES))
+    if not bullets:
+        body = '<div class="rc-none">Nothing material changed in this area.</div>'
+    elif fallback:
+        body = f'<div class="rc-none">{html.escape(bullets[0])}</div>'
+    else:
+        lede = f'<p class="rc-lede">{_reading_richtext(bullets[0])}</p>'
+        rest = bullets[1:]
+        lis = "".join(f'<li>{_reading_richtext(b)}</li>' for b in rest)
+        body = lede + (f'<ul class="rc-b">{lis}</ul>' if lis else "")
+    cls = f'rcard {kcls}' + (" iwide" if wide else "")
+    return f'<article class="{cls}">{head}{body}</article>'
+
+
+def _reading_component(interp, result, company: str, sector_name: str) -> None:
+    head = (
+        '<div class="rhead"><div><h2>Financial model interpretation</h2>'
+        f'<p>{html.escape(company)} &middot; {html.escape(sector_name)} &middot; seven readings '
+        'taken directly from the uploaded model. Each carries the verdict it earns on its '
+        'own sector-weighted evidence.</p></div>'
+        '<div class="rkey"><b class="b-pos"></b>Holding up<b class="b-warn"></b>Mixed'
+        '<b class="b-neg"></b>Weak</div></div>')
+
+    height = 1500
+    if interp.offline:
+        note = ("No Groq or Gemini API key is detected in this app's Secrets, so the written "
+                "interpretation can't be generated. Your parsed model data is available in the "
+                "tabs above, and the ask box above still works.")
+        body = f'{head}<div class="rnote">{html.escape(note)}</div>'
+        height = 260
+    elif interp.error:
+        body = f'{head}<div class="rnote">{html.escape(interp.error)}</div>'
+        height = 260
+    else:
+        cards = []
+        for i, (skey, heading) in enumerate(INTERP_SECTIONS, 1):
+            wide = (skey == "valuation")
+            cards.append(_reading_card(i, skey, heading,
+                                       interp.sections.get(skey, []), result, wide))
+        grid = f'<div class="rgrid">{"".join(cards)}</div>'
+        if interp.sources:
+            chips = "".join(f'<span class="src">{html.escape(s)}</span>' for s in interp.sources)
+        else:
+            chips = '<span class="src">Uploaded model</span><span class="src">Sector snapshot</span>'
+        foot = (f'<div class="foot"><span class="foot-l">Sources</span>{chips}'
+                '<span class="foot-r">No external commentary used</span></div>')
+        body = f'{head}{grid}{foot}'
+
+    vcomp(_READING_CSS + f'<div id="rshell" class="rd">{body}</div>' + _READING_FIT, height)
+
+
+def _reading_block(model, result, sector_key: str, config: LLMConfig) -> None:
+    """Financial model interpretation, rendered as the reference reading grid."""
+    sector_name = get_sector(sector_key).name
+    interp = _ensure_interpretation(model, sector_key, config)
+    _reading_component(interp, result, model.company.title(), sector_name)
+
+
+# ==========================================================================
 # Ask the analyst — console redesign (reference: fundacheck_ask_analyst_v2.html)
 # The analyst identity + PFP are rendered in the MAIN DOM via st.markdown (not an
 # iframe) so the exact reference console and the real Streamlit input/chips live
@@ -1287,8 +1470,9 @@ def qa_tab(model, result, config: LLMConfig) -> None:
                 st.markdown(_analyst_answer_html(last[0], last[1], src),
                             unsafe_allow_html=True)
 
-    # The reading below is the existing interpretation block, unchanged.
-    _model_interpretation_block(model, sector_key, config, with_rail=False)
+    # The reading below — "Financial model interpretation" — redesigned to the
+    # reference grid, rendering the same interpretation the LLM already produced.
+    _reading_block(model, result, sector_key, config)
 
 
 # SPLICE_END
