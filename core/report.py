@@ -477,6 +477,16 @@ def _build_ctx(model, result, snapshot):
     if snapshot and sector_key:
         snap_row = (_snap_sector(snapshot, sector_key)
                     or _snap_sector(snapshot, _SNAP_KEY_ALIAS.get(sector_key, "")))
+    # Fallback: the coarse scoring sector has no priced snapshot basket (e.g. a
+    # hotel or telecom that scores as 'generic'). Find the company in the
+    # snapshot's own constituent lists and use its real, priced sector so the
+    # Sector page (peers, gaps, vitals, seasonality) populates instead of falling
+    # back to an empty page.
+    if snapshot and not (snap_row and (_constituents(snap_row)
+                                       or (snap_row.get("metrics", {}) or {}).get("pe"))):
+        found_key, found_row = _find_company_snapshot_sector(snapshot, model.company)
+        if found_row is not None:
+            snap_row, sector_key = found_row, found_key
     snap_meta = snapshot_meta(snapshot) if snapshot else {}
 
     # try to match this company inside the snapshot's constituents (for ticker/mktcap)
@@ -533,6 +543,39 @@ def _constituents(snap):
     if not snap:
         return []
     return snap.get("constituents") or snap.get("top10") or []
+
+
+def _find_company_snapshot_sector(snapshot, company):
+    """Locate the company inside the snapshot's own constituent lists and return
+    (sector_key, sector_row). Used when the coarse scoring sector has no snapshot
+    row (e.g. a hotel or telecom that scores as 'generic'): the snapshot now
+    carries fine sectors (telecom, consumer_services, …) that DO price the peer
+    set, so the Sector page can be built from the company's real basket.
+
+    A niche basket is preferred over the broad 'infrastructure'/'generic'
+    fallback baskets; within that, the basket where the company is largest wins."""
+    if not snapshot:
+        return None, None
+    secs = snapshot.get("sectors")
+    rows = secs if isinstance(secs, list) else list((secs or {}).values())
+    target = _norm_name(company)
+    if not target:
+        return None, None
+    broad = {"generic", "infrastructure", "commodities"}
+    best = None                                  # (is_niche, market_cap, key, row)
+    for s in rows:
+        key = s.get("key") or s.get("sector_key")
+        for c in _constituents(s):
+            n = _norm_name(c.get("name", ""))
+            if n and (n == target or n in target or target in n):
+                mc = c.get("market_cap") or 0
+                cand = (key not in broad, mc, key, s)
+                if best is None or cand[:2] > best[:2]:
+                    best = cand
+                break
+    if best:
+        return best[2], best[3]
+    return None, None
 
 
 # short, plain descriptors for the driver lists (data-aware, never invented)
