@@ -52,7 +52,12 @@ COVER_BG = (12, 26, 20)
 COVER_BG2 = (9, 20, 15)
 COVER_TXT = (232, 240, 236)
 COVER_FAINT = (120, 140, 130)
+COVER_SALMON = (226, 132, 122)   # weakness accent on the dark cover (reads on dark)
 WHITE = (255, 255, 255)
+# Muted scale-band fills for the cover "where the score sits" bar (weak/neutral/strong).
+SCALE_WEAK = (196, 150, 144)
+SCALE_NEUTRAL = (214, 198, 158)
+SCALE_STRONG = (150, 198, 170)
 
 PAGE_W, PAGE_H = 210.0, 297.0
 MARGIN = 18.0
@@ -276,10 +281,17 @@ def _card(pdf, x, y, w, h, fill=WHITE, line=CARD_LINE, lw=0.3, radius=2.4):
 
 
 def _para(pdf, x, y, w, text, size=9.4, lh=4.9, color=BODY, bold_color=INK,
-          font=SANS, justify=False):
+          font=SANS, justify=False, bold_all=False, tag_colors=None):
     """Word-wrap `text` in a column of width `w`, honouring **bold** markup and
     inline colour tags {g|...} green / {r|...} red / {a|...} amber. Returns the
-    y just below the last line."""
+    y just below the last line.
+
+    `bold_all` renders every word in the bold weight (used for the cover
+    headline). `tag_colors` overrides the {g|r|a} colours (e.g. a salmon accent
+    that reads on the dark cover)."""
+    tc = {"g": GREEN, "r": RED_TXT, "a": AMBER_TXT}
+    if tag_colors:
+        tc.update(tag_colors)
     tokens = []
     for chunk in re.split(r"(\*\*.+?\*\*|\{[gra]\|.+?\})", text):
         if not chunk:
@@ -287,10 +299,9 @@ def _para(pdf, x, y, w, text, size=9.4, lh=4.9, color=BODY, bold_color=INK,
         if chunk.startswith("**") and chunk.endswith("**"):
             tokens.append((chunk[2:-2], True, bold_color))
         elif re.match(r"\{[gra]\|", chunk):
-            c = {"g": GREEN, "r": RED_TXT, "a": AMBER_TXT}[chunk[1]]
-            tokens.append((chunk[3:-1], True, c))
+            tokens.append((chunk[3:-1], True, tc[chunk[1]]))
         else:
-            tokens.append((chunk, False, color))
+            tokens.append((chunk, bold_all, color))
     space_w = None
     cx, cy = x, y
     if pdf.unicode:
@@ -393,7 +404,7 @@ def _interior_footer(pdf, ctx):
     _rule(pdf, MARGIN, y, CONTENT_W, HAIR, 0.3)
     pdf.mono(6.8, False, FAINT)
     pdf.set_xy(MARGIN, y + 2)
-    pdf.cell(0, 5, pdf.txt(f"FundaCheck  ·  {ctx['company_title']}  ·  {ctx['fy_last']}"))
+    pdf.cell(0, 5, pdf.txt(f"FundaCheck  ·  {ctx['company_title']}  ·  {ctx['fy_full']}"))
     pdf.set_xy(PAGE_W - MARGIN - 20, y + 2)
     pdf.cell(20, 5, f"{pdf.page_no():02d}", align="R")
 
@@ -485,8 +496,12 @@ def _build_ctx(model, result, snapshot):
         "snap_row": snap_row, "snap_meta": snap_meta, "self_row": self_row,
         "company": model.company, "company_title": model.company.title(),
         "sector": result.sector, "sector_name": result.sector.name,
+        "sector_key": sector_key,
         "ticker": ticker, "fy": fy, "fy_first": fy[0] if fy else "",
-        "fy_last": latest_fy, "n_periods": len(model.years),
+        "fy_last": latest_fy,
+        "fy_full": (f"FY20{str(latest_fy)[2:]}"
+                    if re.fullmatch(r"FY\d{2}", str(latest_fy)) else str(latest_fy)),
+        "n_periods": len(model.years),
         "score": result.total_score, "verdict": result.verdict,
         "verdict_color": band_color(result.total_score),
         "price": meta.get("current_price"), "market_cap": meta.get("market_cap"),
@@ -585,7 +600,7 @@ def _cover(pdf, ctx):
     pdf.cell(70, 4, "FUNDAMENTAL REPORT", align="R")
     pdf.mono(6.8, False, COVER_FAINT)
     pdf.set_xy(PAGE_W - MARGIN - 70, 29)
-    pdf.cell(70, 4, pdf.txt(f"{ctx['fy_last']}  ·  {len(ctx['fy'])} periods"), align="R")
+    pdf.cell(70, 4, pdf.txt(f"{ctx['fy_full']}  ·  {len(ctx['fy'])} periods"), align="R")
 
     # title block
     pdf.mono(7.4, True, GREEN_BRIGHT)
@@ -626,10 +641,15 @@ def _cover(pdf, ctx):
     pdf.mono(6.8, False, COVER_FAINT)
     pdf.set_xy(MARGIN, y + 26)
     pdf.cell(52, 4, "SCORE / 100")
-    head, accent = _cover_headline(ctx)
+    lead, weak_subj, weak_verb = _cover_headline(ctx)
+    if weak_subj:
+        head = f"{lead}. {{r|{weak_subj}}} {weak_verb}."
+    else:
+        head = f"{lead}."
     pdf.set_xy(MARGIN + 58, y)
     _para(pdf, MARGIN + 58, y, CONTENT_W - 58, head, size=19, lh=8.6,
-          color=COVER_TXT, bold_color=GREEN_BRIGHT)
+          color=COVER_TXT, bold_color=COVER_TXT, bold_all=True,
+          tag_colors={"r": COVER_SALMON})
     sub = _exec_lead(ctx)
     _para(pdf, MARGIN + 58, y + 26, CONTENT_W - 58, sub, size=9.6, lh=5.2,
           color=(178, 190, 184), bold_color=(210, 220, 214))
@@ -641,10 +661,19 @@ def _cover(pdf, ctx):
     pdf.cell(80, 4, pdf.txt(f"WHERE {ctx['score']:.0f} SITS ON THE SCALE"))
     pdf.set_xy(PAGE_W - MARGIN - 60, y - 6)
     pdf.cell(60, 4, "SECTOR-ADJUSTED", align="R")
-    _grad_h(pdf, MARGIN, y, CONTENT_W, 4.5, [RED, AMBER, MID, GREEN], slices=120)
+    # Muted three-band scale (weak · neutral · strong), split at 40 and 66, with
+    # thin gaps between the bands — the reference design, not a rainbow gradient.
+    bar_h = 4.5
+    gap = 0.8
+    bands = [(0.0, 40.0, SCALE_WEAK), (40.0, 66.0, SCALE_NEUTRAL), (66.0, 100.0, SCALE_STRONG)]
+    for lo, hi, col in bands:
+        bx = MARGIN + CONTENT_W * lo / 100 + (gap / 2 if lo > 0 else 0)
+        bw = CONTENT_W * (hi - lo) / 100 - (gap if lo > 0 and hi < 100 else gap / 2)
+        pdf.set_fill_color(*col)
+        pdf.rect(bx, y, bw, bar_h, style="F", round_corners=True, corner_radius=0.8)
     mx = MARGIN + CONTENT_W * max(0, min(100, ctx["score"])) / 100
     pdf.set_fill_color(*COVER_TXT)
-    pdf.rect(mx - 0.5, y - 1.5, 1.4, 7.5, style="F")
+    pdf.rect(mx - 0.7, y - 1.6, 1.4, bar_h + 3.2, style="F", round_corners=True, corner_radius=0.5)
     pdf.mono(6.2, False, COVER_FAINT)
     pdf.set_xy(MARGIN, y + 6)
     pdf.cell(20, 4, "0")
@@ -716,22 +745,33 @@ def _cover(pdf, ctx):
 
 
 def _cover_headline(ctx):
-    """Two-clause headline: what carries the score vs what holds it back."""
+    """Two-clause headline: what carries the score vs what holds it back.
+
+    Returns ``(lead, weak_subject, weak_verb)`` so the cover can render the whole
+    line bold in white and tint only the weakness subject salmon — matching the
+    reference. ``weak_subject`` is empty when there is no clear weak pillar."""
     pillars = ctx["pillars"]
     if not pillars:
-        return f"A {ctx['verdict'].lower()} reading on the numbers.", ""
+        return f"A {ctx['verdict'].lower()} reading on the numbers", "", ""
     top = pillars[0][0]
     bottom = pillars[-1][0]
-    phrase = {
-        "profitability": ("Margins carry it", "Margins hold it back"),
-        "returns": ("Returns on capital carry it", "Returns on capital hold it back"),
-        "growth": ("Growth carries it", "Growth holds it back"),
-        "leverage": ("A calm balance sheet carries it", "Leverage holds it back"),
-        "efficiency": ("Working capital carries it", "Working capital holds it back"),
+    lead_phrase = {
+        "profitability": "Margins carry it",
+        "returns": "Returns on capital carry it",
+        "growth": "Growth carries it",
+        "leverage": "A calm balance sheet carries it",
+        "efficiency": "Working capital carries it",
     }
-    lead = phrase.get(top, (f"{top.title()} carries it",))[0]
-    tail = phrase.get(bottom, (None, f"{bottom.title()} holds it back"))[1]
-    return f"{lead}. **{tail}.**", top
+    weak_phrase = {          # (subject, verb)
+        "profitability": ("Margins", "hold it back"),
+        "returns": ("Returns on capital", "hold it back"),
+        "growth": ("Growth", "holds it back"),
+        "leverage": ("Leverage", "holds it back"),
+        "efficiency": ("Working capital", "holds it back"),
+    }
+    lead = lead_phrase.get(top, f"{top.title()} carries it")
+    subj, verb = weak_phrase.get(bottom, (bottom.title(), "holds it back"))
+    return lead, subj, verb
 
 
 # ==========================================================================
@@ -1084,7 +1124,7 @@ def _page_waterfall(pdf, ctx):
 
     steps = _waterfall_steps(ctx)
     if steps:
-        y = _draw_waterfall(pdf, MARGIN, y, CONTENT_W, 58, steps)
+        y = _draw_waterfall(pdf, MARGIN, y, CONTENT_W, 50, steps)
     else:
         pdf.sans(9, False, MUTED); pdf.set_xy(MARGIN, y)
         pdf.cell(0, 6, pdf.txt("Income-statement detail unavailable in this model."))
@@ -1151,6 +1191,7 @@ def _waterfall_steps(ctx):
 
 _COST_PINK = (222, 158, 152)
 _COST_GREY = (176, 182, 178)
+_DEFICIT = (232, 190, 185)   # pale-red band where the running remainder is negative
 
 
 def _dev(c):
@@ -1225,64 +1266,86 @@ def _draw_waterfall(pdf, x, y, w, h, steps):
     W = xR - xL
     seg = W / n
     xc = [xL + (i + 0.5) * seg for i in range(n)]
-    scale = 38.0 / 100.0
-    base0 = y + 8 + 100 * scale        # baseline at far left (bottom of Sales)
-    drift = 7.0                         # ribbon drifts gently downward to the right
-    def base_at(xx):
-        return base0 + (xx - xL) / W * drift
 
-    # running remaining at each node
+    # running remaining at each node, and the level *before* each cost peels off
     rem, run = [], 0.0
+    before = []
     for name, val, kind in steps:
         if kind in ("level", "net"):
+            before.append(val)
             run = val
         else:
+            before.append(run)          # level before this cost/gain is applied
             run += val
         rem.append(run)
-    top = [base_at(xc[i]) - rem[i] * scale for i in range(n)]
 
-    # 1) the money-remaining band (light green), with a tall Sales cap at the left
-    band_top = [(xL, base_at(xL) - rem[0] * scale)] + [(xc[i], top[i]) for i in range(n)]
-    _fill_ribbon(pdf, band_top, base_at, LIGHT)
+    # Dynamic vertical scale so the whole flow fits regardless of losses / large
+    # other income. HI = tallest point above the zero line (costs peel up to the
+    # level before them); LO = deepest point below it (a negative remainder, or an
+    # other-income tongue that hangs below the baseline by its own size).
+    tongue_pad = 3.0
+    hi = max([100.0] + rem + [before[i] for i, s in enumerate(steps) if s[2] == "cost"])
+    lo = max([0.0] + [-min(0.0, r) for r in rem]
+             + [abs(v) for _, v, k in steps if k == "gain"])
+    span = max(hi + lo, 1.0)
+    avail = h                            # mm budget for the value span
+    scale = avail / span
+    plot_top = y + tongue_pad + 3.0
+    zero_y = plot_top + hi * scale
+    def _yv(v):                          # value → y (up is positive)
+        return zero_y - v * scale
 
-    # 2) dark-green net-profit block at the end
+    # 1) money-remaining band: light-green above the zero line, a pale-red deficit
+    #    band below it wherever the running remainder is negative.
+    pos_top = [(xL, _yv(max(rem[0], 0.0)))] + [(xc[i], _yv(max(rem[i], 0.0))) for i in range(n)]
+    _fill_ribbon(pdf, pos_top, lambda xx: zero_y, LIGHT)
+    if any(r < 0 for r in rem):
+        neg_bot = [(xL, _yv(min(rem[0], 0.0)))] + [(xc[i], _yv(min(rem[i], 0.0))) for i in range(n)]
+        _fill_ribbon(pdf, neg_bot, lambda xx: zero_y, _DEFICIT)
+
+    # 2) net-profit block at the end — dark green if positive, red if a loss
     ni = n - 1
+    net_col = GREEN if rem[ni] >= 0 else RED
     with pdf.new_path() as p:
-        p.style.fill_color = _dev(GREEN)
+        p.style.fill_color = _dev(net_col)
         p.style.stroke_color = None
         p.style.stroke_width = 0
         x0 = xc[ni] - seg * 0.42
-        p.move_to(x0, base_at(x0))
-        p.line_to(xR, base_at(xR))
-        p.line_to(xR, top[ni])
+        p.move_to(x0, zero_y)
+        p.line_to(xR, zero_y)
+        p.line_to(xR, _yv(rem[ni]))
         mx = (xR + x0) / 2
-        p.curve_to(mx, top[ni], mx, base_at(x0) - rem[ni] * scale, x0, base_at(x0) - rem[ni] * scale)
+        p.curve_to(mx, _yv(rem[ni]), mx, _yv(rem[ni]), x0, _yv(rem[ni]))
         p.close()
 
-    # 3) cost tongues (peel up) and the other-income tongue (join from below)
-    tw = seg * 0.30                    # tongue half-width, proportional to node gap
+    # 3) cost tongues (peel up from the band top) and the other-income tongue
+    #    (joins from below the zero line). Sizes share the dynamic scale.
+    tw = seg * 0.30
     for i, (name, val, kind) in enumerate(steps):
+        top_i = _yv(max(rem[i], 0.0)) if rem[i] >= 0 else zero_y
         if kind == "cost":
             col = RED if name == "Interest" else (_COST_GREY if name == "Tax" else _COST_PINK)
-            rise = _tongue(pdf, xc[i], top[i], abs(val) * scale, col, up=True, half=tw)
+            rise = _tongue(pdf, xc[i], _yv(rem[i]), abs(val) * scale, col, up=True, half=tw)
             pdf.mono(5.6, True, RED_TXT if name != "Tax" else MUTED)
-            pdf.set_xy(xc[i] - seg * 0.5, top[i] - rise - 3.2)
+            pdf.set_xy(xc[i] - seg * 0.5, _yv(rem[i]) - rise - 3.2)
             pdf.cell(seg, 3, pdf.txt(f"−₹{abs(val):.2f}"), align="C")
         elif kind == "gain":
-            rise = _tongue(pdf, xc[i], base_at(xc[i]), abs(val) * scale, AMBER, up=False, half=tw)
+            rise = _tongue(pdf, xc[i], zero_y, abs(val) * scale, AMBER, up=False, half=tw)
             pdf.mono(5.6, True, AMBER_TXT)
-            pdf.set_xy(xc[i] - seg * 0.5, base_at(xc[i]) + rise + 0.5)
+            pdf.set_xy(xc[i] - seg * 0.5, zero_y + rise + 0.5)
             pdf.cell(seg, 3, pdf.txt(f"+₹{abs(val):.2f}"), align="C")
-        else:  # level / net — value sits above the band
+        else:  # level / net — value sits above the band (below if negative)
             pdf.mono(5.6, True, GREEN if kind == "net" else INK)
-            pdf.set_xy(xc[i] - seg * 0.5, top[i] - 4.4)
-            pdf.cell(seg, 3, pdf.txt(f"₹{abs(val):.2f}"), align="C")
+            lv = _yv(rem[i])
+            pdf.set_xy(xc[i] - seg * 0.5, (lv - 4.4) if rem[i] >= 0 else (lv + 0.6))
+            pdf.cell(seg, 3, pdf.txt(f"{'−' if rem[i] < 0 else ''}₹{abs(val):.2f}"), align="C")
 
-    # 4) node names under the baseline (abbreviate the long ones to avoid wrap)
+    # 4) node names under the flow (abbreviate the long ones to avoid wrap)
     abbrev = {"Cost of goods": "Cost of\ngoods", "Other operating": "Other\noperating",
               "After interest": "After\ninterest", "Other income": "Other\nincome",
               "Gross profit": "Gross\nprofit", "Net profit": "Net\nprofit"}
-    base_lab = base_at(xR) + 2.5
+    # clear the node-name row below the deepest tongue *and* its value label
+    base_lab = zero_y + lo * scale + 7.0
     for i, (name, val, kind) in enumerate(steps):
         pdf.sans(5.8, kind in ("level", "net"), INK if kind in ("level", "net") else BODY)
         pdf.set_xy(xc[i] - seg * 0.5, base_lab)
@@ -1378,12 +1441,22 @@ def _margin_table(pdf, x, y, w, ctx):
     rows.append(("Gross profit", g, (g/sales*100 if g and sales else None),
                  (g/sales*100 if g and sales else None),
                  (g0/s0*100 if (g0 is not None and s0) else None)))
-    for name in ("EBITDA", "EBIT (OPM)", "Net Profit"):
-        v = _at(model, name, fy)
-        rows.append((name.replace(" (OPM)", ""), v,
-                     (v/sales*100 if v and sales else None),
-                     (v/sales*100 if v and sales else None),
-                     _margin0(model, name, fy0)))
+    def _per(v):
+        return v / sales * 100 if (v is not None and sales) else None
+    ebit = _at(model, "EBIT (OPM)", fy)
+    interest = _at(model, "Interest", fy)
+    after_int = (ebit - interest) if (ebit is not None and interest is not None) else None
+    ebit0 = _at(model, "EBIT (OPM)", fy0)
+    int0 = _at(model, "Interest", fy0)
+    after0 = (ebit0 - int0) if (ebit0 is not None and int0 is not None) else None
+    ebitda = _at(model, "EBITDA", fy)
+    net = _at(model, "Net Profit", fy)
+    rows.append(("EBITDA", ebitda, _per(ebitda), _per(ebitda), _margin0(model, "EBITDA", fy0)))
+    rows.append(("EBIT, after depreciation", ebit, _per(ebit), _per(ebit),
+                 _margin0(model, "EBIT (OPM)", fy0)))
+    rows.append(("After interest", after_int, _per(after_int), _per(after_int),
+                 (after0 / s0 * 100 if (after0 is not None and s0) else None)))
+    rows.append(("Net profit", net, _per(net), _per(net), _margin0(model, "Net Profit", fy0)))
     # header
     cols = [w * 0.30, w * 0.24, w * 0.20, w * 0.13, w * 0.13]
     heads = ["TIER", "₹ CRORE", "PER ₹100 OF SALES", "MARGIN", f"{fy0} MARGIN"]
@@ -1395,7 +1468,7 @@ def _margin_table(pdf, x, y, w, ctx):
         cx += cols[i]
     y += 6
     for ri, (name, cr, per, margin, m0) in enumerate(rows):
-        head = name in ("Sales", "Net Profit")
+        head = name in ("Sales", "Net profit")
         if ri % 2 == 0:
             pdf.set_fill_color(247, 249, 247)
             pdf.rect(x, y - 0.6, w, 6, style="F")
@@ -1411,7 +1484,7 @@ def _margin_table(pdf, x, y, w, ctx):
         pdf.cell(cols[3], 5, pdf.txt(f"{margin:.1f}%" if margin is not None and name != "Sales" else "—"), align="R"); cx += cols[3]
         pdf.set_xy(cx, y)
         pdf.cell(cols[4], 5, pdf.txt(f"{m0:.1f}%" if m0 is not None and name != "Sales" else "—"), align="R")
-        y += 6.2
+        y += 5.6
     return y
 
 
@@ -1552,10 +1625,13 @@ def _page_sector(pdf, ctx):
     y = _interior_header(pdf, ctx, "04", "Section 04", "Sector position")
     snap = ctx["snap_row"]
     if not snap or not (_constituents(snap) or snap.get("metrics", {}).get("pe")):
-        _para(pdf, MARGIN, y, CONTENT_W,
-              "Sector-lens data is not available in the current snapshot for this sector, so "
-              "the peer comparison is shown as unavailable. The rest of the report is drawn "
-              "from the uploaded model and is unaffected.", size=9.6, lh=5.2)
+        yb = _para(pdf, MARGIN, y, CONTENT_W,
+              "Peer pricing for this sector is not in the current snapshot, so the constituent "
+              "comparison is shown as unavailable. The structural seasonality and cycle read "
+              "below still apply, and the rest of the report is drawn from the uploaded model.",
+              size=9.6, lh=5.2) + 6
+        _heading(pdf, MARGIN, yb, CONTENT_W, "Seasonality and cycle", "structural")
+        _sector_seasonality(pdf, MARGIN, yb + 8, CONTENT_W, ctx)
         _interior_footer(pdf, ctx)
         return
     idx = snap.get("reference_index", ctx["sector_name"]).title()
@@ -1579,7 +1655,9 @@ def _page_sector(pdf, ctx):
 
     yb = max(ly + 66, ry) + 4
     _heading(pdf, MARGIN, yb, CONTENT_W, "Five largest constituents", "by market cap")
-    _constituents_table(pdf, MARGIN, yb + 8, CONTENT_W, ctx)
+    yc = _constituents_table(pdf, MARGIN, yb + 8, CONTENT_W, ctx) or (yb + 40)
+    yc = _heading(pdf, MARGIN, yc + 5, CONTENT_W, "Seasonality and cycle", "sector lens")
+    _sector_seasonality(pdf, MARGIN, yc + 2, CONTENT_W, ctx)
     _interior_footer(pdf, ctx)
 
 
@@ -1714,7 +1792,7 @@ def _constituents_table(pdf, x, y, w, ctx):
     if not peers:
         pdf.sans(8.6, False, MUTED); pdf.set_xy(x, y)
         pdf.cell(0, 5, pdf.txt("Constituent detail unavailable in the snapshot."))
-        return
+        return y + 6
     heads = ["COMPANY", "MARKET CAP", "P/E", "P/B", "ROCE", "ROA", "D/E", "INT COV"]
     frac = [0.28, 0.17, 0.09, 0.09, 0.10, 0.09, 0.08, 0.10]
     cols = [w * f for f in frac]
@@ -1740,6 +1818,108 @@ def _constituents_table(pdf, x, y, w, ctx):
         for i, v in enumerate(vals):
             pdf.set_xy(cx, y); pdf.cell(cols[i + 1], 5, pdf.txt(v), align="R"); cx += cols[i + 1]
         y += 6.4
+    return y
+
+
+def _seas_ret_color(v):
+    """Return-shaded cell colour: green for positive months, pale-red for
+    negative, faint grey when the month has no observation."""
+    if v is None:
+        return (238, 240, 238)
+    t = min(1.0, abs(float(v)) / 6.0)
+    base = MID if v >= 0 else _COST_PINK
+    return _lerp((236, 241, 238), base, 0.22 + 0.78 * t)
+
+
+def _month_strip(pdf, x, y, w, labels, colours, values=None):
+    """A 12-cell month strip: coloured cells with the month initial below, and
+    the value inside when supplied. Returns the y below the initials row."""
+    n = len(labels)
+    cw = w / n
+    ch = 8.0
+    for i in range(n):
+        pdf.set_fill_color(*colours[i])
+        pdf.rect(x + i * cw + 0.4, y, cw - 0.8, ch, style="F",
+                 round_corners=True, corner_radius=0.6)
+        if values is not None and values[i] is not None:
+            pdf.mono(5.0, True, INK)
+            pdf.set_xy(x + i * cw, y + 2.4)
+            pdf.cell(cw, 3, pdf.txt(f"{values[i]:+.0f}"), align="C")
+        pdf.mono(5.2, False, MUTED)
+        pdf.set_xy(x + i * cw, y + ch + 0.8)
+        pdf.cell(cw, 3, labels[i][0], align="C")
+    return y + ch + 5.0
+
+
+def _sector_seasonality(pdf, x, y, w, ctx):
+    """Sector seasonality (real monthly returns where history allows, else the
+    structural tendency) + the current cycle tilt — the new Sector-Lens data,
+    added to the report. Always renders; never fabricates a number."""
+    from . import seasonality as SEASON
+    key = ctx.get("sector_key")
+    snap = ctx["snap_row"] or {}
+    hm = SEASON.market_heatmap(key) if key else {"sufficient": False}
+
+    col_w = (w - 12) / 2
+    lx, rx = x, x + col_w + 12
+
+    # ---- left: monthly seasonality ----
+    if hm.get("sufficient"):
+        ly = _heading(pdf, lx, y, col_w, "Average monthly return", hm.get("window") or "")
+        months = hm["months"]
+        avg = hm["avg"]
+        colours = [_seas_ret_color(v) for v in avg]
+        ly = _month_strip(pdf, lx, ly + 1, col_w, months, colours, values=avg)
+        pairs = [(m, v) for m, v in zip(months, avg) if v is not None]
+        if pairs:
+            best = max(pairs, key=lambda p: p[1]); worst = min(pairs, key=lambda p: p[1])
+            pdf.mono(6.6, False, BODY)
+            pdf.set_xy(lx, ly + 0.5)
+            pdf.cell(col_w, 4, pdf.txt(
+                f"Strongest {best[0]} {best[1]:+.1f}%   ·   Weakest {worst[0]} {worst[1]:+.1f}%"))
+        pdf.mono(5.6, False, FAINT)
+        pdf.set_xy(lx, ly + 5)
+        src = hm.get("index") or "sector index"
+        pdf.cell(col_w, 3, pdf.txt(f"{src} monthly returns · computed from index history"))
+        left_bot = ly + 9
+    else:
+        q = SEASON.qualitative(key) if key else {"cells": [], "flat": True}
+        ly = _heading(pdf, lx, y, col_w, "Structural seasonality", "typical year")
+        cells = q.get("cells") or []
+        if cells:
+            labels = [c["month"] for c in cells]
+            colours = [_hex_rgb(c["colour"]) for c in cells]
+            ly = _month_strip(pdf, lx, ly + 1, col_w, labels, colours)
+        note = (q.get("methodology") or
+                "Structural tendency from the sector's operating pattern.")
+        pdf.mono(6.4, False, BODY)
+        left_bot = _para(pdf, lx, ly + 0.5, col_w, note, size=7.4, lh=3.6, color=BODY,
+                         font=MONO)
+
+    # ---- right: current cycle tilt (snapshot tilt, else the structural profile) ----
+    prof = {}
+    try:
+        from . import tilt as TILT
+        prof = TILT.profile(key) or {}
+    except Exception:                                       # noqa: BLE001
+        prof = {}
+    tilt = snap.get("current_tilt") or prof.get("nature")
+    reason = snap.get("tilt_reason")
+    structural = snap.get("structural_seasonality") or prof.get("text")
+    ry = _heading(pdf, rx, y, col_w, "Where the sector sits", "cycle tilt")
+    if tilt:
+        _pill(pdf, rx, ry + 1, str(tilt), GREEN, PALE_G, size=7.2, h=6.0, pad=3.0)
+        ry += 9
+    if reason:
+        ry = _para(pdf, rx, ry, col_w, reason, size=8.0, lh=4.0, color=BODY) + 1
+    if structural:
+        ry = _para(pdf, rx, ry + 0.5, col_w, structural[:320], size=7.6, lh=3.7, color=MUTED)
+    return max(left_bot, ry) + 2
+
+
+def _hex_rgb(h):
+    h = h.lstrip("#")
+    return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
 
 
 # ==========================================================================
