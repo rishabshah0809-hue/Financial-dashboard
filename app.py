@@ -42,7 +42,12 @@ from core.interpret import SECTIONS as INTERP_SECTIONS
 from core.interpret import fingerprint as interp_fingerprint
 from core.interpret import interpret as build_interpretation
 from core.parser import ParseError, load_model
-from core.scoring import assess, compare_sectors
+from core.quarterly_pdf import (
+    QuarterlyPDFError,
+    is_pdf,
+    load_quarterly_model,
+)
+from core.scoring import assess, assess_quarterly, compare_sectors
 from core.sectors import (
     PERCENT_METRICS,
     SECTORS,
@@ -444,9 +449,11 @@ def sidebar() -> tuple[object, str, str]:
         with st.container(border=True, key="ds-card"):
             head = st.empty()                       # header filled once source known
             upload = st.file_uploader(
-                "3-statement model (.xlsx)", type=["xlsx", "xlsm"],
+                "3-statement model (.xlsx) or quarterly-results PDF",
+                type=["xlsx", "xlsm", "pdf"],
                 label_visibility="collapsed", key=f"upload_{nonce}",
-                help="Any Screener.in-style workbook.",
+                help="A Screener.in-style workbook, or a listed company's "
+                     "consolidated quarterly-results PDF.",
             )
             if upload is not None:
                 st.session_state.demo_on = False
@@ -1469,6 +1476,15 @@ def qa_tab(model, result, config: LLMConfig) -> None:
 # --------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
 def _load(file_bytes: bytes | None, path: str | None):
+    """
+    Parse an upload into a FinancialModel, auto-detecting the input type.
+
+    A PDF (by extension or %PDF- magic bytes) is read as a consolidated
+    quarterly-results filing; anything else is treated as a Screener-style
+    Excel workbook exactly as before. The Excel path is untouched.
+    """
+    if is_pdf(path, file_bytes):
+        return load_quarterly_model(path) if path else load_quarterly_model(file_bytes)
     return load_model(path) if path else load_model(pd.io.common.BytesIO(file_bytes))
 
 
@@ -1534,11 +1550,14 @@ def main() -> None:
             model = _load(bytes(source), None)
         else:
             model = _load(None, str(source))
+    except QuarterlyPDFError as exc:
+        st.error(f"That quarterly-results PDF could not be read: {exc}")
+        return
     except ParseError as exc:
         st.error(f"That workbook could not be read: {exc}")
         return
     except Exception as exc:                       # noqa: BLE001
-        st.error(f"Unexpected problem reading the workbook: {exc}")
+        st.error(f"Unexpected problem reading the file: {exc}")
         return
 
     # Refresh last traded price and market cap from Screener.in so the header
@@ -1546,17 +1565,23 @@ def main() -> None:
     # below because the trailing P/E is priced off current_price.
     _apply_live_quote(model)
 
+    quarterly = model.meta.get("periodicity") == "quarterly"
+
     # Fill in any benchmark ratio the workbook did not supply, computed from
-    # its own statements, so a formulas-only export still analyses.
+    # its own statements, so a formulas-only export still analyses. (Safe for a
+    # quarterly model too: derive.py only adds ratios whose inputs are present,
+    # so a two-quarter P&L never gains a fabricated balance-sheet ratio.)
     derived = fill_missing_ratios(model)
     if derived:
         LOGGER.info("derived %d ratios for %s", len(derived), model.company)
 
-    # Likewise rebuild the common-size statement (used by the Common Size tab and
-    # the "₹100 of sales" card) when the workbook's own sheet reads empty.
-    derived_cs = fill_missing_common_size(model)
-    if derived_cs:
-        LOGGER.info("derived %d common-size rows for %s", len(derived_cs), model.company)
+    # Rebuild the common-size statement (Common Size tab / "₹100 of sales" card)
+    # when the workbook's own sheet reads empty — annual path only; a two-quarter
+    # results table has no balance sheet to express as a common-size statement.
+    if not quarterly:
+        derived_cs = fill_missing_common_size(model)
+        if derived_cs:
+            LOGGER.info("derived %d common-size rows for %s", len(derived_cs), model.company)
 
     # A new workbook gets its sector detected once; after that the dropdown is
     # the source of truth, so changing it by hand sticks.
@@ -1582,7 +1607,7 @@ def main() -> None:
 
     sector = get_sector(sector_key)
     try:
-        result = assess(model, sector)
+        result = assess_quarterly(model, sector) if quarterly else assess(model, sector)
     except ValueError as exc:
         st.error(str(exc))
         return
@@ -1593,6 +1618,34 @@ def main() -> None:
     _kickoff_llm(model, result, sector_key, config)
 
     page = st.session_state.get("page", "overview")
+
+    # Quarterly PDF mode: be explicit that this is a two-quarter consolidated
+    # view built from the filing (with the current column read by OCR), and that
+    # balance-sheet / cash-flow metrics are not part of a results table.
+    if quarterly:
+        m = model.meta
+        cur, prev = m.get("current_period", "?"), m.get("previous_period", "?")
+        ocr_col = next((lbl for lbl, s in m.get("column_source", {}).items()
+                        if s == "image"), None)
+        val = m.get("validated", {})
+        bits = [
+            f"**Quarterly consolidated results** — {model.company}. Two periods: "
+            f"**{cur}** (current) vs **{prev}** (previous). Figures in ₹ crore, "
+            "straight from the filing (pages "
+            + ", ".join(str(p) for p in m.get("source_pages", [])) + ")."
+        ]
+        if ocr_col:
+            ok = "passed" if val.get(ocr_col) else "not confirmed"
+            bits.append(
+                f" The {ocr_col} column is rasterised in the PDF and was read by "
+                f"OCR; its accounting-identity check **{ok}**.")
+        bits.append(
+            " Balance-sheet and cash-flow ratios (ROE, ROCE, debt/equity, "
+            "turnovers, cash conversion) are not in a results table and are shown "
+            "as unavailable, never estimated.")
+        st.info("".join(bits))
+        for w in m.get("warnings", []):
+            st.caption("⚠ " + w)
 
     if page == "overview":
         note = _get_note(model, result, sector_key, config)
@@ -1605,8 +1658,9 @@ def main() -> None:
         if note.get("_error"):
             LOGGER.info("AI analyst fell back to rule-based note: %s", note["_error"])
         if result.data_gaps:
+            where = "this quarterly filing" if quarterly else "this workbook"
             st.caption(
-                "Metrics not found in this workbook (excluded from the score): "
+                f"Metrics not available from {where} (excluded from the score): "
                 + ", ".join(result.data_gaps)
             )
     elif page == "ratios":

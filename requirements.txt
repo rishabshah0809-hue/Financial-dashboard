@@ -6,6 +6,11 @@ openpyxl>=3.1
 requests>=2.31
 beautifulsoup4>=4.12
 fpdf2>=2.7
-pdfplumber>=0.11
-pytesseract>=0.3.13
-Pillow>=10.0
+
+# Quarterly-results PDF ingestion (core/quarterly_pdf.py). The Excel workflow
+# never imports these; every use site degrades gracefully if one is missing.
+pdfplumber>=0.11        # deterministic text + coordinate extraction
+PyMuPDF>=1.24           # render rasterised table columns for OCR
+pytesseract>=0.3.13     # primary OCR wrapper (needs tesseract-ocr; see packages.txt)
+Pillow>=10.0            # image handling for OCR
+rapidocr-onnxruntime>=1.3  # fallback OCR when the tesseract binary is absent (e.g. local dev)

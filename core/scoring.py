@@ -347,6 +347,111 @@ def assess(model: FinancialModel, sector: SectorProfile) -> Assessment:
     )
 
 
+# Growth benchmarks are calibrated to ANNUAL rates, so a single
+# quarter-on-quarter figure is not scored against them; it is used only as a
+# direction nudge in quarterly mode.
+GROWTH_METRICS = {"Sales Growth", "Net Profit Growth", "EBITDA Growth", "EPS Growth"}
+
+
+def assess_quarterly(model: FinancialModel, sector: SectorProfile) -> Assessment:
+    """
+    Score a company from a TWO-QUARTER income statement.
+
+    This is the quarterly counterpart to :func:`assess`. It deliberately does
+    NOT reuse the annual rule (0.6·latest + 0.4·3-year-average + 5-year trend):
+    with two quarters there is no multi-year history and the growth thresholds
+    are annual. Instead it scores the *current quarter's* level-based metrics
+    (margins, interest coverage, and any balance-sheet ratio that happens to be
+    present) against the same sector thresholds, applies a small
+    quarter-on-quarter direction nudge, and reports everything it could not
+    compute as a data gap. Missing data is never turned into a zero, and no
+    figure is invented.
+    """
+    if model.meta.get("periodicity") != "quarterly":
+        raise ValueError("assess_quarterly expects a quarterly model.")
+
+    metric_scores: list[MetricScore] = []
+    gaps: list[str] = []
+
+    for metric, (weak_at, strong_at) in sector.benchmarks.items():
+        series = _clean(_resolve(model, metric))
+        if series.empty:
+            gaps.append(metric)                    # genuinely unavailable
+            continue
+        if metric in GROWTH_METRICS:
+            continue                               # has data, but not scored here
+
+        current = float(series.iloc[-1])
+        lower_better = metric in LOWER_IS_BETTER
+        score = _sub_score(current, weak_at, strong_at, lower_better)
+
+        # QoQ direction nudge from the two points, if both are present.
+        trend = 0.0
+        if len(series) >= 2:
+            prev = float(series.iloc[-2])
+            scale = max(abs(prev), 1e-6)
+            trend = float(np.clip((current - prev) / scale, -1.0, 1.0))
+        adj = -trend if lower_better else trend
+        score = float(np.clip(score + adj * 4.0, 1.0, 100.0))
+
+        metric_scores.append(
+            MetricScore(
+                metric=metric,
+                pillar=METRIC_PILLARS.get(metric, "profitability"),
+                latest=current,
+                average_3y=None,                   # no multi-period history
+                weak_at=weak_at,
+                strong_at=strong_at,
+                score=score,
+                trend=trend,
+                verdict=_label(score),
+                lower_is_better=lower_better,
+            )
+        )
+
+    if not metric_scores:
+        raise ValueError(
+            "This quarterly filing did not expose any scorable metric "
+            "(margins or interest coverage). Only the raw statements are shown.")
+
+    pillar_scores: dict[str, float] = {}
+    for pillar in PILLARS:
+        members = [m.score for m in metric_scores if m.pillar == pillar]
+        if members:
+            pillar_scores[pillar] = float(np.mean(members))
+
+    weights = {p: sector.weights.get(p, 1.0) for p in pillar_scores}
+    weight_sum = sum(weights.values()) or 1.0
+    total = sum(pillar_scores[p] * weights[p] for p in pillar_scores) / weight_sum
+    total = float(np.clip(total, 1.0, 100.0))
+    verdict = "STRONG" if total >= STRONG_CUTOFF else "WEAK" if total < WEAK_CUTOFF else "NEUTRAL"
+
+    ranked = sorted(metric_scores, key=lambda m: m.score, reverse=True)
+    strengths = [
+        f"{m.metric} at {m.display(m.latest)} — ahead of the {sector.name} "
+        f"strong threshold of {m.display(m.strong_at)} this quarter."
+        for m in ranked[:3] if m.score >= 66
+    ]
+    concerns = [
+        f"{m.metric} at {m.display(m.latest)} sits in the weak band for "
+        f"{sector.name} this quarter (weak at {m.display(m.weak_at)})."
+        for m in reversed(ranked[-3:]) if m.score < 40
+    ]
+
+    return Assessment(
+        company=model.company,
+        sector=sector,
+        total_score=round(total, 1),
+        verdict=verdict,
+        pillar_scores={p: round(v, 1) for p, v in pillar_scores.items()},
+        metrics=metric_scores,
+        strengths=strengths,
+        concerns=concerns,
+        data_gaps=gaps,
+        earnings_quality=None,                     # no cash-flow data in the filing
+    )
+
+
 def compare_sectors(model: FinancialModel, profiles: list[SectorProfile]) -> pd.DataFrame:
     """
     Score the same company under several sector rule books.

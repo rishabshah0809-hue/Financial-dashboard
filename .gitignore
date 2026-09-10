@@ -9,3 +9,8 @@ fundacheck_full.html
 .cache/
 _nse_master.csv
 _scr.html
+
+# Large sample PDFs used by the quarterly-ingestion acceptance test are kept
+# locally, not committed. Drop one into tests/fixtures/, point $FUNDACHECK_QPDF
+# at it, or leave it in ~/Downloads — the test finds it or skips.
+tests/fixtures/*.pdf
