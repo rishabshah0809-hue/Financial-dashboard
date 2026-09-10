@@ -1345,7 +1345,7 @@ def _draw_waterfall(pdf, x, y, w, h, steps):
     lo = max([0.0] + [-min(0.0, r) for r in rem]
              + [abs(v) for _, v, k in steps if k == "gain"])
     scale = h / max(hi + lo, 1.0)
-    plot_top = y + 6.0                    # headroom for the top peel + its label
+    plot_top = y + 9.0                    # headroom for the top row of peel labels
     zero_y = plot_top + hi * scale
     def _yv(v):
         return zero_y - v * scale
@@ -1377,31 +1377,55 @@ def _draw_waterfall(pdf, x, y, w, h, steps):
     abbr = {"Cost of goods": "Cost of goods", "Other operating": "Other operating",
             "After interest": "After interest", "Other income": "Other income",
             "Gross profit": "Gross profit", "Net profit": "Net profit"}
+    # Costs peel up to a short stub near the top, with a two-line label above it.
+    # Labels are packed onto as few shelves as fit without overlapping, so the
+    # top row stays clean (thick ribbon = big cost, thin = small).
+    lab_w = seg * 1.45
+    shelf_last = []                       # right-edge x currently used per shelf
+    shelf_h = 8.6
     for i, (name, val, kind) in enumerate(steps):
+        if kind != "cost":
+            continue
         t = abs(val) * scale
-        if kind == "cost":
-            col = RED if name == "Interest" else (_COST_GREY if name == "Tax" else _COST_PINK)
-            a_top, a_bot = _yv(before[i]), _yv(rem[i])          # slice leaving the band
-            tx = min(xc[i] + seg * 0.60, xR - 1)
-            centre = (a_top + a_bot) / 2 - min(6.0, max(0.0, a_top - plot_top))
-            term_top = max(plot_top, centre - t / 2)
-            _sankey_link(pdf, xc[i], a_top, a_bot, tx, term_top, term_top + t, col)
-            lab_col = RED_TXT if name != "Tax" else MUTED
-            pdf.mono(5.4, True, lab_col)
-            pdf.set_xy(tx - seg * 0.5, term_top - 6.4)
-            pdf.cell(seg * 1.5, 3, pdf.txt(abbr.get(name, name)), align="C")
-            pdf.set_xy(tx - seg * 0.5, term_top - 3.4)
-            pdf.cell(seg * 1.5, 3, pdf.txt(f"−₹{abs(val):.2f}"), align="C")
-        elif kind == "gain":
-            a_top, a_bot = _yv(rem[i]), _yv(before[i])          # slice joining the band
-            tx = max(xc[i] - seg * 0.35, xL + 1)
-            term_bot = zero_y + lo * scale + 0.5
-            _sankey_link(pdf, tx, term_bot - t, term_bot, xc[i], a_top, a_bot, AMBER)
-            pdf.mono(5.4, True, AMBER_TXT)
-            pdf.set_xy(tx - seg * 0.5, term_bot + 0.8)
-            pdf.cell(seg, 3, pdf.txt(abbr.get(name, name)), align="C")
-            pdf.set_xy(tx - seg * 0.5, term_bot + 3.6)
-            pdf.cell(seg, 3, pdf.txt(f"+₹{abs(val):.2f}"), align="C")
+        col = RED if name == "Interest" else (_COST_GREY if name == "Tax" else _COST_PINK)
+        a_top, a_bot = _yv(before[i]), _yv(rem[i])             # slice leaving the band
+        tx = min(xc[i] + seg * 0.5, xR - 3)
+        lx0 = tx - lab_w / 2
+        shelf = 0
+        while shelf < len(shelf_last) and shelf_last[shelf] > lx0 - 1.0:
+            shelf += 1
+        if shelf == len(shelf_last):
+            shelf_last.append(0.0)
+        shelf_last[shelf] = lx0 + lab_w
+        stub_top = plot_top + shelf * shelf_h
+        _sankey_link(pdf, xc[i], a_top, a_bot, tx, stub_top, stub_top + t, col)
+        pdf.set_fill_color(*col)                                # rounded stub cap
+        pdf.rect(tx - 0.9, stub_top, 1.8, max(t, 0.9), style="F",
+                 round_corners=True, corner_radius=0.7)
+        lab_col = RED_TXT if name != "Tax" else MUTED
+        pdf.mono(5.4, True, lab_col)
+        pdf.set_xy(tx - lab_w / 2, stub_top - 6.6)
+        pdf.cell(lab_w, 3, pdf.txt(abbr.get(name, name)), align="C")
+        pdf.set_xy(tx - lab_w / 2, stub_top - 3.4)
+        pdf.cell(lab_w, 3, pdf.txt(f"−₹{abs(val):.2f}"), align="C")
+
+    # Other income joins from below as a proportional ribbon.
+    for i, (name, val, kind) in enumerate(steps):
+        if kind != "gain":
+            continue
+        t = abs(val) * scale
+        a_top, a_bot = _yv(rem[i]), _yv(before[i])             # slice joining the band
+        tx = max(xc[i] - seg * 0.3, xL + 2)
+        term_bot = zero_y + lo * scale + 0.5
+        _sankey_link(pdf, tx, term_bot - t, term_bot, xc[i], a_top, a_bot, AMBER)
+        pdf.set_fill_color(*AMBER)
+        pdf.rect(tx - 0.9, term_bot - max(t, 0.9), 1.8, max(t, 0.9), style="F",
+                 round_corners=True, corner_radius=0.7)
+        pdf.mono(5.4, True, AMBER_TXT)
+        pdf.set_xy(tx - lab_w / 2, term_bot + 1.0)
+        pdf.cell(lab_w, 3, pdf.txt(abbr.get(name, name)), align="C")
+        pdf.set_xy(tx - lab_w / 2, term_bot + 3.8)
+        pdf.cell(lab_w, 3, pdf.txt(f"+₹{abs(val):.2f}"), align="C")
 
     # 5) inline labels for the level/net nodes, on the band itself
     for i, (name, val, kind) in enumerate(steps):
