@@ -63,6 +63,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
+from . import quarterly_semantics as qs
 from .parser import FinancialModel, ParseError
 
 # --------------------------------------------------------------------------
@@ -145,87 +146,20 @@ def _clean_ocr_date(text: str) -> str:
     return re.sub(r"\s+", " ", t).strip()
 
 
-_MONTHS = {
-    "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6,
-    "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
-}
-_MONTH_NAME = {v: k.capitalize() for k, v in _MONTHS.items()}
-
-_DATE_RE = re.compile(
-    r"(?:(\d{1,2})\s*(?:st|nd|rd|th)?\s*)?"
-    r"(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*"
-    r"\D{0,3}['`’]?\s*(\d{2,4})",
-    re.IGNORECASE,
-)
-
-
-def _parse_date(day: str | None, mon: str, yr: str) -> date | None:
-    m = _MONTHS.get(mon.lower()[:3])
-    if not m:
-        return None
-    y = int(yr)
-    if y < 100:
-        y += 2000
-    d = int(day) if day else (31 if m in (3, 12) else 30)
-    for cand in (d, 30, 29, 28):
-        try:
-            return date(y, m, min(cand, 31))
-        except ValueError:
-            continue
-    return None
-
-
-def _period_label(d: date) -> str:
-    """Filing-style period label, e.g. Jun-2026 (matches the branch scaffold)."""
-    return f"{_MONTH_NAME[d.month]}-{d.year}"
-
-
-def _fy_quarter_tag(d: date) -> str:
-    """Indian FY (Apr-Mar) quarter tag, e.g. Jun-2026 -> 'Q1 FY27'."""
-    q = ((d.month - 4) % 12) // 3 + 1
-    fy = d.year + 1 if d.month >= 4 else d.year
-    return f"Q{q} FY{fy % 100:02d}"
+# Dates, period labels and number parsing now live in the document-agnostic
+# semantics module; these thin wrappers keep call sites stable.
+_period_label = qs.period_label
+_fy_quarter_tag = qs.fy_quarter_tag
 
 
 def _num_int(text: Any) -> float | None:
-    """Integer money cell from noisy text/OCR: strip grouping punctuation,
-    parentheses/leading minus mean negative. None if not a number."""
-    if text is None:
-        return None
-    s = str(text).strip()
-    if not s or s in {"-", "--", "."}:
-        return None
-    neg = ("(" in s and ")" in s) or s.lstrip().startswith("-")
-    digits = re.sub(r"[^0-9]", "", s)
-    if not digits:
-        return None
-    val = float(digits)
-    return -val if neg else val
+    """Integer money cell (crore filings) — parse with no implied decimals."""
+    return qs.parse_amount(text, 0)
 
 
 def _num_dec(text: Any) -> float | None:
-    """Decimal cell (EPS / a reported ratio). Keeps the last separator as the
-    decimal point when followed by 1-2 digits; earlier separators are grouping.
-    Conservative: returns None when the shape is ambiguous."""
-    if text is None:
-        return None
-    s = str(text).strip().replace(" ", "")
-    neg = ("(" in s and ")" in s) or s.startswith("-")
-    s = re.sub(r"[()%]", "", s)
-    m = re.search(r"(\d[\d.,:]*)", s)
-    if not m:
-        return None
-    body = m.group(1)
-    parts = re.split(r"[.,:]", body)
-    if len(parts) == 1:
-        val = float(parts[0])
-    else:
-        dec = parts[-1]
-        if 0 < len(dec) <= 2:
-            val = float("".join(parts[:-1]) + "." + dec)
-        else:
-            val = float("".join(parts))
-    return -val if neg else val
+    """Decimal cell (a reported ratio / EPS) — the '.' is always a real decimal."""
+    return qs.parse_ratio(text)
 
 
 # ==========================================================================
@@ -298,43 +232,8 @@ def _ocr_column(page, x0: float, x1: float, y0: float, y1: float,
     return out
 
 
-# ==========================================================================
-# canonical line mapping (results-table row label -> FinancialModel line)
-# ==========================================================================
-_LINE_PATTERNS: list[tuple[str, tuple[str, ...]]] = [
-    ("Value of Sales & Services", (r"value of sales",)),
-    ("GST Recovered",             (r"gst recovered", r"less.*gst")),
-    ("Sales",                     (r"revenue from operations", r"^revenue from")),
-    ("Other Income",              (r"o\w{0,2}her income",)),
-    ("Total Income",              (r"^total income",)),
-    ("Cost of Materials Consumed",(r"cost of material",)),
-    ("Purchases of Stock-in-Trade",(r"purchases? of stock",)),
-    ("Changes in Inventories",    (r"changes? in inventor",)),
-    ("Excise Duty",               (r"excise du",)),
-    ("Employee Benefits Expense", (r"employee benefit",)),
-    ("Finance Costs",             (r"finance cost",)),
-    ("Depreciation",              (r"depreciation",)),
-    ("Other Expenses",            (r"other expense",)),
-    ("Total Expenses",            (r"total expense",)),
-    ("Earnings Before Tax",       (r"profit before tax", r"profit/.*before tax")),
-    ("Current Tax",               (r"current\s*tax",)),
-    ("Deferred Tax",              (r"deferred\s*tax",)),
-    ("Net Profit",                (r"profit after tax and share", r"profit for the period")),
-    ("Share of Profit of Associates", (r"share of profit.{0,40}associat",)),
-    ("Profit After Tax",          (r"pro[a-z]{0,3}t after tax\b(?!.*share)",)),
-    ("Total Comprehensive Income",(r"total comprehensive income for",)),
-]
-
-
-def _match_line(label: str) -> str | None:
-    n = _norm(label).lower()
-    if not n:
-        return None
-    for canon, pats in _LINE_PATTERNS:
-        for p in pats:
-            if re.search(p, n):
-                return canon
-    return None
+# Row-label -> canonical FinancialModel line now lives in the semantics module.
+_match_line = qs.match_row_label
 
 
 # ==========================================================================
@@ -344,27 +243,102 @@ def _match_line(label: str) -> str | None:
 class _Period:
     label: str
     end: date
-    kind: str                  # "quarter" | "annual"
+    kind: str                  # "quarter" | "annual" | "ttm" | "cumulative"
     x0: float
     x1: float
     center: float = 0.0
     source: str = "text"       # "text" | "image"
 
 
+def _header_dates(words, page_height: float) -> list[tuple[float, float, "date"]]:
+    """Find reporting-period dates in the header band, combining adjacent words.
+
+    Date headers are often split across words ("June" + "30,2026") or glued
+    ("Jun'26"), and differ company-to-company, so we cluster header words into
+    lines and slide a 1-3 word window, parsing each candidate. Returns
+    [(center_x, top, date)], de-duplicated by x.
+    """
+    band = sorted((w for w in words if w["top"] < page_height * 0.35),
+                  key=lambda w: w["top"])
+    # agglomerative line grouping (tolerant), so a row whose word tops differ by
+    # a pixel or two is not split across the /4 bin boundary.
+    line_groups: list[list[dict]] = []
+    cur_top = None
+    for w in band:
+        if cur_top is None or abs(w["top"] - cur_top) <= 3.5:
+            if not line_groups:
+                line_groups.append([])
+            line_groups[-1].append(w)
+            cur_top = w["top"] if cur_top is None else (cur_top + w["top"]) / 2
+        else:
+            line_groups.append([w])
+            cur_top = w["top"]
+
+    per_line: list[tuple[float, list[tuple[float, float, object]]]] = []
+    for row in line_groups:
+        key = row[0]["top"]
+        row.sort(key=lambda w: w["x0"])
+        hits: list[tuple[float, float, object]] = []
+        i = 0
+        while i < len(row):
+            matched = None
+            # shortest window first: a glued "Jun'26" (k=1) or a split
+            # "June 30,2026" (k=2) should NOT swallow the next column's word.
+            for k in (1, 2, 3):
+                grp = row[i:i + k]
+                if len(grp) < k or grp[-1]["x1"] - grp[0]["x0"] > 90:
+                    continue
+                d = qs.parse_date_token(" ".join(w["text"] for w in grp))
+                if d:
+                    matched = (k, (grp[0]["x0"] + grp[-1]["x1"]) / 2.0,
+                               grp[0]["top"], d)
+                    break
+            if matched:
+                hits.append((matched[1], matched[2], matched[3]))
+                i += matched[0]
+            else:
+                i += 1
+        if hits:
+            per_line.append((key, hits))
+    if not per_line:
+        return []
+    # The real period-header row is the line with the most dates; ties broken by
+    # the lower line (nearer the data). This ignores the title's stray date.
+    per_line.sort(key=lambda kh: (len(kh[1]), kh[0]), reverse=True)
+    best = sorted(per_line[0][1], key=lambda t: t[0])
+    deduped: list[tuple[float, float, object]] = []
+    for cx, top, d in best:
+        if deduped and abs(cx - deduped[-1][0]) < 20:
+            continue
+        deduped.append((cx, top, d))
+    return deduped
+
+
+def _group_header_type(words, cx: float, band_bottom: float) -> str:
+    """Classify a column's period type from the group-header text sitting above
+    it ("Quarter ended" / "Year ended" / "Nine months ended" / "TTM"). Returns
+    a qs period-type or ''."""
+    near = [w for w in words
+            if w["top"] < band_bottom and abs(_center_x(w) - cx) < 70]
+    text = " ".join(w["text"] for w in sorted(near, key=lambda w: (w["top"], w["x0"])))
+    return qs.classify_period_type(text)
+
+
 def _detect_periods(page) -> list[_Period]:
-    """Find the data columns and label/classify each reporting period."""
+    """Find the data columns and label + classify each reporting period.
+
+    Period *type* (quarter / annual / ttm / cumulative) is inferred from the
+    group header above each column, with the 'Year ended' x-region as a
+    geometric backstop, so annual / TTM / nine-month columns can be excluded
+    rather than mistaken for a quarter.
+    """
     words = page.extract_words()
     if not words:
         return []
+    band_bottom = page.height * 0.30
 
-    date_words = []
-    for w in words:
-        cleaned = _clean_ocr_date(w["text"])
-        m = _DATE_RE.search(cleaned)
-        if m and w["top"] < page.height * 0.35:
-            d = _parse_date(m.group(1), m.group(2), m.group(3))
-            if d:
-                date_words.append((w, d))
+    # date headers, combining split/glued words into one date per column
+    date_hits = _header_dates(words, page.height)
 
     annual_x = None
     for w in words:
@@ -374,30 +348,32 @@ def _detect_periods(page) -> list[_Period]:
 
     image_cols: list[tuple[float, float]] = []
     for im in getattr(page, "images", []):
-        w = im["x1"] - im["x0"]
-        h = im["bottom"] - im["top"]
-        if h > page.height * 0.4 and w < page.width * 0.30 and im["x0"] > page.width * 0.30:
+        iw = im["x1"] - im["x0"]
+        ih = im["bottom"] - im["top"]
+        if ih > page.height * 0.4 and iw < page.width * 0.30 and im["x0"] > page.width * 0.30:
             image_cols.append((im["x0"], im["x1"]))
     image_cols.sort()
 
     periods: list[_Period] = []
-    for w, d in date_words:
-        cx = (w["x0"] + w["x1"]) / 2.0
-        src, col_x0, col_x1 = "text", w["x0"] - 30, w["x1"] + 30
+    for cx, _top, d in date_hits:
+        src, col_x0, col_x1 = "text", cx - 35, cx + 35
         for ix0, ix1 in image_cols:
             if ix0 - 6 <= cx <= ix1 + 6:
                 src, col_x0, col_x1, cx = "image", ix0, ix1, (ix0 + ix1) / 2.0
                 break
-        kind = "annual" if (annual_x is not None and cx >= annual_x - 6) else "quarter"
+        kind = _group_header_type(words, cx, band_bottom)
+        if not kind:
+            kind = "annual" if (annual_x is not None and cx >= annual_x - 6) else "quarter"
         periods.append(_Period(_period_label(d), d, kind, col_x0, col_x1, cx, src))
 
     known = [p.center for p in periods]
     for ix0, ix1 in image_cols:
         c = (ix0 + ix1) / 2.0
         if all(abs(c - kc) > 25 for kc in known):
-            kind = "annual" if (annual_x is not None and c >= annual_x - 6) else "quarter"
-            if kind == "annual":                     # only keep an undated image col if annual
-                periods.append(_Period("FY?", date(1900, 1, 1), "annual", ix0, ix1, c, "image"))
+            kind = _group_header_type(words, c, band_bottom) or (
+                "annual" if (annual_x is not None and c >= annual_x - 6) else "quarter")
+            if kind != "quarter":                     # only keep an undated non-quarter col
+                periods.append(_Period("FY?", date(1900, 1, 1), kind, ix0, ix1, c, "image"))
 
     periods.sort(key=lambda p: p.center)
     deduped: list[_Period] = []
@@ -405,6 +381,22 @@ def _detect_periods(page) -> list[_Period]:
         if deduped and abs(p.center - deduped[-1].center) < 20:
             continue
         deduped.append(p)
+
+    # When two columns carry the SAME period-end date, the rightmost is the
+    # audited FY/annual column (the universal layout) — mark it annual so it can
+    # never be mistaken for the quarter. This is OCR-independent and catches the
+    # case where the 'Year ended' group header was mangled by the text layer.
+    from collections import defaultdict
+    by_date: dict[tuple, list[_Period]] = defaultdict(list)
+    for p in deduped:
+        if p.end.year > 1900:
+            by_date[(p.end.year, p.end.month)].append(p)
+    for group in by_date.values():
+        if len(group) > 1:
+            group.sort(key=lambda p: p.center)
+            for extra in group[1:]:               # keep leftmost; rest -> annual
+                if extra.kind == "quarter":
+                    extra.kind = "annual"
     return deduped
 
 
@@ -427,12 +419,11 @@ class _Line:
     has_value: bool
 
 
-def _cluster_lines(page, periods: list[_Period], decimals: bool = False) -> list[_Line]:
+def _cluster_lines(page, periods: list[_Period], decimals_conv: int = 0) -> list[_Line]:
     """Group words into physical lines by vertical centre; split each into a
-    label (left of the data columns) and the nearest-column numeric value.
-
-    ``decimals`` selects integer money parsing (P&L page) vs decimal parsing
-    (ratio table page)."""
+    label (left of the data columns) and the nearest-column numeric value,
+    parsed with the document's decimal convention (0 for integer-crore filings,
+    2 for paise/lakh filings whose text layer may have dropped the separator)."""
     first_col_x = min(p.x0 for p in periods)
     text_cols = [p for p in periods if p.source == "text"]
     words = sorted(page.extract_words(), key=_center)
@@ -470,7 +461,7 @@ def _cluster_lines(page, periods: list[_Period], decimals: bool = False) -> list
             if not ws:
                 continue
             joined = "".join(w["text"] for w in sorted(ws, key=lambda w: w["x0"]))
-            v = _num_dec(joined) if decimals else _num_int(joined)
+            v = qs.parse_amount(joined, decimals_conv)
             if v is not None:
                 text_vals[plabel] = v
         y = sum(_center(w) for w in cl) / len(cl)
@@ -479,7 +470,7 @@ def _cluster_lines(page, periods: list[_Period], decimals: bool = False) -> list
 
 
 def _nearest_ocr(tokens: list[tuple[float, str]], y: float,
-                 decimals: bool) -> float | None:
+                 decimals_conv: int = 0) -> float | None:
     best, best_dy = None, 6.0
     for ty, text in tokens:
         dy = abs(ty - y)
@@ -487,17 +478,37 @@ def _nearest_ocr(tokens: list[tuple[float, str]], y: float,
             best, best_dy = text, dy
     if best is None:
         return None
-    return _num_dec(best) if decimals else _num_int(best)
+    return qs.parse_amount(best, decimals_conv)
+
+
+def _detect_table_decimals(page, periods: list[_Period]) -> int:
+    """Infer the decimal convention from the numeric cells in the value columns."""
+    centers = [p.center for p in periods]
+    tokens = []
+    for w in page.extract_words():
+        if not re.search(r"\d", w["text"]):
+            continue
+        cx = _center_x(w)
+        if any(abs(cx - c) <= 40 for c in centers):
+            tokens.append(w["text"])
+    return qs.detect_decimals(tokens)
 
 
 def _extract_results_table(page, periods: list[_Period], page_index: int
-                           ) -> tuple[dict, dict, list[str]]:
+                           ) -> tuple[dict, dict, list[str], dict]:
     """canonical line -> {period: value} for the consolidated P&L page, plus
-    per-value provenance source strings and any OCR warnings."""
+    per-value provenance sources, OCR warnings, and detected unit info."""
     if not periods:
-        return {}, {}, ["no reporting periods detected on page"]
+        return {}, {}, ["no reporting periods detected on page"], {}
 
-    lines = _cluster_lines(page, periods)
+    header_text = " ".join(w["text"] for w in page.extract_words()
+                           if w["top"] < page.height * 0.30)
+    raw_unit, mult, unit_known = qs.detect_unit(header_text)
+    decimals_conv = _detect_table_decimals(page, periods)
+    unit_info = {"raw_unit": raw_unit, "multiplier_to_crore": mult,
+                 "unit_known": unit_known, "decimals": decimals_conv}
+
+    lines = _cluster_lines(page, periods, decimals_conv)
     image_cols = [p for p in periods if p.source == "image"]
     value_ys = [ln.y for ln in lines if ln.has_value]
     y0 = (min(value_ys) - 12) if value_ys else 150.0
@@ -530,12 +541,12 @@ def _extract_results_table(page, periods: list[_Period], page_index: int
             values.setdefault(canon, {})[plabel] = v
             provenance.setdefault(canon, {})[plabel] = "pdf_raw:text"
         for p in image_cols:
-            v = _nearest_ocr(ocr_cache.get(p.label, []), ln.y, decimals=False)
+            v = _nearest_ocr(ocr_cache.get(p.label, []), ln.y, decimals_conv)
             if v is None:
                 continue
             values.setdefault(canon, {})[p.label] = v
             provenance.setdefault(canon, {})[p.label] = "pdf_raw:ocr"
-    return values, provenance, warnings
+    return values, provenance, warnings, unit_info
 
 
 # --------------------------------------------------------------------------
@@ -688,8 +699,8 @@ def _extract_reported_ratios(page, previous: "_Period", current: "_Period"
                       and abs(_center_x(w) - previous.center) <= 26]
         prev_val = None
         if prev_words:
-            prev_val = _num_dec("".join(w["text"] for w in
-                                        sorted(prev_words, key=lambda w: w["x0"])))
+            prev_val = qs.parse_ratio("".join(w["text"] for w in
+                                              sorted(prev_words, key=lambda w: w["x0"])))
         if prev_val is None and not label:
             continue
         canon = _match_ratio(_norm(" ".join([*pending, label])))
@@ -701,7 +712,8 @@ def _extract_reported_ratios(page, previous: "_Period", current: "_Period"
         if prev_val is not None:
             values.setdefault(canon, {})[previous.label] = prev_val
             provenance.setdefault(canon, {})[previous.label] = "text"
-        cur_val = _nearest_ocr(cur_ocr, y, decimals=True)
+        cur_tok = min(cur_ocr, key=lambda t: abs(t[0] - y), default=None) if cur_ocr else None
+        cur_val = qs.parse_ratio(cur_tok[1]) if cur_tok and abs(cur_tok[0] - y) < 6 else None
         if cur_val is not None and 0 < abs(cur_val) < 1e5:
             values.setdefault(canon, {})[current.label] = cur_val
             provenance.setdefault(canon, {})[current.label] = "ocr"
@@ -924,33 +936,111 @@ def _read_bytes(source):
         return fh.read()
 
 
-def _find_results_page(pdf):
-    """Consolidated quarterly *results table* - not the auditor-report prose,
-    not the standalone section."""
-    title = re.compile(
-        r"un\s*-?\s*audited\s+consolidated\s+financial\s+results\s+for\s+the\s+quarter",
-        re.IGNORECASE)
-    standalone = re.compile(r"standalone\s+financial\s+results", re.IGNORECASE)
+# ---- page classification (semantic, never page-number based) --------------
+_RESULTS_TITLE = re.compile(
+    r"(financial results for the (quarter|period)|statement of (unaudited |audited )?"
+    r"(consolidated |standalone )?(financial results|profit and loss)|"
+    r"financial results)", re.IGNORECASE)
+_PNL_ROW_MARKERS = (
+    "revenue from operations", "total income", "profit before tax",
+    "total expenses", "total expenditure", "tax expense", "profit for the period",
+    "profit after tax", "net profit", "finance cost", "depreciation",
+    "interest earned", "earnings per")
+
+
+def _page_signature(text: str) -> dict:
+    """Cheap semantic fingerprint of one page (no geometry)."""
+    t = re.sub(r"\s+", " ", (text or "")).lower()
+    consolidated = bool(re.search(r"consolidated", t))
+    standalone = bool(re.search(r"standalone", t))
+    is_results = bool(_RESULTS_TITLE.search(t))
+    pnl_hits = sum(1 for m in _PNL_ROW_MARKERS if m in t)
+    has_quarter = ("quarter ended" in t or "quarter and" in t or "quarter" in t)
+    return {"consolidated": consolidated, "standalone": standalone,
+            "is_results": is_results, "pnl_hits": pnl_hits, "has_quarter": has_quarter}
+
+
+def classify_pages(pdf) -> list[dict]:
+    """Classify every page: page_type + scope + a confidence-ish score. Used to
+    locate the consolidated quarterly P&L without relying on a page number."""
+    out = []
     for i, page in enumerate(pdf.pages):
-        norm = _norm(page.extract_text() or "")
-        if not title.search(norm):
-            continue
-        if standalone.search(norm) and not title.search(norm):
-            continue
-        if "particulars" in norm.lower() and _DATE_RE.search(_clean_ocr_date(norm)):
-            return i
-    return None
+        sig = _page_signature(page.extract_text() or "")
+        scope = ("consolidated" if sig["consolidated"] and not
+                 (sig["standalone"] and not sig["consolidated"]) else
+                 "standalone" if sig["standalone"] else "unknown")
+        if sig["is_results"] and sig["pnl_hits"] >= 4 and sig["has_quarter"]:
+            page_type = f"{scope}_pnl"
+        elif sig["pnl_hits"] >= 4:
+            page_type = f"{scope}_pnl"
+        elif "balance sheet" in (page.extract_text() or "").lower():
+            page_type = f"{scope}_balance_sheet"
+        elif "cash flow" in (page.extract_text() or "").lower():
+            page_type = f"{scope}_cash_flow"
+        else:
+            page_type = "notes_or_other"
+        out.append({"index": i, "page_type": page_type, "scope": scope,
+                    "score": sig["pnl_hits"] + (2 if sig["is_results"] else 0), **sig})
+    return out
+
+
+def _find_results_page(pdf) -> tuple[int | None, str]:
+    """Locate the consolidated quarterly P&L page semantically.
+
+    Returns (index, status) with status in {'ok', 'standalone_only',
+    'not_found'}. A page qualifies only if it carries enough P&L row markers AND
+    at least two quarter columns; consolidated is strongly preferred and the
+    standalone section is never used for the primary analysis.
+    """
+    pages = classify_pages(pdf)
+
+    def _has_two_quarters(i: int) -> bool:
+        try:
+            periods = _detect_periods(pdf.pages[i])
+        except Exception:                            # noqa: BLE001
+            return False
+        return sum(1 for p in periods if p.kind == "quarter") >= 2
+
+    consolidated = [p for p in pages if p["page_type"] == "consolidated_pnl"
+                    and p["consolidated"]]
+    consolidated.sort(key=lambda p: (-p["score"], p["index"]))
+    for p in consolidated:
+        if _has_two_quarters(p["index"]):
+            return p["index"], "ok"
+
+    standalone = [p for p in pages if p["page_type"].startswith("standalone")
+                  or (p["standalone"] and not p["consolidated"] and p["pnl_hits"] >= 4)]
+    for p in standalone:
+        if _has_two_quarters(p["index"]):
+            return None, "standalone_only"
+    return None, "not_found"
+
+
+_ADDRESS_RE = re.compile(
+    r"regd|regi?stered office|corporate|cin[:\s]|tel\.?[:\s]|fax|e-?mail|website|"
+    r"www\.|@|phone|\bplot\b|\bfloor\b|nariman|gurugram|mumbai|road|complex|sector",
+    re.IGNORECASE)
 
 
 def _company_name(pdf, page_index):
-    page = pdf.pages[page_index]
-    for line in (page.extract_text() or "").splitlines():
-        s = _norm(line)
-        if not s or re.search(r"unaudited\s+consolidated", s, re.IGNORECASE):
+    """Company name: the nearest plausible name line above the results title,
+    falling back to any page-1 '...Limited/Ltd' line. Layout-agnostic."""
+    lines = [_norm(l) for l in (pdf.pages[page_index].extract_text() or "").splitlines()]
+    lines = [l for l in lines if l]
+    title_idx = next((i for i, l in enumerate(lines)
+                      if _RESULTS_TITLE.search(l)), len(lines))
+    for l in lines[:title_idx]:
+        low = l.lower()
+        if _ADDRESS_RE.search(l) or len(l) < 4:
             continue
-        low = s.lower()
-        if any(k in low for k in ("limited", "ltd", "industries", "corporation")):
-            return s
+        if re.search(r"limited|ltd|industries|bank|hotels|corporation|company|"
+                     r"finance|motors|steel|power|enterprises|technologies|labs",
+                     low):
+            return l
+    # otherwise the first non-address line on the page
+    for l in lines[:title_idx]:
+        if not _ADDRESS_RE.search(l) and len(l) >= 4 and re.search(r"[A-Za-z]", l):
+            return l
     first = pdf.pages[0].extract_text() or ""
     m = re.search(r"([A-Z][A-Za-z&.,'\- ]+(?:Limited|Ltd))", first)
     return _norm(m.group(1)) if m else "Unknown Company"
@@ -963,6 +1053,40 @@ def _company_symbol(pdf):
         if m:
             return m.group(1)
     return None
+
+
+def _guess_business_type(company, raw_values, pdf, page_index) -> str | None:
+    """Light business-type hint for metric applicability (bank / NBFC / etc.).
+
+    Heuristic only — used to grey out ratios that are not meaningful for the
+    business (e.g. ROCE for a bank), never to change any extracted number.
+    """
+    name = (company or "").lower()
+    page_text = (pdf.pages[page_index].extract_text() or "").lower()
+    if any(k in name for k in ("bank",)) or "interest earned" in page_text \
+            or "net interest income" in page_text:
+        return "banking"
+    if any(k in name for k in ("insurance", "life insurance", "assurance")):
+        return "insurance"
+    if any(k in name for k in ("finance", "financial services", "capital",
+                               "housing finance", "fin ")) or "nbfc" in page_text:
+        return "financial_services"
+    return None
+
+
+def _overall_confidence(validations, current, previous, unit_info,
+                        raw_provenance) -> str:
+    """Roll per-cell confidence into one HIGH/MEDIUM/LOW label for the header."""
+    cur_ok = validations.get(current.label, False)
+    prev_ok = validations.get(previous.label, False)
+    confs = [c.get("confidence") for by in raw_provenance.values()
+             for c in by.values()]
+    any_low = "low" in confs
+    if cur_ok and prev_ok and unit_info.get("unit_known") and not any_low:
+        return "high"
+    if (cur_ok or prev_ok) and not (any_low and not (cur_ok or prev_ok)):
+        return "medium"
+    return "low"
 
 
 class _PageBridge:
@@ -998,12 +1122,16 @@ def load_quarterly_pdf(source, screener_lookup=None):
     pdf = pdfplumber.open(io.BytesIO(raw_bytes))
     doc = _pm.open(stream=raw_bytes, filetype="pdf")
     try:
-        page_index = _find_results_page(pdf)
+        page_index, status = _find_results_page(pdf)
         if page_index is None:
+            if status == "standalone_only":
+                raise QuarterlyPDFError(
+                    "Consolidated quarterly results could not be identified in "
+                    "this document — only standalone results were found. "
+                    "FundaCheck's quarterly analysis uses consolidated results.")
             raise QuarterlyPDFError(
-                "No 'Unaudited Consolidated Financial Results for the Quarter "
-                "Ended ...' table was found. Only consolidated quarterly-results "
-                "PDFs are supported.")
+                "Unable to identify quarterly financial results in this document. "
+                "Upload a listed company's consolidated quarterly-results PDF.")
 
         company = _company_name(pdf, page_index) or "Unknown Company"
         symbol = _company_symbol(pdf)
@@ -1015,19 +1143,26 @@ def load_quarterly_pdf(source, screener_lookup=None):
                 "Found the consolidated results section but could not read its "
                 "reporting-period headers.")
 
-        raw_values, raw_prov, warns = _extract_results_table(
-            results_page, periods, page_index)
-        warns = warns + _reconcile_expenses(raw_values, raw_prov, periods)
-        validations = _validate_identities(raw_values, periods)
-
+        # Choose the two quarters up front (current + immediately previous), then
+        # extract ONLY those columns — the annual / year-ago / TTM / cumulative
+        # columns are never read into the quarterly dataset.
         quarters = sorted((p for p in periods if p.kind == "quarter"),
                           key=lambda p: p.end)
         if len(quarters) < 2:
             raise QuarterlyPDFError(
-                "Could not identify two quarterly periods in the consolidated "
-                "results table (found " + str(len(quarters)) + ").")
+                "This document does not contain a usable two-quarter comparison "
+                "(found " + str(len(quarters)) + " quarterly column(s)).")
         previous, current = quarters[-2], quarters[-1]
+        two = [previous, current]
         cols = [previous.label, current.label]
+
+        raw_values, raw_prov, warns, unit_info = _extract_results_table(
+            results_page, two, page_index)
+        warns = warns + _reconcile_expenses(raw_values, raw_prov, two)
+        validations = _validate_identities(raw_values, two)
+        if not unit_info.get("unit_known"):
+            warns.append("Reporting unit could not be detected from the filing; "
+                         "assuming ₹ crore for display — verify absolute figures.")
 
         # Reported-ratio table (usually the next page, sometimes the same page).
         # Reuses the two quarter columns' geometry so the FY/annual column can
@@ -1041,22 +1176,25 @@ def load_quarterly_pdf(source, screener_lookup=None):
                     reported = rep
                     break
 
-        # historical (raw P&L lines, two quarters)
+        # historical (raw P&L lines, two quarters) — converted to ₹ crore for
+        # display using the detected unit; ratios use raw values (scale-invariant).
+        mult = unit_info.get("multiplier_to_crore", 1.0)
+        raw_unit = unit_info.get("raw_unit", "crore")
         records = {}
         for canon, per in raw_values.items():
             rowvals = [per.get(previous.label), per.get(current.label)]
             if all(v is None for v in rowvals):
                 continue
-            records[canon] = rowvals
+            records[canon] = [None if v is None else v * mult for v in rowvals]
         hist = pd.DataFrame.from_dict(records, orient="index", columns=cols)
         if "Finance Costs" in hist.index and "Interest" not in hist.index:
             hist.loc["Interest"] = hist.loc["Finance Costs"]
 
-        # Python-first derivation + provenance
+        # Python-first derivation + provenance (ratios from raw, unit-agnostic)
         ratios, metrics_prov = derive_quarterly(
             raw_values, reported, [previous, current], company, screener_lookup)
 
-        # raw-line provenance (for the two quarters), as plain dicts
+        # raw-line provenance (for the two quarters): raw value + normalised crore
         raw_provenance = {}
         for canon in records:
             for per in cols:
@@ -1064,10 +1202,21 @@ def load_quarterly_pdf(source, screener_lookup=None):
                 if v is None:
                     continue
                 src = raw_prov.get(canon, {}).get(per, "pdf_raw")
-                raw_provenance.setdefault(canon, {})[per] = Provenance(
-                    v, per, SOURCE_PDF_RAW, formula="", unit="INR crore",
-                    validation="pass" if validations.get(per) else "not_available",
-                    note=src).as_dict()
+                conf = "high" if (src.endswith("text") and validations.get(per)) else \
+                       "medium" if src.endswith("ocr") and validations.get(per) else \
+                       "medium" if src.endswith("text") else "low"
+                p = Provenance(v * mult, per, SOURCE_PDF_RAW, formula="",
+                               unit="₹ crore",
+                               validation="pass" if validations.get(per) else "not_available",
+                               note=src).as_dict()
+                p["raw_value"] = v
+                p["raw_unit"] = raw_unit
+                p["confidence"] = conf
+                raw_provenance.setdefault(canon, {})[per] = p
+
+        business_type = _guess_business_type(company, raw_values, pdf, page_index)
+        overall_conf = _overall_confidence(validations, current, previous,
+                                           unit_info, raw_provenance)
 
         model = FinancialModel()
         model.company = company
@@ -1096,7 +1245,12 @@ def load_quarterly_pdf(source, screener_lookup=None):
             "validated": {current.label: validations.get(current.label, False),
                           previous.label: validations.get(previous.label, False)},
             "warnings": warns,
-            "reporting_currency": "INR crore",
+            "reporting_currency": "₹ crore",
+            "source_unit": raw_unit,
+            "unit_multiplier_to_crore": mult,
+            "unit_known": unit_info.get("unit_known", False),
+            "business_type": business_type,
+            "confidence": overall_conf,
             "raw_provenance": raw_provenance,
             "metrics": metrics_prov,
             "reported_ratios": reported,

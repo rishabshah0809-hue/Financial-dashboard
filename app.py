@@ -1516,6 +1516,93 @@ def _apply_live_quote(model) -> None:
     model.meta["price_as_of"] = quote.get("as_of", "")
 
 
+_CONF_BADGE = {"high": ("#16a34a", "High confidence"),
+               "medium": ("#d97706", "Medium confidence"),
+               "low": ("#dc2626", "Low confidence")}
+
+
+def _quarterly_panels(model, result) -> None:
+    """Company-agnostic quarterly header + Data quality + Methodology panels.
+
+    Everything shown here is read straight from the model's provenance metadata;
+    nothing is recomputed in the UI and no missing value is ever shown as 0.
+    """
+    m = model.meta
+    cur, prev = m.get("current_period", "?"), m.get("previous_period", "?")
+    cur_tag = m.get("current_quarter_tag", cur)
+    prev_tag = m.get("previous_quarter_tag", prev)
+    conf = m.get("confidence", "medium")
+    colour, label = _CONF_BADGE.get(conf, _CONF_BADGE["medium"])
+    scope = m.get("source_scope", "consolidated").title()
+    unit = m.get("source_unit", "crore")
+
+    st.markdown(
+        f"<div style='display:flex;gap:14px;flex-wrap:wrap;align-items:center;"
+        f"padding:10px 14px;border:1px solid #e5e7eb;border-radius:10px;"
+        f"background:#fafafa;margin-bottom:8px'>"
+        f"<span style='font-weight:700;font-size:1.05rem'>{html.escape(model.company)}</span>"
+        f"<span style='color:#374151'>{html.escape(cur_tag)} <b>vs</b> {html.escape(prev_tag)}</span>"
+        f"<span style='background:#eef2ff;color:#3730a3;padding:2px 8px;border-radius:999px;"
+        f"font-size:.8rem'>{scope} results</span>"
+        f"<span style='background:{colour}1a;color:{colour};padding:2px 8px;border-radius:999px;"
+        f"font-size:.8rem'>{label}</span>"
+        f"<span style='color:#6b7280;font-size:.8rem'>Source: filing pages "
+        f"{', '.join(str(p) for p in m.get('source_pages', []))} · ₹ {html.escape(unit)}</span>"
+        f"</div>", unsafe_allow_html=True)
+
+    val = m.get("validated", {})
+    ocr_col = next((lbl for lbl, s in m.get("column_source", {}).items()
+                    if s == "image"), None)
+    with st.expander("Data quality", expanded=(conf == "low")):
+        checks = [
+            (True, f"{scope} quarterly results detected"),
+            (True, f"Current quarter detected — {cur}"),
+            (True, f"Previous quarter detected — {prev}"),
+            (m.get("unit_known"), f"Reporting unit detected — ₹ {unit}"),
+            (not model.historical.empty, "Profit & loss extracted"),
+            (val.get(cur), f"Accounting identities reconcile — {cur}"),
+            (val.get(prev), f"Accounting identities reconcile — {prev}"),
+            (not model.ratios.empty, "Python ratios calculated"),
+        ]
+        if ocr_col:
+            checks.insert(4, (val.get(ocr_col),
+                              f"OCR of rasterised {ocr_col} column validated"))
+        for ok, text in checks:
+            st.markdown(("✓ " if ok else "⚠ ") + text)
+        gaps = result.data_gaps if result else []
+        if gaps:
+            st.markdown("**Unavailable (shown as “—”, never estimated):** "
+                        + ", ".join(gaps))
+        for w in m.get("warnings", []):
+            st.caption("⚠ " + w)
+
+    metrics = m.get("metrics", {})
+    if metrics:
+        with st.expander("Methodology & data provenance"):
+            st.caption("Every figure is read from the PDF or computed in Python "
+                       "from PDF values; the PDF's own ratio table only validates "
+                       "the Python result. Screener annual/TTM values are never "
+                       "used as a quarter. The AI never calculates a number.")
+            rows = []
+            SRC = {"pdf_raw": "PDF (raw)", "python_derived": "Python-derived",
+                   "pdf_reported_validation": "PDF-reported", "unavailable": "—"}
+            for name, byp in metrics.items():
+                p = byp.get(cur) or {}
+                v = p.get("value")
+                unit_s = p.get("unit", "")
+                shown = "—" if v is None else (
+                    f"{v:,.2f}{unit_s}" if unit_s == "%" else
+                    f"{v:,.2f}{('x' if unit_s == 'x' else '')}")
+                rows.append({
+                    "Metric": name, cur: shown,
+                    "Source": SRC.get(p.get("source"), p.get("source", "—")),
+                    "Formula": p.get("formula", ""),
+                    "Validation": p.get("validation", ""),
+                })
+            st.dataframe(pd.DataFrame(rows), use_container_width=True,
+                         hide_index=True)
+
+
 def main() -> None:
     mode = "dark" if st.session_state.get("dark_mode", False) else "light"
     inject_css(mode, minimized=bool(st.session_state.get("nav_min", False)))
@@ -1619,33 +1706,10 @@ def main() -> None:
 
     page = st.session_state.get("page", "overview")
 
-    # Quarterly PDF mode: be explicit that this is a two-quarter consolidated
-    # view built from the filing (with the current column read by OCR), and that
-    # balance-sheet / cash-flow metrics are not part of a results table.
+    # Quarterly PDF mode: a company-agnostic header + a data-quality panel and a
+    # provenance/methodology panel, kept out of the main dashboard.
     if quarterly:
-        m = model.meta
-        cur, prev = m.get("current_period", "?"), m.get("previous_period", "?")
-        ocr_col = next((lbl for lbl, s in m.get("column_source", {}).items()
-                        if s == "image"), None)
-        val = m.get("validated", {})
-        bits = [
-            f"**Quarterly consolidated results** — {model.company}. Two periods: "
-            f"**{cur}** (current) vs **{prev}** (previous). Figures in ₹ crore, "
-            "straight from the filing (pages "
-            + ", ".join(str(p) for p in m.get("source_pages", [])) + ")."
-        ]
-        if ocr_col:
-            ok = "passed" if val.get(ocr_col) else "not confirmed"
-            bits.append(
-                f" The {ocr_col} column is rasterised in the PDF and was read by "
-                f"OCR; its accounting-identity check **{ok}**.")
-        bits.append(
-            " Balance-sheet and cash-flow ratios (ROE, ROCE, debt/equity, "
-            "turnovers, cash conversion) are not in a results table and are shown "
-            "as unavailable, never estimated.")
-        st.info("".join(bits))
-        for w in m.get("warnings", []):
-            st.caption("⚠ " + w)
+        _quarterly_panels(model, result)
 
     if page == "overview":
         note = _get_note(model, result, sector_key, config)

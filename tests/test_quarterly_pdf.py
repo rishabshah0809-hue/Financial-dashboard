@@ -20,6 +20,7 @@ from datetime import date
 from pathlib import Path
 
 from core import quarterly_pdf as q
+from core import quarterly_semantics as qs
 from core.parser import FinancialModel, load_model
 from core.scoring import assess_quarterly
 from core.sectors import get_sector
@@ -83,13 +84,13 @@ class LabelMatching(unittest.TestCase):
 
 class PeriodParsing(unittest.TestCase):
     def test_label_format_is_mon_yyyy(self):
-        d = q._parse_date("30", "Jun", "26")
+        d = qs.parse_date_token("30th Jun'26")
         self.assertEqual((d.year, d.month), (2026, 6))
         self.assertEqual(q._period_label(d), "Jun-2026")
         self.assertEqual(q._fy_quarter_tag(d), "Q1 FY27")
 
     def test_march_is_q4(self):
-        d = q._parse_date("31", "Mar", "26")
+        d = qs.parse_date_token("31 Mar 2026")
         self.assertEqual(q._period_label(d), "Mar-2026")
         self.assertEqual(q._fy_quarter_tag(d), "Q4 FY26")
 
@@ -319,6 +320,243 @@ class ExcelStillWorks(unittest.TestCase):
         self.assertIsInstance(model, FinancialModel)
         self.assertFalse(model.historical.empty)
         self.assertNotEqual(model.meta.get("periodicity"), "quarterly")
+
+
+# --------------------------------------------------------------------------
+# 4. company-agnostic semantics units
+# --------------------------------------------------------------------------
+class SemanticsDates(unittest.TestCase):
+    def test_order_agnostic(self):
+        for t in ("30th Jun'26", "June 30, 2026", "Mareh 31,2026", "31 Mar 2026",
+                  "30.06.2026", "31/03/2026"):
+            self.assertIsNotNone(qs.parse_date_token(t), t)
+        self.assertEqual(qs.period_label(qs.parse_date_token("June 30, 2026")), "Jun-2026")
+        self.assertEqual(qs.period_label(qs.parse_date_token("Mareh 31,2026")), "Mar-2026")
+
+    def test_q_fy_naming(self):
+        self.assertEqual(qs.period_label(qs.parse_date_token("Q1 FY27")), "Jun-2026")
+        self.assertEqual(qs.period_label(qs.parse_date_token("Q4 FY26")), "Mar-2026")
+
+    def test_bare_month_day_is_not_a_year(self):
+        # "June 30" without a year must NOT become 2030
+        self.assertIsNone(qs.parse_date_token("June 30"))
+
+
+class SemanticsUnitsDecimals(unittest.TestCase):
+    def test_units(self):
+        self.assertEqual(qs.detect_unit("₹ in crore")[1], 1.0)
+        self.assertEqual(qs.detect_unit("@ In Laks, except")[1], 0.01)
+        self.assertEqual(qs.detect_unit("Rs. in million")[1], 0.1)
+        self.assertFalse(qs.detect_unit("Particulars")[2])
+
+    def test_decimal_convention(self):
+        self.assertEqual(qs.detect_decimals(["340,257", "28,407"]), 0)   # integer crore
+        self.assertEqual(qs.detect_decimals(["31,577.05", "214.70"]), 2)  # paise
+        # a 3-digit tail is grouping (OCR dot), not a decimal
+        self.assertEqual(qs.detect_decimals(["340.257", "129.857"]), 0)
+
+    def test_parse_amount_by_convention(self):
+        self.assertEqual(qs.parse_amount("340.257", 0), 340257)   # OCR dot = grouping
+        self.assertAlmostEqual(qs.parse_amount("3446061", 2), 34460.61)  # dropped sep
+        self.assertAlmostEqual(qs.parse_amount("31,577.05", 2), 31577.05)
+        self.assertAlmostEqual(qs.parse_amount("(1.326)", 0), -1326)
+
+    def test_parse_ratio_keeps_decimal(self):
+        self.assertAlmostEqual(qs.parse_ratio("0.39"), 0.39)
+        self.assertAlmostEqual(qs.parse_ratio("1.12"), 1.12)
+
+
+class SemanticsRows(unittest.TestCase):
+    def test_bank_and_variant_labels(self):
+        self.assertEqual(qs.match_row_label("Interest Earned"), "Sales")
+        self.assertEqual(qs.match_row_label("Net profit after tax (11-12)"), "Net Profit")
+        self.assertEqual(qs.match_row_label("Employee benefit expenses"),
+                         "Employee Benefits Expense")
+        # EBITDA-ish line must not be mistaken for finance cost
+        self.assertEqual(qs.match_row_label(
+            "Profit before depreciation and amortization, finance cost, finance "
+            "income and tax"), "Operating Profit (reported)")
+
+    def test_no_gst_company_still_maps_revenue(self):
+        self.assertEqual(qs.match_row_label("Revenue from operations"), "Sales")
+
+    def test_applicability(self):
+        self.assertFalse(qs.metric_applicable("Return on Capital Employed (ROCE) %",
+                                              "banking"))
+        self.assertTrue(qs.metric_applicable("Return on Equity (ROE) %", "banking"))
+        self.assertTrue(qs.metric_applicable("Return on Capital Employed (ROCE) %", None))
+
+
+# --------------------------------------------------------------------------
+# 5. synthetic multi-layout PDFs (company-agnostic, pure text)
+# --------------------------------------------------------------------------
+def _make_results_pdf(path, *, company, title, unit_caption, headers, rows,
+                      group_headers=True):
+    """Render a minimal text-only quarterly-results PDF for layout testing.
+
+    headers: list of (label_text, x_left, is_annual). rows: list of
+    (row_label, [str_value_per_column]) aligned to headers by x.
+    """
+    from fpdf import FPDF
+    pdf = FPDF(unit="pt", format=(595, 842))
+    pdf.add_page()
+    pdf.set_font("Helvetica", size=9)
+    pdf.text(40, 60, company)
+    pdf.text(40, 80, title)
+    pdf.text(430, 96, unit_caption)
+    if group_headers:
+        quarter_xs = [h[1] for h in headers if not h[2]]
+        annual_xs = [h[1] for h in headers if h[2]]
+        if quarter_xs:
+            pdf.text(min(quarter_xs), 112, "Quarter ended")
+        if annual_xs:
+            pdf.text(min(annual_xs), 112, "Year ended")
+    for label, x, _ in headers:
+        pdf.text(x, 130, label)
+    y = 160
+    for row_label, vals in rows:
+        pdf.text(40, y, row_label)
+        for (_, x, _), v in zip(headers, vals):
+            pdf.text(x, y, v)
+        y += 16
+    pdf.output(path)
+
+
+def _consolidated_headers(annual=True):
+    h = [("June 30, 2026", 300, False), ("March 31, 2026", 380, False),
+         ("June 30, 2025", 460, False)]
+    if annual:
+        h.append(("March 31, 2026", 540, True))
+    return h
+
+
+_ROWS_CRORE = [
+    ("Revenue from operations", ["1,000", "900", "800", "3,600"]),
+    ("Other income",            ["50", "40", "30", "160"]),
+    ("Total income",            ["1,050", "940", "830", "3,760"]),
+    ("Finance costs",           ["40", "36", "34", "150"]),
+    ("Depreciation",            ["100", "90", "85", "360"]),
+    ("Total expenses",          ["800", "720", "700", "3,000"]),
+    ("Profit before tax",       ["250", "220", "130", "760"]),
+    ("Tax expense",             ["50", "44", "26", "160"]),
+    ("Profit for the period",   ["200", "176", "104", "600"]),
+]
+
+
+class SyntheticLayouts(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+
+    def _path(self, name):
+        import os
+        return os.path.join(self.dir, name)
+
+    def test_consolidated_crore_two_quarters(self):
+        p = self._path("crore.pdf")
+        _make_results_pdf(
+            p, company="Acme Manufacturing Limited",
+            title="Statement of Unaudited Consolidated Financial Results for the "
+                  "Quarter ended June 30, 2026",
+            unit_caption="Rs. in Crore", headers=_consolidated_headers(),
+            rows=_ROWS_CRORE)
+        m = q.load_quarterly_pdf(p)
+        self.assertEqual(m.meta["current_period"], "Jun-2026")
+        self.assertEqual(m.meta["previous_period"], "Mar-2026")
+        self.assertEqual(list(m.historical.columns), ["Mar-2026", "Jun-2026"])
+        self.assertAlmostEqual(m.historical.loc["Sales", "Jun-2026"], 1000, delta=1)
+        self.assertAlmostEqual(m.historical.loc["Net Profit", "Jun-2026"], 200, delta=1)
+        # annual column (3,600) must never appear
+        self.assertNotIn(3600, list(m.historical.loc["Sales"]))
+        self.assertTrue(m.meta["validated"]["Jun-2026"])
+        self.assertEqual(m.meta["source_unit"], "crore")
+
+    def test_units_lakh_converted(self):
+        p = self._path("lakh.pdf")
+        _make_results_pdf(
+            p, company="Beta Hotels Limited",
+            title="Statement of Unaudited Consolidated Financial Results for the "
+                  "Quarter ended June 30, 2026",
+            unit_caption="Rs. in Lakhs", headers=_consolidated_headers(),
+            rows=_ROWS_CRORE)
+        m = q.load_quarterly_pdf(p)
+        self.assertEqual(m.meta["source_unit"], "lakh")
+        # 1,000 lakh -> 10 crore
+        self.assertAlmostEqual(m.historical.loc["Sales", "Jun-2026"], 10.0, delta=0.1)
+
+    def test_q_fy_naming(self):
+        p = self._path("qfy.pdf")
+        headers = [("Q1 FY27", 300, False), ("Q4 FY26", 380, False),
+                   ("Q1 FY26", 460, False)]
+        _make_results_pdf(
+            p, company="Gamma Industries Limited",
+            title="Unaudited Consolidated Financial Results for the Quarter",
+            unit_caption="Rs. in Crore", headers=headers,
+            rows=[(lbl, v[:3]) for lbl, v in _ROWS_CRORE], group_headers=False)
+        m = q.load_quarterly_pdf(p)
+        self.assertEqual(m.meta["current_period"], "Jun-2026")
+        self.assertEqual(m.meta["previous_period"], "Mar-2026")
+
+    def test_standalone_only_is_rejected(self):
+        p = self._path("standalone.pdf")
+        _make_results_pdf(
+            p, company="Delta Limited",
+            title="Statement of Unaudited Standalone Financial Results for the "
+                  "Quarter ended June 30, 2026",
+            unit_caption="Rs. in Crore", headers=_consolidated_headers(),
+            rows=_ROWS_CRORE)
+        with self.assertRaises(q.QuarterlyPDFError):
+            q.load_quarterly_pdf(p)
+
+    def test_unrelated_pdf_is_rejected(self):
+        p = self._path("unrelated.pdf")
+        from fpdf import FPDF
+        pdf = FPDF(unit="pt", format=(595, 842))
+        pdf.add_page(); pdf.set_font("Helvetica", size=12)
+        pdf.text(40, 60, "This is a cover letter about a board meeting.")
+        pdf.output(p)
+        with self.assertRaises(q.QuarterlyPDFError):
+            q.load_quarterly_pdf(p)
+
+
+# --------------------------------------------------------------------------
+# 6. second real filing (Lemon Tree Hotels) — company-agnostic acceptance
+# --------------------------------------------------------------------------
+def _find_lemon():
+    for c in (Path(__file__).parent / "fixtures" / "lemon-tree.pdf",
+              Path(os.environ.get("FUNDACHECK_QPDF2", "")),
+              Path.home() / "Downloads" / "Lemon Tree Hotel.pdf"):
+        if c and c.is_file():
+            return c
+    return None
+
+
+_LEMON = _find_lemon()
+
+
+@unittest.skipUnless(_LEMON, "Lemon Tree PDF not found")
+@unittest.skipUnless(_LIBS_OK, "PDF/OCR libs unavailable")
+class LemonTreeAcceptance(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.model = q.load_quarterly_pdf(str(_LEMON))
+        cls.meta = cls.model.meta
+
+    def test_company_and_periods(self):
+        self.assertIn("Lemon Tree", self.model.company)
+        self.assertEqual(self.meta["current_period"], "Jun-2026")
+        self.assertEqual(self.meta["previous_period"], "Mar-2026")
+
+    def test_unit_is_lakh(self):
+        self.assertEqual(self.meta["source_unit"], "lakh")
+
+    def test_two_quarters_no_annual(self):
+        self.assertEqual(list(self.model.historical.columns), ["Mar-2026", "Jun-2026"])
+
+    def test_core_values_present(self):
+        # Sales ~34,460 lakh -> ~344.6 cr for the current quarter
+        self.assertAlmostEqual(self.model.historical.loc["Sales", "Jun-2026"],
+                               344.6, delta=1.0)
 
 
 if __name__ == "__main__":

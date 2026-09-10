@@ -118,21 +118,79 @@ the sample filing — its numbers are not in the text layer. So:
 
 ## Files changed
 
-- `core/quarterly_pdf.py` — completed ingestion + provenance/derivation layer.
-- `core/scoring.py` — added `assess_quarterly` (annual `assess` unchanged).
-- `app.py` — PDF upload + auto-detect + quarterly branch/banner.
+- `core/quarterly_semantics.py` — **new** pure, document-agnostic layer
+  (dates, period types, units, decimals, row synonyms, ratio registry,
+  applicability).
+- `core/quarterly_pdf.py` — staged orchestration; page classification, unit &
+  decimal detection, confidence, provenance.
+- `core/scoring.py` — `assess_quarterly` (annual `assess` unchanged) + metric
+  applicability.
+- `app.py` — PDF upload + auto-detect + quarterly header / Data-quality /
+  Methodology panels; missing shown as "—".
 - `requirements.txt` — pdfplumber, PyMuPDF, pytesseract, Pillow, rapidocr.
 - `packages.txt` — `tesseract-ocr` (deploy OCR; from the branch scaffold).
 - `tests/test_quarterly_pdf.py` — 35 tests (units, derivation, acceptance).
 - `docs/quarterly_pdf_implementation_report.md`, `docs/quarterly-data-plan.md`.
 
-## Remaining limitations
+## Company-agnostic robustness (v2)
 
-- OCR of the rasterised columns is validated by accounting identities (P&L) and,
-  for interest coverage, cross-checked against the PDF's reported ratio; other
-  page-10 reported ratios (D/E, current ratio, turnovers) for the current
-  quarter are OCR-read decimals with no independent Python cross-check, so they
-  carry an `ocr` provenance note.
-- Tested end-to-end on one filing (Reliance). A materially different table
-  layout may need pattern tuning; the loader fails loudly rather than guessing.
-- Segment data and the balance sheet/cash-flow sections are out of scope for V1.
+The parser no longer targets one filing. A new pure module
+**`core/quarterly_semantics.py`** holds the document-agnostic logic (unit-tested
+on plain strings), and `core/quarterly_pdf.py` orchestrates staged extraction:
+
+document → **page classification** (`classify_pages`: consolidated_pnl /
+standalone_pnl / balance_sheet / …, scored, never by page number) →
+consolidated section (standalone rejected with a clear message) → **period
+detection** (order-agnostic dates: "30th Jun'26", "June 30, 2026", "31.03.2026",
+"Q1 FY27"; each column typed quarter / annual / ttm / cumulative; the rightmost
+of two same-date columns is the FY column and is excluded) → **unit detection**
+(₹ crore / lakh / million → normalised to crore, unit kept in metadata) →
+**decimal-convention detection** (integer-crore vs 2-decimal/paise, so a text
+layer that drops separators — "3446061" → 34,460.61 — is read correctly, while
+an OCR thousands-dot — "340.257" → 340257 — is not mistaken for a decimal) →
+raw extraction (text + targeted OCR) → accounting validation → Python derivation
+(`RATIO_REGISTRY`) → PDF-reported validation → guarded Screener → availability +
+**confidence** (high / medium / low) + **business-type applicability** (e.g.
+ROCE/inventory-turnover greyed out for a bank).
+
+Verified on **two real, structurally different filings**:
+
+| | Reliance | Lemon Tree Hotels |
+|---|---|---|
+| layout | image + text, "Particulars" | pure text, no "Particulars" |
+| unit | ₹ crore (integer) | ₹ Lakhs (2-decimal) |
+| dates | day-first ("30th Jun'26") | month-first ("June 30, 2026") |
+| current / previous | Jun-2026 / Mar-2026 ✓ | Jun-2026 / Mar-2026 ✓ |
+| confidence | high (identities reconcile) | low (one line mis-extracted in the source text layer — flagged, not fabricated) |
+
+Synthetic `fpdf2` fixtures additionally cover: ₹ crore vs ₹ lakh, "Q1 FY27"
+naming, annual-column exclusion, standalone-only rejection, and an unrelated PDF.
+
+UI: a company-agnostic header (company · current vs previous · consolidated ·
+confidence), a **Data quality** panel (per-check ticks + warnings), and a
+**Methodology & data provenance** panel (per-metric source / formula /
+validation). Unavailable metrics render as "—", never 0. The annual/Excel path
+is untouched (`parser.py`, `derive.py`, `charts.py`, `interpret.py` unchanged;
+`scoring.assess` unchanged; quarterly is isolated behind `meta.periodicity`).
+
+## Remaining limitations (honest)
+
+- Verified end-to-end on **two** real filings (Reliance, Lemon Tree) plus
+  synthetic layouts. Other issuers/formats are **not yet tested** — banks/NBFCs
+  especially (applicability rules exist and unit-test pass, but no real bank
+  filing was run). The loader fails loudly rather than guessing.
+- When a filing's **text layer is messy** (Lemon Tree drops separators / mangles
+  a line), a P&L line can mis-extract. This is **surfaced** as low confidence +
+  a failed accounting-identity check, not silently corrected — but it means some
+  absolute figures on such a filing may be wrong until a cleaner extraction
+  (e.g. full-table OCR) is added.
+- The **PDF-reported ratio table** is parsed by reusing the P&L page's column
+  geometry; issuers that place ratios on a differently-laid-out page (Lemon Tree)
+  yield fewer reported ratios (they become "unavailable", never fabricated).
+- Current-quarter reported ratios read by OCR carry an `ocr` provenance note and,
+  except interest coverage, have no independent Python cross-check.
+- A quarter scored on very few available metrics (e.g. a filing exposing only
+  one ratio) still returns a verdict; the low-confidence flag and data-quality
+  panel communicate the thin basis, but the headline score should be read with
+  that caveat.
+- Balance sheet, cash flow and segment sections are still out of scope.

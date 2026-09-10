@@ -373,7 +373,14 @@ def assess_quarterly(model: FinancialModel, sector: SectorProfile) -> Assessment
     metric_scores: list[MetricScore] = []
     gaps: list[str] = []
 
+    # Skip ratios that are not meaningful for this business type (e.g. ROCE /
+    # inventory turnover for a bank) rather than scoring them as weak.
+    from .quarterly_semantics import metric_applicable
+    business_type = model.meta.get("business_type")
+
     for metric, (weak_at, strong_at) in sector.benchmarks.items():
+        if not metric_applicable(metric, business_type):
+            continue
         series = _clean(_resolve(model, metric))
         if series.empty:
             gaps.append(metric)                    # genuinely unavailable
