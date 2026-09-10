@@ -291,6 +291,10 @@ def _downscale_png(raw: bytes, max_w: int = 760) -> bytes | None:
         return None
 
 _EXTRA_CSS = """
+/* heatmap empty-state (index history not in the dataset yet) */
+.hm.hm-empty{margin-top:14px}
+.hm-empty .hm-note{margin-top:10px;padding:22px 18px;border:1px dashed #D7DED8;border-radius:12px;
+  background:#FBFCFB;color:#8B918E;font-size:13px;line-height:1.6;max-width:70ch}
 /* gap bars: green = better than sector (right), red = worse (left) */
 .dev-bar.good.left{background:linear-gradient(270deg,#2F9E63,#7CC49A);border-radius:3px 0 0 3px}
 .dev-bar.good.right{background:linear-gradient(90deg,#2F9E63,#7CC49A);border-radius:0 3px 3px 0}
@@ -646,6 +650,32 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
                f"{hm_index}; average row = mean of each month across {hm_years} years. "
                f"Real IndianAPI index history from 2022 — all returns computed in Python.")
 
+    # The heatmap section is permanent: when the reference index has no stored
+    # price history yet (not every NIFTY sub-index is in the dataset), show an
+    # honest note in its place rather than leaving the panel blank.
+    if hm_payload:
+        hm_html = f'''<div class="hm">
+          <div class="hm-h"><span class="hm-t">Historical market seasonality</span>
+            <span class="hm-s">{escape(hm_index)} &middot; monthly price returns by calendar year</span>
+            <span class="hm-c">{hm_years}-year window</span></div>
+          <div class="hm-w"><table class="hmt" id="hmt"></table></div>
+          <div class="hm-f"><b>Read down a column, not across a row.</b>
+            <span>{escape(hm_meth)}</span>
+            <span class="hm-key" style="margin-left:auto"><i style="background:#B4483C"></i>Worst</span>
+            <span class="hm-key"><i style="background:#E6BDB6"></i></span>
+            <span class="hm-key"><i style="background:#F2F4F2"></i>Flat</span>
+            <span class="hm-key"><i style="background:#A9D6BE"></i></span>
+            <span class="hm-key"><i style="background:#2F9E63"></i>Best</span></div>
+        </div>'''
+    else:
+        ref = escape(hm_index or "the sector index")
+        hm_html = (f'<div class="hm hm-empty"><div class="hm-h">'
+                   f'<span class="hm-t">Historical market seasonality</span>'
+                   f'<span class="hm-s">{ref} &middot; monthly price returns by calendar year</span></div>'
+                   f'<div class="hm-note">Not available for this sector yet — the monthly price '
+                   f'history for {ref} has not been fetched into the seasonality dataset, so no '
+                   f'real returns can be shown. The structural pattern above still applies.</div></div>')
+
     body = f"""<div id="shell">
   <div class="phead">
     <div><h1>Sector lens</h1>
@@ -741,19 +771,7 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
         <div class="months">{months_html}</div>
         <div class="seas-lg">{legend_html}</div>
         <p class="seas-note">{seas_caption}</p>
-        {"" if not hm_payload else f'''<div class="hm">
-          <div class="hm-h"><span class="hm-t">Historical market seasonality</span>
-            <span class="hm-s">{escape(hm_index)} &middot; monthly price returns by calendar year</span>
-            <span class="hm-c">{hm_years}-year window</span></div>
-          <div class="hm-w"><table class="hmt" id="hmt"></table></div>
-          <div class="hm-f"><b>Read down a column, not across a row.</b>
-            <span>{escape(hm_meth)}</span>
-            <span class="hm-key" style="margin-left:auto"><i style="background:#B4483C"></i>Worst</span>
-            <span class="hm-key"><i style="background:#E6BDB6"></i></span>
-            <span class="hm-key"><i style="background:#F2F4F2"></i>Flat</span>
-            <span class="hm-key"><i style="background:#A9D6BE"></i></span>
-            <span class="hm-key"><i style="background:#2F9E63"></i>Best</span></div>
-        </div>'''}
+        {hm_html}
       </div>
     </section>
   </div>

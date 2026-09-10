@@ -112,13 +112,23 @@ def run(sectors: list[str] | None = None, pacing: float = 0.6) -> int:
         LOGGER.error("Fetched ZERO index series — keeping any existing file.")
         return 3
     OUT.parent.mkdir(parents=True, exist_ok=True)
+    # MERGE into the existing file, so a partial run (e.g. --sector telecom) only
+    # adds/updates those sectors instead of wiping every other index.
+    merged: dict = {}
+    if OUT.exists():
+        try:
+            merged = (json.loads(OUT.read_text(encoding="utf-8")).get("indices") or {})
+        except (ValueError, OSError):
+            merged = {}
+    merged.update(indices)
     payload = {"generated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
                "source": "IndianAPI /historical_data (filter=price)",
-               "indices": indices}
+               "indices": merged}
     tmp = OUT.with_suffix(".json.tmp")
     tmp.write_text(json.dumps(payload), encoding="utf-8")
     tmp.replace(OUT)
-    LOGGER.info("Wrote %s: %d indices.", OUT, len(indices))
+    LOGGER.info("Wrote %s: %d indices (%d new/updated this run).",
+                OUT, len(merged), len(indices))
     return 0
 
 
