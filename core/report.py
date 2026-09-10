@@ -1287,10 +1287,29 @@ def _tongue(pdf, cx, base_y, thick, color, up=True, half=4.0):
     return rise
 
 
+def _sankey_link(pdf, x0, y0t, y0b, x1, y1t, y1b, color):
+    """A smooth Sankey link: a filled ribbon from the vertical slice [y0t,y0b] at
+    x0 to the slice [y1t,y1b] at x1, with horizontal-tangent cubic edges so the
+    ribbon flows rather than kinks. Thickness is preserved by the caller (the two
+    slices are the same height), so ribbon width reads as value."""
+    mx = (x0 + x1) / 2
+    with pdf.new_path() as p:
+        p.style.fill_color = _dev(color)
+        p.style.stroke_color = None
+        p.style.stroke_width = 0
+        p.move_to(x0, y0t)
+        p.curve_to(mx, y0t, mx, y1t, x1, y1t)
+        p.line_to(x1, y1b)
+        p.curve_to(mx, y1b, mx, y0b, x0, y0b)
+        p.close()
+
+
 def _draw_waterfall(pdf, x, y, w, h, steps):
-    """The sales→profit flow as a continuous Sankey ribbon: a light-green
-    'money remaining' band that narrows as costs peel off the top and swells
-    where other income joins, ending in the dark-green net-profit block."""
+    """The sales→profit flow as a true Sankey: a light-green 'money remaining'
+    band whose thickness is the running remainder, with each cost peeling off the
+    top as a ribbon whose THICKNESS is proportional to that cost, other income
+    joining from below, and a dark-green net-profit block at the end. Handles
+    losses (a pale-red deficit band and a red net block) without overflowing."""
     legend = [("Money remaining", LIGHT), ("Operating cost", _COST_PINK),
               ("Interest", RED), ("Other income", AMBER), ("Tax", _COST_GREY),
               ("Net profit", GREEN)]
@@ -1310,90 +1329,93 @@ def _draw_waterfall(pdf, x, y, w, h, steps):
     seg = W / n
     xc = [xL + (i + 0.5) * seg for i in range(n)]
 
-    # running remaining at each node, and the level *before* each cost peels off
-    rem, run = [], 0.0
-    before = []
+    # running remaining at each node, and the level *before* each cost/gain applies
+    rem, before, run = [], [], 0.0
     for name, val, kind in steps:
         if kind in ("level", "net"):
-            before.append(val)
-            run = val
+            before.append(val); run = val
         else:
-            before.append(run)          # level before this cost/gain is applied
-            run += val
+            before.append(run); run += val
         rem.append(run)
 
-    # Dynamic vertical scale so the whole flow fits regardless of losses / large
-    # other income. HI = tallest point above the zero line (costs peel up to the
-    # level before them); LO = deepest point below it (a negative remainder, or an
-    # other-income tongue that hangs below the baseline by its own size).
-    tongue_pad = 3.0
+    # dynamic vertical scale: HI above the zero line (costs peel up toward the
+    # level before them), LO below it (a negative remainder or a below-baseline
+    # other-income ribbon). Everything fits the plot box regardless of losses.
     hi = max([100.0] + rem + [before[i] for i, s in enumerate(steps) if s[2] == "cost"])
     lo = max([0.0] + [-min(0.0, r) for r in rem]
              + [abs(v) for _, v, k in steps if k == "gain"])
-    span = max(hi + lo, 1.0)
-    avail = h                            # mm budget for the value span
-    scale = avail / span
-    plot_top = y + tongue_pad + 3.0
+    scale = h / max(hi + lo, 1.0)
+    plot_top = y + 6.0                    # headroom for the top peel + its label
     zero_y = plot_top + hi * scale
-    def _yv(v):                          # value → y (up is positive)
+    def _yv(v):
         return zero_y - v * scale
 
-    # 1) money-remaining band: light-green above the zero line, a pale-red deficit
-    #    band below it wherever the running remainder is negative.
+    # 1) money-remaining band (+ pale-red deficit where the remainder is negative)
     pos_top = [(xL, _yv(max(rem[0], 0.0)))] + [(xc[i], _yv(max(rem[i], 0.0))) for i in range(n)]
     _fill_ribbon(pdf, pos_top, lambda xx: zero_y, LIGHT)
     if any(r < 0 for r in rem):
         neg_bot = [(xL, _yv(min(rem[0], 0.0)))] + [(xc[i], _yv(min(rem[i], 0.0))) for i in range(n)]
         _fill_ribbon(pdf, neg_bot, lambda xx: zero_y, _DEFICIT)
 
-    # 2) net-profit block at the end — dark green if positive, red if a loss
+    # 2) solid Sales cap at the left, full height of the flow
+    pdf.set_fill_color(*INK)
+    pdf.rect(xL - 2.0, _yv(rem[0]), 2.0, rem[0] * scale, style="F")
+
+    # 3) net-profit block at the end (green, or red for a loss)
     ni = n - 1
-    net_col = GREEN if rem[ni] >= 0 else RED
     with pdf.new_path() as p:
-        p.style.fill_color = _dev(net_col)
-        p.style.stroke_color = None
-        p.style.stroke_width = 0
+        p.style.fill_color = _dev(GREEN if rem[ni] >= 0 else RED)
+        p.style.stroke_color = None; p.style.stroke_width = 0
         x0 = xc[ni] - seg * 0.42
-        p.move_to(x0, zero_y)
-        p.line_to(xR, zero_y)
-        p.line_to(xR, _yv(rem[ni]))
+        p.move_to(x0, zero_y); p.line_to(xR, zero_y); p.line_to(xR, _yv(rem[ni]))
         mx = (xR + x0) / 2
         p.curve_to(mx, _yv(rem[ni]), mx, _yv(rem[ni]), x0, _yv(rem[ni]))
         p.close()
 
-    # 3) cost tongues (peel up from the band top) and the other-income tongue
-    #    (joins from below the zero line). Sizes share the dynamic scale.
-    tw = seg * 0.30
+    # 4) cost ribbons peel off the top; the other-income ribbon joins from below.
+    #    Each ribbon's thickness == its value on the shared scale.
+    abbr = {"Cost of goods": "Cost of goods", "Other operating": "Other operating",
+            "After interest": "After interest", "Other income": "Other income",
+            "Gross profit": "Gross profit", "Net profit": "Net profit"}
     for i, (name, val, kind) in enumerate(steps):
-        top_i = _yv(max(rem[i], 0.0)) if rem[i] >= 0 else zero_y
+        t = abs(val) * scale
         if kind == "cost":
             col = RED if name == "Interest" else (_COST_GREY if name == "Tax" else _COST_PINK)
-            rise = _tongue(pdf, xc[i], _yv(rem[i]), abs(val) * scale, col, up=True, half=tw)
-            pdf.mono(5.6, True, RED_TXT if name != "Tax" else MUTED)
-            pdf.set_xy(xc[i] - seg * 0.5, _yv(rem[i]) - rise - 3.2)
-            pdf.cell(seg, 3, pdf.txt(f"−₹{abs(val):.2f}"), align="C")
+            a_top, a_bot = _yv(before[i]), _yv(rem[i])          # slice leaving the band
+            tx = min(xc[i] + seg * 0.60, xR - 1)
+            centre = (a_top + a_bot) / 2 - min(6.0, max(0.0, a_top - plot_top))
+            term_top = max(plot_top, centre - t / 2)
+            _sankey_link(pdf, xc[i], a_top, a_bot, tx, term_top, term_top + t, col)
+            lab_col = RED_TXT if name != "Tax" else MUTED
+            pdf.mono(5.4, True, lab_col)
+            pdf.set_xy(tx - seg * 0.5, term_top - 6.4)
+            pdf.cell(seg * 1.5, 3, pdf.txt(abbr.get(name, name)), align="C")
+            pdf.set_xy(tx - seg * 0.5, term_top - 3.4)
+            pdf.cell(seg * 1.5, 3, pdf.txt(f"−₹{abs(val):.2f}"), align="C")
         elif kind == "gain":
-            rise = _tongue(pdf, xc[i], zero_y, abs(val) * scale, AMBER, up=False, half=tw)
-            pdf.mono(5.6, True, AMBER_TXT)
-            pdf.set_xy(xc[i] - seg * 0.5, zero_y + rise + 0.5)
+            a_top, a_bot = _yv(rem[i]), _yv(before[i])          # slice joining the band
+            tx = max(xc[i] - seg * 0.35, xL + 1)
+            term_bot = zero_y + lo * scale + 0.5
+            _sankey_link(pdf, tx, term_bot - t, term_bot, xc[i], a_top, a_bot, AMBER)
+            pdf.mono(5.4, True, AMBER_TXT)
+            pdf.set_xy(tx - seg * 0.5, term_bot + 0.8)
+            pdf.cell(seg, 3, pdf.txt(abbr.get(name, name)), align="C")
+            pdf.set_xy(tx - seg * 0.5, term_bot + 3.6)
             pdf.cell(seg, 3, pdf.txt(f"+₹{abs(val):.2f}"), align="C")
-        else:  # level / net — value sits above the band (below if negative)
-            pdf.mono(5.6, True, GREEN if kind == "net" else INK)
-            lv = _yv(rem[i])
-            pdf.set_xy(xc[i] - seg * 0.5, (lv - 4.4) if rem[i] >= 0 else (lv + 0.6))
-            pdf.cell(seg, 3, pdf.txt(f"{'−' if rem[i] < 0 else ''}₹{abs(val):.2f}"), align="C")
 
-    # 4) node names under the flow (abbreviate the long ones to avoid wrap)
-    abbrev = {"Cost of goods": "Cost of\ngoods", "Other operating": "Other\noperating",
-              "After interest": "After\ninterest", "Other income": "Other\nincome",
-              "Gross profit": "Gross\nprofit", "Net profit": "Net\nprofit"}
-    # clear the node-name row below the deepest tongue *and* its value label
-    base_lab = zero_y + lo * scale + 7.0
+    # 5) inline labels for the level/net nodes, on the band itself
     for i, (name, val, kind) in enumerate(steps):
-        pdf.sans(5.8, kind in ("level", "net"), INK if kind in ("level", "net") else BODY)
-        pdf.set_xy(xc[i] - seg * 0.5, base_lab)
-        pdf.multi_cell(seg, 2.6, pdf.txt(abbrev.get(name, name)), align="C")
-    return base_lab + 12
+        if kind not in ("level", "net"):
+            continue
+        lv = _yv(rem[i])
+        pdf.sans(5.8, kind == "net", GREEN if kind == "net" else INK)
+        pdf.set_xy(xc[i] - seg * 0.5, (lv + 1.2) if rem[i] >= 0 else (lv - 4.4))
+        pdf.cell(seg, 3, pdf.txt(abbr.get(name, name)), align="C")
+        pdf.mono(5.4, True, GREEN if kind == "net" else BODY)
+        pdf.set_xy(xc[i] - seg * 0.5, (lv + 4.0) if rem[i] >= 0 else (lv - 7.2))
+        pdf.cell(seg, 3, pdf.txt(f"{'−' if rem[i] < 0 else ''}₹{abs(val):.2f}"), align="C")
+
+    return zero_y + lo * scale + 10.0
 
 
 def _waterfall_note(ctx):
