@@ -200,7 +200,8 @@ def market_heatmap(sector_key: str | None) -> dict:
     """
     entry = (_load_market().get("indices") or {}).get(sector_key or "")
     base: dict = {"mode": "market", "min_months": _MIN_MONTHS, "min_years": _MIN_YEARS,
-                  "index": (entry or {}).get("index")}
+                  "index": (entry or {}).get("index"),
+                  "reconstructed": bool((entry or {}).get("reconstructed"))}
 
     pts: list[tuple[date, float]] = []
     for row in (entry or {}).get("closes") or []:

@@ -540,12 +540,11 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     hm_payload = None
     if hm.get("sufficient"):
         rows = hm.get("rows") or []
-        # The index price history begins 3 Dec 2021, so 2021 carries December only —
-        # a near-empty row that reads as blank. Drop 2021 and any year too thin to
-        # be meaningful (fewer than 3 real months); the window starts at 2022.
+        # Drop any year too thin to be meaningful (fewer than 3 real months). This
+        # naturally hides the IndianAPI indices' Dec-only 2021 stub while keeping a
+        # full 2021 for reconstructed baskets whose history starts earlier.
         rows = [r for r in rows
-                if r.get("year") != 2021
-                and sum(c is not None for c in r["cells"]) >= 3]
+                if sum(c is not None for c in r["cells"]) >= 3]
         rows6 = rows[:6]                      # newest-first
         yrs = [r["year"] for r in rows6]
         win = f"{min(yrs)}–{max(yrs)}" if yrs else ""
@@ -646,9 +645,18 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     hm_years = (hm_payload or {}).get("n_years", 0)
     hm_index = (hm_payload or {}).get("index") or idx_name
     hm_earliest = (hm or {}).get("earliest") or ""
-    hm_meth = (f"Monthly return = (last close ÷ first close − 1) of each month for "
-               f"{hm_index}; average row = mean of each month across {hm_years} years. "
-               f"Real IndianAPI index history from 2022 — all returns computed in Python.")
+    hm_recon = bool((hm or {}).get("reconstructed"))
+    if hm_recon:
+        hm_meth = (f"Monthly return = (last close ÷ first close − 1) of each month for an "
+                   f"equal-weighted basket of {hm_index}'s constituents (real weekly prices, "
+                   f"Yahoo Finance); average row = mean of each month across {hm_years} years. "
+                   f"Reconstructed — not the official index; all returns computed in Python.")
+    else:
+        hm_meth = (f"Monthly return = (last close ÷ first close − 1) of each month for "
+                   f"{hm_index}; average row = mean of each month across {hm_years} years. "
+                   f"Real IndianAPI index history from 2022 — all returns computed in Python.")
+    hm_sub = (f"{escape(hm_index)} &middot; reconstructed from constituents" if hm_recon
+              else f"{escape(hm_index)} &middot; monthly price returns by calendar year")
 
     # The heatmap section is permanent: when the reference index has no stored
     # price history yet (not every NIFTY sub-index is in the dataset), show an
@@ -656,7 +664,7 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     if hm_payload:
         hm_html = f'''<div class="hm">
           <div class="hm-h"><span class="hm-t">Historical market seasonality</span>
-            <span class="hm-s">{escape(hm_index)} &middot; monthly price returns by calendar year</span>
+            <span class="hm-s">{hm_sub}</span>
             <span class="hm-c">{hm_years}-year window</span></div>
           <div class="hm-w"><table class="hmt" id="hmt"></table></div>
           <div class="hm-f"><b>Read down a column, not across a row.</b>
