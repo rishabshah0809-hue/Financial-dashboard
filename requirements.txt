@@ -1,16 +1,17 @@
-streamlit>=1.36
-pandas>=2.2
-numpy>=1.26
-plotly>=5.22
-openpyxl>=3.1
-requests>=2.31
-beautifulsoup4>=4.12
-fpdf2>=2.7
+# Core application
+streamlit==1.38.0
+pandas==2.2.2
+numpy==1.26.4
+plotly==5.24.1
+openpyxl==3.1.5
+requests==2.32.3
+beautifulsoup4==4.12.3
+fpdf2==2.8.4
 
-# Quarterly-results PDF ingestion (core/quarterly_pdf.py). The Excel workflow
-# never imports these; every use site degrades gracefully if one is missing.
-pdfplumber>=0.11        # deterministic text + coordinate extraction
-PyMuPDF>=1.24           # render rasterised table columns for OCR
-paddleocr>=2.9          # PRIMARY OCR: PP-StructureV3 for table/structure OCR
-surya-ocr>=0.4          # SECONDARY OCR: validation / cross-check
-Pillow>=10.0            # image handling for OCR
+# Quarterly-results PDF ingestion (core/quarterly_pdf.py)
+# The Excel workflow never imports these; every use site degrades gracefully if one is missing.
+pdfplumber==0.11.6
+PyMuPDF==1.25.4
+paddlepaddle==2.6.2
+paddleocr==2.10.0
+Pillow==10.4.0
