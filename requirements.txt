@@ -11,6 +11,6 @@ fpdf2>=2.7
 # never imports these; every use site degrades gracefully if one is missing.
 pdfplumber>=0.11        # deterministic text + coordinate extraction
 PyMuPDF>=1.24           # render rasterised table columns for OCR
-pytesseract>=0.3.13     # primary OCR wrapper (needs tesseract-ocr; see packages.txt)
+paddleocr>=2.9          # PRIMARY OCR: PP-StructureV3 for table/structure OCR
+surya-ocr>=0.4          # SECONDARY OCR: validation / cross-check
 Pillow>=10.0            # image handling for OCR
-rapidocr-onnxruntime>=1.3  # fallback OCR when the tesseract binary is absent (e.g. local dev)
