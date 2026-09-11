@@ -1,3 +1,0 @@
-# No system-level OCR dependencies required.
-# PaddleOCR and Surya are pure-Python (with ONNX runtime) and work without
-# tesseract-ocr binary. They download models on first use (cached).
