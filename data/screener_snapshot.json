@@ -1,50 +1,42 @@
 {
-  "generated_at": "2026-09-14T09:24:24.773460+00:00",
+  "generated_at": "2026-09-14T09:43:44.469325+00:00",
   "market_snapshot_date": "2026-09-14",
   "source": "Screener.in (public company pages)",
   "source_note": "Screener.in public data — not official exchange data, not guaranteed real-time.",
   "unique_companies": 410,
-  "fetched_ok": 372,
-  "fetch_failed": 38,
+  "fetched_ok": 380,
+  "fetch_failed": 30,
   "failed_symbols": [
     "TIPSMUSIC",
     "ABBOTINDIA",
-    "DIVISLAB",
-    "WOCKPHARMA",
-    "PARKHOSPS",
-    "MARUTI",
-    "ITC",
-    "DIXON",
+    "HEROMOTOCO",
     "LGEINDIA",
     "AVL",
-    "FIRSTCRY",
-    "IRCTC",
-    "MEESHO",
-    "TRENT",
+    "NAUKRI",
+    "RBA",
     "VMART",
-    "OBEROIRLTY",
-    "LLOYDSME",
-    "DALBHARAT",
-    "ORIENTCEM",
-    "CHAMBLFERT",
-    "PIDILITIND",
-    "CASTROLIND",
-    "RELIANCE",
-    "NTPCGREEN",
-    "APARINDS",
+    "ABREL",
+    "HINDCOPPER",
+    "GRASIM",
+    "PRSMJOHNSN",
+    "AARTIIND",
+    "HSCL",
+    "BPCL",
+    "ONGC",
+    "NTPC",
     "BDL",
-    "DATAPATTNS",
+    "CUMMINSIND",
+    "ELGIEQUIP",
     "GRSE",
     "POWERINDIA",
     "HONAUT",
     "ENRIN",
-    "SUZLON",
-    "VOLTAMP",
-    "HGINFRA",
-    "AWFIS",
+    "TITAGARH",
+    "WAAREEENER",
+    "KPIL",
+    "GMRAIRPORT",
     "HEMIPROP",
-    "IGIL",
-    "WEWORK"
+    "SMARTWORKS"
   ],
   "sectors": [
     {
@@ -3000,23 +2992,21 @@
       "reference_index": "NIFTY PHARMA",
       "is_financial": false,
       "constituent_count": 20,
-      "included_count": 17,
-      "stale_count": 3,
+      "included_count": 19,
+      "stale_count": 1,
       "stale_symbols": [
-        "ABBOTINDIA",
-        "DIVISLAB",
-        "WOCKPHARMA"
+        "ABBOTINDIA"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 37.01,
-        "pb": 4.76,
-        "roe": 12.57,
-        "roce": 13.91,
+        "pe": 40.22,
+        "pb": 5.23,
+        "roe": 12.73,
+        "roce": 14.06,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 16,
+            "included": 18,
             "excluded": 1,
             "exclusions": {
               "PPLPHARMA": "net profit <=0 or unavailable"
@@ -3024,21 +3014,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 17,
+            "included": 19,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 17,
+            "included": 19,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 17,
+            "included": 19,
             "excluded": 0
           }
         },
-        "companies_in_pe": 16
+        "companies_in_pe": 18
       },
       "constituents": [
         {
@@ -3071,8 +3061,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=DIVISLAB",
           "screener_url": "https://www.screener.in/company/DIVISLAB/",
           "cmp": 9322.0,
-          "market_cap": 248351.0,
-          "pe": 83.4,
+          "market_cap": 247470.0,
+          "pe": 83.1,
           "pb": 14.77,
           "roe": 16.5,
           "roce": 22.0,
@@ -3087,9 +3077,7 @@
           "dividend_yield": 0.32,
           "net_profit_ttm": 2925.0,
           "equity": 16761.0,
-          "rank": 2,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 2
         },
         {
           "name": "Torrent Pharmaceuticals Ltd",
@@ -3459,7 +3447,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=WOCKPHARMA",
           "screener_url": "https://www.screener.in/company/WOCKPHARMA/",
           "cmp": 2179.0,
-          "market_cap": 35425.0,
+          "market_cap": 35414.0,
           "pe": 88.8,
           "pb": 7.17,
           "roe": 6.11,
@@ -3475,9 +3463,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 414.0,
           "equity": 4940.0,
-          "rank": 18,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 18
         },
         {
           "name": "Sai Life Sciences Ltd",
@@ -3535,41 +3521,39 @@
       "reference_index": "NIFTY HOSPITALS",
       "is_financial": false,
       "constituent_count": 13,
-      "included_count": 12,
-      "stale_count": 1,
-      "stale_symbols": [
-        "PARKHOSPS"
-      ],
+      "included_count": 13,
+      "stale_count": 0,
+      "stale_symbols": [],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 70.79,
-        "pb": 9.94,
-        "roe": 14.04,
-        "roce": 12.77,
+        "pe": 69.64,
+        "pb": 9.79,
+        "roe": 14.06,
+        "roce": 12.87,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 12,
+            "included": 13,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 12,
+            "included": 13,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 12,
+            "included": 13,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 12,
+            "included": 13,
             "excluded": 0
           }
         },
-        "companies_in_pe": 12
+        "companies_in_pe": 13
       },
       "constituents": [
         {
@@ -3794,7 +3778,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=PARKHOSPS",
           "screener_url": "https://www.screener.in/company/PARKHOSPS/",
           "cmp": 279.0,
-          "market_cap": 12066.0,
+          "market_cap": 12064.0,
           "pe": 43.4,
           "pb": 5.96,
           "roe": 16.8,
@@ -3810,9 +3794,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 297.0,
           "equity": 2022.0,
-          "rank": 10,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 10
         },
         {
           "name": "Healthcare Global Enterprises Ltd",
@@ -3894,22 +3876,21 @@
       "reference_index": "NIFTY HEALTHCARE",
       "is_financial": false,
       "constituent_count": 20,
-      "included_count": 18,
-      "stale_count": 2,
+      "included_count": 19,
+      "stale_count": 1,
       "stale_symbols": [
-        "ABBOTINDIA",
-        "DIVISLAB"
+        "ABBOTINDIA"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 39.06,
-        "pb": 5.03,
-        "roe": 12.6,
-        "roce": 13.78,
+        "pe": 41.65,
+        "pb": 5.43,
+        "roe": 12.8,
+        "roce": 14.01,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 17,
+            "included": 18,
             "excluded": 1,
             "exclusions": {
               "PPLPHARMA": "net profit <=0 or unavailable"
@@ -3917,21 +3898,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 18,
+            "included": 19,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 18,
+            "included": 19,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 18,
+            "included": 19,
             "excluded": 0
           }
         },
-        "companies_in_pe": 17
+        "companies_in_pe": 18
       },
       "constituents": [
         {
@@ -3964,8 +3945,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=DIVISLAB",
           "screener_url": "https://www.screener.in/company/DIVISLAB/",
           "cmp": 9322.0,
-          "market_cap": 248351.0,
-          "pe": 83.4,
+          "market_cap": 247470.0,
+          "pe": 83.1,
           "pb": 14.77,
           "roe": 16.5,
           "roce": 22.0,
@@ -3980,9 +3961,7 @@
           "dividend_yield": 0.32,
           "net_profit_ttm": 2925.0,
           "equity": 16761.0,
-          "rank": 2,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 2
         },
         {
           "name": "Torrent Pharmaceuticals Ltd",
@@ -4429,14 +4408,14 @@
       "included_count": 14,
       "stale_count": 1,
       "stale_symbols": [
-        "MARUTI"
+        "HEROMOTOCO"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 14.38,
-        "pb": 4.91,
-        "roe": 34.16,
-        "roce": 11.33,
+        "pe": 15.43,
+        "pb": 4.64,
+        "roe": 30.08,
+        "roce": 11.13,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -4469,8 +4448,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=MARUTI",
           "screener_url": "https://www.screener.in/company/MARUTI/",
           "cmp": 12400.0,
-          "market_cap": 391726.0,
-          "pe": 27.3,
+          "market_cap": 389859.0,
+          "pe": 27.2,
           "pb": 3.64,
           "roe": 14.3,
           "roce": 18.9,
@@ -4485,9 +4464,7 @@
           "dividend_yield": 1.13,
           "net_profit_ttm": 14334.0,
           "equity": 107156.0,
-          "rank": 1,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 1
         },
         {
           "name": "Mahindra & Mahindra Ltd",
@@ -4679,7 +4656,9 @@
           "dividend_yield": 3.54,
           "net_profit_ttm": 5488.0,
           "equity": 21611.0,
-          "rank": 9
+          "rank": 9,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Ashok Leyland Ltd",
@@ -4833,41 +4812,39 @@
       "reference_index": "NIFTY FMCG",
       "is_financial": false,
       "constituent_count": 15,
-      "included_count": 14,
-      "stale_count": 1,
-      "stale_symbols": [
-        "ITC"
-      ],
+      "included_count": 15,
+      "stale_count": 0,
+      "stale_symbols": [],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 42.52,
-        "pb": 10.09,
-        "roe": 23.73,
-        "roce": 23.33,
+        "pe": 33.43,
+        "pb": 8.36,
+        "roe": 25.0,
+        "roce": 25.86,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 14,
+            "included": 15,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 14,
+            "included": 15,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 14,
+            "included": 15,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 14,
+            "included": 15,
             "excluded": 0
           }
         },
-        "companies_in_pe": 14
+        "companies_in_pe": 15
       },
       "constituents": [
         {
@@ -4900,7 +4877,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=ITC",
           "screener_url": "https://www.screener.in/company/ITC/",
           "cmp": 260.0,
-          "market_cap": 325964.0,
+          "market_cap": 325586.0,
           "pe": 16.5,
           "pb": 4.49,
           "roe": 29.3,
@@ -4916,9 +4893,7 @@
           "dividend_yield": 5.58,
           "net_profit_ttm": 20184.0,
           "equity": 72507.0,
-          "rank": 2,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 2
         },
         {
           "name": "Nestle India Ltd",
@@ -5240,22 +5215,21 @@
       "reference_index": "NIFTY CONSUMER DURABLES",
       "is_financial": false,
       "constituent_count": 13,
-      "included_count": 11,
-      "stale_count": 2,
+      "included_count": 12,
+      "stale_count": 1,
       "stale_symbols": [
-        "DIXON",
         "LGEINDIA"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 65.65,
-        "pb": 12.24,
-        "roe": 17.92,
-        "roce": 15.67,
+        "pe": 61.49,
+        "pb": 12.62,
+        "roe": 19.83,
+        "roce": 16.17,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 10,
+            "included": 11,
             "excluded": 1,
             "exclusions": {
               "CROMPTON": "net profit <=0 or unavailable"
@@ -5263,21 +5237,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 11,
+            "included": 12,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 11,
+            "included": 12,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 11,
+            "included": 12,
             "excluded": 0
           }
         },
-        "companies_in_pe": 10
+        "companies_in_pe": 11
       },
       "constituents": [
         {
@@ -5336,8 +5310,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=DIXON",
           "screener_url": "https://www.screener.in/company/DIXON/",
           "cmp": 13425.0,
-          "market_cap": 82704.0,
-          "pe": 44.1,
+          "market_cap": 82122.0,
+          "pe": 43.8,
           "pb": 17.46,
           "roe": 18.9,
           "roce": 29.2,
@@ -5352,9 +5326,7 @@
           "dividend_yield": 0.07,
           "net_profit_ttm": 2082.0,
           "equity": 4677.0,
-          "rank": 3,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 3
         },
         {
           "name": "Havells India Ltd",
@@ -5604,31 +5576,30 @@
       "reference_index": "NIFTY CONSUMER SERVICES",
       "is_financial": false,
       "constituent_count": 46,
-      "included_count": 40,
-      "stale_count": 5,
+      "included_count": 42,
+      "stale_count": 3,
       "stale_symbols": [
-        "FIRSTCRY",
-        "IRCTC",
-        "MEESHO",
-        "TRENT",
+        "NAUKRI",
+        "RBA",
         "VMART"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 72.85,
-        "pb": 6.65,
-        "roe": 5.63,
-        "roce": 5.73,
+        "pe": 73.4,
+        "pb": 8.25,
+        "roe": 6.18,
+        "roce": 6.57,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 33,
-            "excluded": 7,
+            "included": 34,
+            "excluded": 8,
             "exclusions": {
               "ABFRL": "net profit <=0 or unavailable",
+              "FIRSTCRY": "net profit <=0 or unavailable",
               "DEVYANI": "net profit <=0 or unavailable",
+              "MEESHO": "net profit <=0 or unavailable",
               "RTNINDIA": "net profit <=0 or unavailable",
-              "RBA": "net profit <=0 or unavailable",
               "SAPPHIRE": "net profit <=0 or unavailable",
               "SWIGGY": "net profit <=0 or unavailable",
               "URBANCO": "net profit <=0 or unavailable"
@@ -5636,21 +5607,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 40,
+            "included": 42,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 40,
+            "included": 42,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 40,
+            "included": 42,
             "excluded": 0
           }
         },
-        "companies_in_pe": 33
+        "companies_in_pe": 34
       },
       "constituents": [
         {
@@ -5707,8 +5678,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=TRENT",
           "screener_url": "https://www.screener.in/company/TRENT/",
           "cmp": 2802.0,
-          "market_cap": 150986.0,
-          "pe": 82.6,
+          "market_cap": 149433.0,
+          "pe": 81.7,
           "pb": 21.39,
           "roe": 27.7,
           "roce": 28.3,
@@ -5723,9 +5694,7 @@
           "dividend_yield": 0.14,
           "net_profit_ttm": 1815.0,
           "equity": 6985.0,
-          "rank": 3,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 3
         },
         {
           "name": "Lenskart Solutions Ltd",
@@ -5781,7 +5750,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=MEESHO",
           "screener_url": "https://www.screener.in/company/MEESHO/",
           "cmp": 217.0,
-          "market_cap": 100408.0,
+          "market_cap": 100426.0,
           "pe": null,
           "pb": 22.58,
           "roe": -46.2,
@@ -5797,9 +5766,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": -1201.0,
           "equity": 4386.0,
-          "rank": 6,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 6
         },
         {
           "name": "FSN E-Commerce Ventures Ltd",
@@ -5847,7 +5814,9 @@
           "dividend_yield": 0.67,
           "net_profit_ttm": 1910.0,
           "equity": 37914.0,
-          "rank": 8
+          "rank": 8,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Swiggy Ltd",
@@ -5927,7 +5896,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=IRCTC",
           "screener_url": "https://www.screener.in/company/IRCTC/",
           "cmp": 463.0,
-          "market_cap": 37036.0,
+          "market_cap": 37032.0,
           "pe": 26.8,
           "pb": 8.59,
           "roe": 34.4,
@@ -5943,9 +5912,7 @@
           "dividend_yield": 1.94,
           "net_profit_ttm": 1393.0,
           "equity": 4309.0,
-          "rank": 12,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 12
         },
         {
           "name": "ITC Hotels Ltd",
@@ -6313,7 +6280,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=FIRSTCRY",
           "screener_url": "https://www.screener.in/company/FIRSTCRY/",
           "cmp": 169.0,
-          "market_cap": 8819.0,
+          "market_cap": 8814.0,
           "pe": null,
           "pb": 1.83,
           "roe": -2.37,
@@ -6329,9 +6296,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": -181.0,
           "equity": 4827.0,
-          "rank": 28,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 28
         },
         {
           "name": "Lemon Tree Hotels Ltd",
@@ -6523,7 +6488,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": -192.0,
           "equity": 721.0,
-          "rank": 36
+          "rank": 36,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "V-Mart Retail Ltd",
@@ -6751,27 +6718,27 @@
       "reference_index": "NIFTY RETAIL",
       "is_financial": false,
       "constituent_count": 26,
-      "included_count": 21,
-      "stale_count": 4,
+      "included_count": 23,
+      "stale_count": 2,
       "stale_symbols": [
-        "FIRSTCRY",
-        "MEESHO",
-        "TRENT",
+        "NAUKRI",
         "VMART"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 98.67,
-        "pb": 7.02,
-        "roe": 2.85,
-        "roce": 3.1,
+        "pe": 106.45,
+        "pb": 9.45,
+        "roe": 2.22,
+        "roce": 3.23,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
             "included": 17,
-            "excluded": 4,
+            "excluded": 6,
             "exclusions": {
               "ABFRL": "net profit <=0 or unavailable",
+              "FIRSTCRY": "net profit <=0 or unavailable",
+              "MEESHO": "net profit <=0 or unavailable",
               "RTNINDIA": "net profit <=0 or unavailable",
               "SWIGGY": "net profit <=0 or unavailable",
               "URBANCO": "net profit <=0 or unavailable"
@@ -6779,17 +6746,17 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 21,
+            "included": 23,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 21,
+            "included": 23,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 21,
+            "included": 23,
             "excluded": 0
           }
         },
@@ -6850,8 +6817,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=TRENT",
           "screener_url": "https://www.screener.in/company/TRENT/",
           "cmp": 2802.0,
-          "market_cap": 150986.0,
-          "pe": 82.6,
+          "market_cap": 149433.0,
+          "pe": 81.7,
           "pb": 21.39,
           "roe": 27.7,
           "roce": 28.3,
@@ -6866,9 +6833,7 @@
           "dividend_yield": 0.14,
           "net_profit_ttm": 1815.0,
           "equity": 6985.0,
-          "rank": 3,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 3
         },
         {
           "name": "Lenskart Solutions Ltd",
@@ -6900,7 +6865,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=MEESHO",
           "screener_url": "https://www.screener.in/company/MEESHO/",
           "cmp": 217.0,
-          "market_cap": 100408.0,
+          "market_cap": 100426.0,
           "pe": null,
           "pb": 22.58,
           "roe": -46.2,
@@ -6916,9 +6881,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": -1201.0,
           "equity": 4386.0,
-          "rank": 5,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 5
         },
         {
           "name": "FSN E-Commerce Ventures Ltd",
@@ -6966,7 +6929,9 @@
           "dividend_yield": 0.67,
           "net_profit_ttm": 1910.0,
           "equity": 37914.0,
-          "rank": 7
+          "rank": 7,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Swiggy Ltd",
@@ -7142,7 +7107,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=FIRSTCRY",
           "screener_url": "https://www.screener.in/company/FIRSTCRY/",
           "cmp": 169.0,
-          "market_cap": 8819.0,
+          "market_cap": 8814.0,
           "pe": null,
           "pb": 1.83,
           "roe": -2.37,
@@ -7158,9 +7123,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": -181.0,
           "equity": 4827.0,
-          "rank": 15,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 15
         },
         {
           "name": "V2 Retail Ltd",
@@ -7415,22 +7378,20 @@
       "included_count": 9,
       "stale_count": 1,
       "stale_symbols": [
-        "OBEROIRLTY"
+        "ABREL"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 34.89,
-        "pb": 3.86,
-        "roe": 10.67,
-        "roce": 6.31,
+        "pe": 33.24,
+        "pb": 3.82,
+        "roe": 11.49,
+        "roce": 7.81,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 8,
-            "excluded": 1,
-            "exclusions": {
-              "ABREL": "net profit <=0 or unavailable"
-            }
+            "included": 9,
+            "excluded": 0,
+            "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
@@ -7448,7 +7409,7 @@
             "excluded": 0
           }
         },
-        "companies_in_pe": 8
+        "companies_in_pe": 9
       },
       "constituents": [
         {
@@ -7553,8 +7514,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=OBEROIRLTY",
           "screener_url": "https://www.screener.in/company/OBEROIRLTY/",
           "cmp": 1741.0,
-          "market_cap": 63555.0,
-          "pe": 24.0,
+          "market_cap": 63307.0,
+          "pe": 23.9,
           "pb": 3.53,
           "roe": 14.6,
           "roce": 17.3,
@@ -7569,9 +7530,7 @@
           "dividend_yield": 0.46,
           "net_profit_ttm": 2630.0,
           "equity": 17922.0,
-          "rank": 5,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 5
         },
         {
           "name": "Godrej Properties Ltd",
@@ -7667,7 +7626,9 @@
           "dividend_yield": 0.2,
           "net_profit_ttm": -122.0,
           "equity": 3701.0,
-          "rank": 9
+          "rank": 9,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Sobha Ltd",
@@ -7704,14 +7665,14 @@
       "included_count": 14,
       "stale_count": 1,
       "stale_symbols": [
-        "LLOYDSME"
+        "HINDCOPPER"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 15.15,
-        "pb": 3.0,
-        "roe": 19.8,
-        "roce": 14.16,
+        "pe": 15.1,
+        "pb": 3.03,
+        "roe": 20.04,
+        "roce": 14.27,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -7912,8 +7873,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=LLOYDSME",
           "screener_url": "https://www.screener.in/company/LLOYDSME/",
           "cmp": 1800.0,
-          "market_cap": 101172.0,
-          "pe": 21.2,
+          "market_cap": 101301.0,
+          "pe": 21.3,
           "pb": 7.32,
           "roe": 36.6,
           "roce": 27.3,
@@ -7928,9 +7889,7 @@
           "dividend_yield": 0.06,
           "net_profit_ttm": 4921.0,
           "equity": 13871.0,
-          "rank": 8,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 8
         },
         {
           "name": "Steel Authority of India Ltd",
@@ -8098,7 +8057,9 @@
           "dividend_yield": 0.56,
           "net_profit_ttm": 1137.0,
           "equity": 3343.0,
-          "rank": 15
+          "rank": 15,
+          "stale": true,
+          "stale_since": "2026-09-14"
         }
       ]
     },
@@ -8109,16 +8070,17 @@
       "is_financial": false,
       "constituent_count": 16,
       "included_count": 14,
-      "stale_count": 1,
+      "stale_count": 2,
       "stale_symbols": [
-        "DALBHARAT"
+        "GRASIM",
+        "PRSMJOHNSN"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 26.59,
-        "pb": 2.56,
-        "roe": 9.64,
-        "roce": 8.95,
+        "pe": 30.07,
+        "pb": 2.66,
+        "roe": 8.83,
+        "roce": 8.47,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -8191,7 +8153,9 @@
           "dividend_yield": 0.3,
           "net_profit_ttm": 11261.0,
           "equity": 103470.0,
-          "rank": 2
+          "rank": 2,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Ambuja Cements Ltd",
@@ -8271,8 +8235,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=DALBHARAT",
           "screener_url": "https://www.screener.in/company/DALBHARAT/",
           "cmp": 1747.0,
-          "market_cap": 32798.0,
-          "pe": 29.9,
+          "market_cap": 32760.0,
+          "pe": 29.8,
           "pb": 1.82,
           "roe": 6.11,
           "roce": 7.59,
@@ -8287,9 +8251,7 @@
           "dividend_yield": 0.52,
           "net_profit_ttm": 953.0,
           "equity": 17979.0,
-          "rank": 6,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 6
         },
         {
           "name": "ACC Ltd",
@@ -8505,7 +8467,33 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 148.0,
           "equity": 1528.0,
-          "rank": 15
+          "rank": 15,
+          "stale": true,
+          "stale_since": "2026-09-14"
+        },
+        {
+          "name": "Orient Cement Ltd",
+          "nse_symbol": "ORIENTCEM",
+          "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=ORIENTCEM",
+          "screener_url": "https://www.screener.in/company/ORIENTCEM/",
+          "cmp": 126.0,
+          "market_cap": 2580.0,
+          "pe": 12.1,
+          "pb": 1.21,
+          "roe": 17.3,
+          "roce": 16.5,
+          "roa": 6.67,
+          "opm": 20.03,
+          "npm": 8.26,
+          "debt_to_equity": 0.03,
+          "interest_coverage": 20.77,
+          "revenue_growth_yoy": 3.1,
+          "eps_ttm_growth": 269.44,
+          "book_value": 104.0,
+          "dividend_yield": 0.4,
+          "net_profit_ttm": 209.0,
+          "equity": 2146.0,
+          "rank": 16
         }
       ]
     },
@@ -8518,15 +8506,15 @@
       "included_count": 18,
       "stale_count": 2,
       "stale_symbols": [
-        "CHAMBLFERT",
-        "PIDILITIND"
+        "AARTIIND",
+        "HSCL"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 41.8,
-        "pb": 4.54,
-        "roe": 9.44,
-        "roce": 11.99,
+        "pe": 41.23,
+        "pb": 4.98,
+        "roe": 10.74,
+        "roce": 13.38,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -8601,9 +8589,7 @@
           "dividend_yield": 0.73,
           "net_profit_ttm": 2676.0,
           "equity": 10832.0,
-          "rank": 2,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 2
         },
         {
           "name": "SRF Ltd",
@@ -8795,7 +8781,9 @@
           "dividend_yield": 0.12,
           "net_profit_ttm": 804.0,
           "equity": 4706.0,
-          "rank": 10
+          "rank": 10,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Sumitomo Chemical India Ltd",
@@ -8891,7 +8879,9 @@
           "dividend_yield": 0.2,
           "net_profit_ttm": 531.0,
           "equity": 5955.0,
-          "rank": 14
+          "rank": 14,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Bayer CropScience Ltd",
@@ -8923,8 +8913,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=CHAMBLFERT",
           "screener_url": "https://www.screener.in/company/CHAMBLFERT/",
           "cmp": 419.0,
-          "market_cap": 16785.0,
-          "pe": 8.71,
+          "market_cap": 16779.0,
+          "pe": 8.7,
           "pb": 1.61,
           "roe": 20.0,
           "roce": 25.2,
@@ -8939,9 +8929,7 @@
           "dividend_yield": 2.63,
           "net_profit_ttm": 1928.0,
           "equity": 10408.0,
-          "rank": 16,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 16
         },
         {
           "name": "Tata Chemicals Ltd",
@@ -9050,15 +9038,15 @@
       "included_count": 13,
       "stale_count": 2,
       "stale_symbols": [
-        "CASTROLIND",
-        "RELIANCE"
+        "BPCL",
+        "ONGC"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 8.58,
-        "pb": 1.16,
-        "roe": 13.56,
-        "roce": 10.94,
+        "pe": 15.26,
+        "pb": 1.73,
+        "roe": 11.31,
+        "roce": 10.23,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -9091,7 +9079,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=RELIANCE",
           "screener_url": "https://www.screener.in/company/RELIANCE/",
           "cmp": 1258.0,
-          "market_cap": 1700382.0,
+          "market_cap": 1701716.0,
           "pe": 22.8,
           "pb": 1.88,
           "roe": 8.91,
@@ -9107,9 +9095,7 @@
           "dividend_yield": 0.48,
           "net_profit_ttm": 88167.0,
           "equity": 904030.0,
-          "rank": 1,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 1
         },
         {
           "name": "Oil & Natural Gas Corpn Ltd",
@@ -9133,7 +9119,9 @@
           "dividend_yield": 5.7,
           "net_profit_ttm": 44793.0,
           "equity": 371768.0,
-          "rank": 2
+          "rank": 2,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Indian Oil Corporation Ltd",
@@ -9181,7 +9169,9 @@
           "dividend_yield": 5.75,
           "net_profit_ttm": 17132.0,
           "equity": 100171.0,
-          "rank": 4
+          "rank": 4,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "GAIL (India) Ltd",
@@ -9405,8 +9395,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=CASTROLIND",
           "screener_url": "https://www.screener.in/company/CASTROLIND/",
           "cmp": 188.0,
-          "market_cap": 18635.0,
-          "pe": 17.3,
+          "market_cap": 18598.0,
+          "pe": 17.2,
           "pb": 9.74,
           "roe": 45.9,
           "roce": 60.3,
@@ -9418,12 +9408,10 @@
           "revenue_growth_yoy": 6.65,
           "eps_ttm_growth": 2.45,
           "book_value": 19.3,
-          "dividend_yield": 4.66,
+          "dividend_yield": 4.65,
           "net_profit_ttm": 1062.0,
           "equity": 1909.0,
-          "rank": 14,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 14
         },
         {
           "name": "Mahanagar Gas Ltd",
@@ -9460,14 +9448,14 @@
       "included_count": 20,
       "stale_count": 1,
       "stale_symbols": [
-        "NTPCGREEN"
+        "NTPC"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 21.26,
-        "pb": 2.89,
-        "roe": 13.47,
-        "roce": 7.53,
+        "pe": 26.89,
+        "pb": 3.49,
+        "roe": 12.84,
+        "roce": 7.67,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -9542,7 +9530,9 @@
           "dividend_yield": 2.7,
           "net_profit_ttm": 28334.0,
           "equity": 203176.0,
-          "rank": 2
+          "rank": 2,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Power Grid Corporation of India Ltd",
@@ -9694,7 +9684,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=NTPCGREEN",
           "screener_url": "https://www.screener.in/company/NTPCGREEN/",
           "cmp": 86.9,
-          "market_cap": 73242.0,
+          "market_cap": 73259.0,
           "pe": 121.0,
           "pb": 3.86,
           "roe": 2.79,
@@ -9710,9 +9700,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 606.0,
           "equity": 18965.0,
-          "rank": 9,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 9
         },
         {
           "name": "Torrent Power Ltd",
@@ -10011,21 +9999,22 @@
       "is_financial": false,
       "constituent_count": 50,
       "included_count": 41,
-      "stale_count": 6,
+      "stale_count": 7,
       "stale_symbols": [
-        "APARINDS",
         "BDL",
+        "CUMMINSIND",
+        "ELGIEQUIP",
         "POWERINDIA",
         "HONAUT",
-        "SUZLON",
-        "VOLTAMP"
+        "TITAGARH",
+        "WAAREEENER"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 44.0,
-        "pb": 8.86,
-        "roe": 20.15,
-        "roce": 18.58,
+        "pe": 44.27,
+        "pb": 8.89,
+        "roe": 20.07,
+        "roce": 18.39,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -10268,7 +10257,9 @@
           "dividend_yield": 1.3,
           "net_profit_ttm": 2367.0,
           "equity": 8475.0,
-          "rank": 9
+          "rank": 9,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Polycab India Ltd",
@@ -10388,7 +10379,9 @@
           "dividend_yield": 0.15,
           "net_profit_ttm": 4003.0,
           "equity": 14438.0,
-          "rank": 14
+          "rank": 14,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Apar Industries Ltd",
@@ -10396,8 +10389,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=APARINDS",
           "screener_url": "https://www.screener.in/company/APARINDS/",
           "cmp": 17500.0,
-          "market_cap": 73484.0,
-          "pe": 61.0,
+          "market_cap": 73277.0,
+          "pe": 60.8,
           "pb": 13.03,
           "roe": 20.3,
           "roce": 31.8,
@@ -10412,9 +10405,7 @@
           "dividend_yield": 0.34,
           "net_profit_ttm": 1182.0,
           "equity": 5393.0,
-          "rank": 15,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 15
         },
         {
           "name": "Welspun Corp Ltd",
@@ -10446,8 +10437,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=SUZLON",
           "screener_url": "https://www.screener.in/company/SUZLON/",
           "cmp": 44.1,
-          "market_cap": 59862.0,
-          "pe": 19.0,
+          "market_cap": 60159.0,
+          "pe": 19.1,
           "pb": 6.34,
           "roe": 39.7,
           "roce": 34.2,
@@ -10462,9 +10453,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 3144.0,
           "equity": 9464.0,
-          "rank": 17,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 17
         },
         {
           "name": "APL Apollo Tubes Ltd",
@@ -10783,6 +10772,30 @@
           "stale_since": "2026-09-11"
         },
         {
+          "name": "Data Patterns (India) Ltd",
+          "nse_symbol": "DATAPATTNS",
+          "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=DATAPATTNS",
+          "screener_url": "https://www.screener.in/company/DATAPATTNS/",
+          "cmp": 4829.0,
+          "market_cap": 27036.0,
+          "pe": 100.0,
+          "pb": 15.58,
+          "roe": 15.2,
+          "roce": 21.9,
+          "roa": 13.89,
+          "opm": 39.64,
+          "npm": 28.48,
+          "debt_to_equity": 0.0,
+          "interest_coverage": 26.92,
+          "revenue_growth_yoy": 30.65,
+          "eps_ttm_growth": 22.34,
+          "book_value": 310.0,
+          "dividend_yield": 0.21,
+          "net_profit_ttm": 268.0,
+          "equity": 1736.0,
+          "rank": 31
+        },
+        {
           "name": "TD Power Systems Ltd",
           "nse_symbol": "TDPOWERSYS",
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=TDPOWERSYS",
@@ -10804,7 +10817,7 @@
           "dividend_yield": 0.13,
           "net_profit_ttm": 275.0,
           "equity": 1072.0,
-          "rank": 31
+          "rank": 32
         },
         {
           "name": "Timken India Ltd",
@@ -10828,7 +10841,7 @@
           "dividend_yield": 0.08,
           "net_profit_ttm": 426.0,
           "equity": 2914.0,
-          "rank": 32
+          "rank": 33
         },
         {
           "name": "Kaynes Technology India Ltd",
@@ -10852,7 +10865,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 346.0,
           "equity": 4748.0,
-          "rank": 33
+          "rank": 34
         },
         {
           "name": "Jyoti CNC Automation Ltd",
@@ -10876,7 +10889,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 322.0,
           "equity": 2001.0,
-          "rank": 34
+          "rank": 35
         },
         {
           "name": "Finolex Cables Ltd",
@@ -10900,7 +10913,7 @@
           "dividend_yield": 0.63,
           "net_profit_ttm": 800.0,
           "equity": 6086.0,
-          "rank": 35
+          "rank": 36
         },
         {
           "name": "Carborundum Universal Ltd",
@@ -10924,7 +10937,7 @@
           "dividend_yield": 0.37,
           "net_profit_ttm": 188.0,
           "equity": 3900.0,
-          "rank": 36
+          "rank": 37
         },
         {
           "name": "HBL Engineering Ltd",
@@ -10948,7 +10961,7 @@
           "dividend_yield": 0.42,
           "net_profit_ttm": 780.0,
           "equity": 2215.0,
-          "rank": 37
+          "rank": 38
         },
         {
           "name": "Elgi Equipments Ltd",
@@ -10972,7 +10985,9 @@
           "dividend_yield": 0.44,
           "net_profit_ttm": 448.0,
           "equity": 2232.0,
-          "rank": 38
+          "rank": 39,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Triveni Turbine Ltd",
@@ -10996,7 +11011,7 @@
           "dividend_yield": 0.75,
           "net_profit_ttm": 336.0,
           "equity": 1446.0,
-          "rank": 39
+          "rank": 40
         },
         {
           "name": "BEML Ltd",
@@ -11020,7 +11035,7 @@
           "dividend_yield": 0.85,
           "net_profit_ttm": 178.0,
           "equity": 2934.0,
-          "rank": 40
+          "rank": 41
         },
         {
           "name": "Astra Microwave Products Ltd",
@@ -11044,7 +11059,7 @@
           "dividend_yield": 0.14,
           "net_profit_ttm": 189.0,
           "equity": 1315.0,
-          "rank": 41
+          "rank": 42
         },
         {
           "name": "Usha Martin Ltd",
@@ -11068,7 +11083,7 @@
           "dividend_yield": 0.76,
           "net_profit_ttm": 508.0,
           "equity": 3302.0,
-          "rank": 42
+          "rank": 43
         },
         {
           "name": "Inox Wind Ltd",
@@ -11092,7 +11107,31 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 417.0,
           "equity": 6382.0,
-          "rank": 43
+          "rank": 44
+        },
+        {
+          "name": "Voltamp Transformers Ltd",
+          "nse_symbol": "VOLTAMP",
+          "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=VOLTAMP",
+          "screener_url": "https://www.screener.in/company/VOLTAMP/",
+          "cmp": 11217.0,
+          "market_cap": 11348.0,
+          "pe": 35.8,
+          "pb": 6.33,
+          "roe": 17.4,
+          "roce": 23.5,
+          "roa": 15.71,
+          "opm": 15.96,
+          "npm": 13.94,
+          "debt_to_equity": 0.0,
+          "interest_coverage": 174.0,
+          "revenue_growth_yoy": 11.38,
+          "eps_ttm_growth": -6.15,
+          "book_value": 1771.0,
+          "dividend_yield": 0.89,
+          "net_profit_ttm": 317.0,
+          "equity": 1792.0,
+          "rank": 45
         },
         {
           "name": "Titagarh Rail Systems Ltd",
@@ -11116,33 +11155,9 @@
           "dividend_yield": 0.12,
           "net_profit_ttm": 188.0,
           "equity": 2456.0,
-          "rank": 44
-        },
-        {
-          "name": "Voltamp Transformers Ltd",
-          "nse_symbol": "VOLTAMP",
-          "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=VOLTAMP",
-          "screener_url": "https://www.screener.in/company/VOLTAMP/",
-          "cmp": 11167.0,
-          "market_cap": 11298.0,
-          "pe": 35.6,
-          "pb": 6.31,
-          "roe": 17.4,
-          "roce": 23.5,
-          "roa": 15.71,
-          "opm": 15.96,
-          "npm": 13.94,
-          "debt_to_equity": 0.0,
-          "interest_coverage": 174.0,
-          "revenue_growth_yoy": 11.38,
-          "eps_ttm_growth": -6.15,
-          "book_value": 1771.0,
-          "dividend_yield": 0.9,
-          "net_profit_ttm": 317.0,
-          "equity": 1792.0,
-          "rank": 45,
+          "rank": 46,
           "stale": true,
-          "stale_since": "2026-09-11"
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Finolex Industries Ltd",
@@ -11166,7 +11181,7 @@
           "dividend_yield": 1.3,
           "net_profit_ttm": 615.0,
           "equity": 6215.0,
-          "rank": 46
+          "rank": 47
         },
         {
           "name": "Praj Industries Ltd",
@@ -11190,7 +11205,7 @@
           "dividend_yield": 1.12,
           "net_profit_ttm": 30.0,
           "equity": 1309.0,
-          "rank": 47
+          "rank": 48
         }
       ]
     },
@@ -11203,14 +11218,14 @@
       "included_count": 22,
       "stale_count": 1,
       "stale_symbols": [
-        "HGINFRA"
+        "KPIL"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 23.73,
-        "pb": 3.57,
-        "roe": 14.82,
-        "roce": 12.32,
+        "pe": 23.76,
+        "pb": 3.54,
+        "roe": 14.7,
+        "roce": 12.2,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -11309,7 +11324,9 @@
           "dividend_yield": 0.77,
           "net_profit_ttm": 1129.0,
           "equity": 7776.0,
-          "rank": 3
+          "rank": 3,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "IRB Infrastructure Developers Ltd",
@@ -11773,7 +11790,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=HGINFRA",
           "screener_url": "https://www.screener.in/company/HGINFRA/",
           "cmp": 484.0,
-          "market_cap": 3147.0,
+          "market_cap": 3154.0,
           "pe": 12.1,
           "pb": 0.97,
           "roe": 8.52,
@@ -11789,9 +11806,7 @@
           "dividend_yield": 0.41,
           "net_profit_ttm": 186.0,
           "equity": 3265.0,
-          "rank": 23,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 23
         }
       ]
     },
@@ -11801,23 +11816,22 @@
       "reference_index": "NIFTY COMMERCIAL & TRANSPORT SERVICES",
       "is_financial": false,
       "constituent_count": 26,
-      "included_count": 22,
-      "stale_count": 3,
+      "included_count": 23,
+      "stale_count": 2,
       "stale_symbols": [
-        "AWFIS",
-        "IGIL",
-        "WEWORK"
+        "GMRAIRPORT",
+        "SMARTWORKS"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 30.17,
-        "pb": 4.67,
-        "roe": 11.21,
-        "roce": 8.67,
+        "pe": 27.14,
+        "pb": 4.72,
+        "roe": 11.48,
+        "roce": 8.72,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 21,
+            "included": 22,
             "excluded": 1,
             "exclusions": {
               "INDIGO": "net profit <=0 or unavailable"
@@ -11825,21 +11839,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 21,
-            "excluded": 1
+            "included": 23,
+            "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 21,
-            "excluded": 1
+            "included": 23,
+            "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 22,
+            "included": 23,
             "excluded": 0
           }
         },
-        "companies_in_pe": 21
+        "companies_in_pe": 22
       },
       "constituents": [
         {
@@ -11912,7 +11926,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 757.0,
           "equity": -2747.0,
-          "rank": 3
+          "rank": 3,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "JSW Infrastructure Ltd",
@@ -12088,8 +12104,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=IGIL",
           "screener_url": "https://www.screener.in/company/IGIL/",
           "cmp": 314.0,
-          "market_cap": 13552.0,
-          "pe": 22.2,
+          "market_cap": 13583.0,
+          "pe": 22.3,
           "pb": 9.13,
           "roe": 55.8,
           "roce": 69.2,
@@ -12104,9 +12120,7 @@
           "dividend_yield": 0.81,
           "net_profit_ttm": 610.0,
           "equity": 1488.0,
-          "rank": 11,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 11
         },
         {
           "name": "Shipping Corporation of India Ltd",
@@ -12186,7 +12200,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=WEWORK",
           "screener_url": "https://www.screener.in/company/WEWORK/",
           "cmp": 670.0,
-          "market_cap": 9324.0,
+          "market_cap": 9308.0,
           "pe": 105.0,
           "pb": 30.45,
           "roe": 31.6,
@@ -12202,9 +12216,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 85.0,
           "equity": 298.0,
-          "rank": 15,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 15
         },
         {
           "name": "MMTC Ltd",
@@ -12324,7 +12336,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 28.0,
           "equity": 530.0,
-          "rank": 20
+          "rank": 20,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "TVS Supply Chain Solutions Ltd",
@@ -12428,7 +12442,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=AWFIS",
           "screener_url": "https://www.screener.in/company/AWFIS/",
           "cmp": 293.0,
-          "market_cap": 2096.0,
+          "market_cap": 2098.0,
           "pe": 24.7,
           "pb": 3.8,
           "roe": 14.0,
@@ -12444,9 +12458,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 85.0,
           "equity": 553.0,
-          "rank": 25,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 25
         }
       ]
     },
@@ -12456,42 +12468,44 @@
       "reference_index": "NIFTY COMMODITIES",
       "is_financial": false,
       "constituent_count": 30,
-      "included_count": 28,
-      "stale_count": 2,
+      "included_count": 26,
+      "stale_count": 4,
       "stale_symbols": [
-        "PIDILITIND",
-        "RELIANCE"
+        "BPCL",
+        "GRASIM",
+        "NTPC",
+        "ONGC"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 13.57,
-        "pb": 2.06,
-        "roe": 15.16,
-        "roce": 10.64,
+        "pe": 16.81,
+        "pb": 2.32,
+        "roe": 13.81,
+        "roce": 10.94,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 28,
+            "included": 26,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 28,
+            "included": 26,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 28,
+            "included": 26,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 28,
+            "included": 26,
             "excluded": 0
           }
         },
-        "companies_in_pe": 28
+        "companies_in_pe": 26
       },
       "constituents": [
         {
@@ -12500,7 +12514,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=RELIANCE",
           "screener_url": "https://www.screener.in/company/RELIANCE/",
           "cmp": 1258.0,
-          "market_cap": 1700382.0,
+          "market_cap": 1701716.0,
           "pe": 22.8,
           "pb": 1.88,
           "roe": 8.91,
@@ -12516,9 +12530,7 @@
           "dividend_yield": 0.48,
           "net_profit_ttm": 88167.0,
           "equity": 904030.0,
-          "rank": 1,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 1
         },
         {
           "name": "Adani Power Ltd",
@@ -12590,7 +12602,9 @@
           "dividend_yield": 2.7,
           "net_profit_ttm": 28334.0,
           "equity": 203176.0,
-          "rank": 4
+          "rank": 4,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "JSW Steel Ltd",
@@ -12638,7 +12652,9 @@
           "dividend_yield": 5.7,
           "net_profit_ttm": 44793.0,
           "equity": 371768.0,
-          "rank": 6
+          "rank": 6,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Coal India Ltd",
@@ -12710,7 +12726,9 @@
           "dividend_yield": 0.3,
           "net_profit_ttm": 11261.0,
           "equity": 103470.0,
-          "rank": 9
+          "rank": 9,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Hindalco Industries Ltd",
@@ -12830,9 +12848,7 @@
           "dividend_yield": 0.73,
           "net_profit_ttm": 2676.0,
           "equity": 10832.0,
-          "rank": 14,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 14
         },
         {
           "name": "Bharat Petroleum Corporation Ltd",
@@ -12856,7 +12872,9 @@
           "dividend_yield": 5.75,
           "net_profit_ttm": 17132.0,
           "equity": 100171.0,
-          "rank": 15
+          "rank": 15,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Tata Power Company Ltd",
@@ -13226,22 +13244,25 @@
       "reference_index": "NIFTY INFRASTRUCTURE",
       "is_financial": false,
       "constituent_count": 30,
-      "included_count": 28,
-      "stale_count": 2,
+      "included_count": 25,
+      "stale_count": 5,
       "stale_symbols": [
-        "RELIANCE",
-        "SUZLON"
+        "BPCL",
+        "CUMMINSIND",
+        "GRASIM",
+        "NTPC",
+        "ONGC"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 20.24,
-        "pb": 2.95,
-        "roe": 13.86,
-        "roce": 10.52,
+        "pe": 23.53,
+        "pb": 3.08,
+        "roe": 12.47,
+        "roce": 10.76,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 27,
+            "included": 24,
             "excluded": 1,
             "exclusions": {
               "INDIGO": "net profit <=0 or unavailable"
@@ -13249,21 +13270,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 28,
+            "included": 25,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 28,
+            "included": 25,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 28,
+            "included": 25,
             "excluded": 0
           }
         },
-        "companies_in_pe": 27
+        "companies_in_pe": 24
       },
       "constituents": [
         {
@@ -13272,7 +13293,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=RELIANCE",
           "screener_url": "https://www.screener.in/company/RELIANCE/",
           "cmp": 1258.0,
-          "market_cap": 1700382.0,
+          "market_cap": 1701716.0,
           "pe": 22.8,
           "pb": 1.88,
           "roe": 8.91,
@@ -13288,9 +13309,7 @@
           "dividend_yield": 0.48,
           "net_profit_ttm": 88167.0,
           "equity": 904030.0,
-          "rank": 1,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 1
         },
         {
           "name": "Bharti Airtel Ltd",
@@ -13410,7 +13429,9 @@
           "dividend_yield": 2.7,
           "net_profit_ttm": 28334.0,
           "equity": 203176.0,
-          "rank": 6
+          "rank": 6,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Oil & Natural Gas Corpn Ltd",
@@ -13434,7 +13455,9 @@
           "dividend_yield": 5.7,
           "net_profit_ttm": 44793.0,
           "equity": 371768.0,
-          "rank": 7
+          "rank": 7,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Power Grid Corporation of India Ltd",
@@ -13482,7 +13505,9 @@
           "dividend_yield": 0.3,
           "net_profit_ttm": 11261.0,
           "equity": 103470.0,
-          "rank": 9
+          "rank": 9,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Adani Green Energy Ltd",
@@ -13650,7 +13675,9 @@
           "dividend_yield": 1.3,
           "net_profit_ttm": 2367.0,
           "equity": 8475.0,
-          "rank": 16
+          "rank": 16,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Bharat Petroleum Corporation Ltd",
@@ -13674,7 +13701,9 @@
           "dividend_yield": 5.75,
           "net_profit_ttm": 17132.0,
           "equity": 100171.0,
-          "rank": 17
+          "rank": 17,
+          "stale": true,
+          "stale_since": "2026-09-14"
         },
         {
           "name": "Apollo Hospitals Enterprise Ltd",
@@ -13970,8 +13999,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=SUZLON",
           "screener_url": "https://www.screener.in/company/SUZLON/",
           "cmp": 44.1,
-          "market_cap": 59862.0,
-          "pe": 19.0,
+          "market_cap": 60159.0,
+          "pe": 19.1,
           "pb": 6.34,
           "roe": 39.7,
           "roce": 34.2,
@@ -13986,9 +14015,7 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 3144.0,
           "equity": 9464.0,
-          "rank": 30,
-          "stale": true,
-          "stale_since": "2026-09-11"
+          "rank": 30
         }
       ]
     }
