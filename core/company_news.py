@@ -763,13 +763,11 @@ _CSS = """
 .cn .nc-f{display:flex;align-items:center;gap:8px;padding-top:12px;margin-top:10px;
   border-top:1px solid var(--line-2);font-size:11.5px;color:var(--mute-2)}
 .cn .nc-src{font-weight:700;color:var(--ink-2)}
-.cn .cn-src{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:16px 4px 2px}
-.cn .cn-src-l{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:1.2px;
-  text-transform:uppercase;color:var(--mute)}
-.cn .srclink{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;
-  color:var(--brand);background:#EEF4F0;border:1px solid #CFE2D7;border-radius:20px;
-  padding:4px 11px;text-decoration:none}
-.cn .srclink svg{width:11px;height:11px}
+.cn a.nc-src{color:var(--brand);text-decoration:none;font-weight:700}
+.cn a.nc-src:hover{text-decoration:underline}
+.cn a.nc-src .nc-date{color:var(--mute-2);font-weight:600}
+.cn .cn-upd{font-family:var(--mono);font-size:9.5px;font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;color:var(--mute-2);padding:14px 4px 2px}
 .cn .cn-empty{background:#FBFCFB;border:1px dashed #D7DED8;border-radius:14px;
   padding:22px 20px;color:var(--mute);font-size:13.5px;line-height:1.6;margin-top:12px}
 .cn .cn-hidden{display:none}
@@ -786,16 +784,24 @@ def _card(i: int, it: dict, hidden: bool = False) -> str:
     hz = it.get("horizon", "ONGOING")
     hzcls = _HORIZON_CLS.get(hz, "hz-o")
     date = it.get("published_at") or ""
-    src = escape(it.get("source") or "")
+    src = escape(it.get("source") or "source")
+    url = escape(it.get("url") or "")
     cls = "nc cn-hidden" if hidden else "nc"
+    date_html = f'<span class="nc-date">&middot; {escape(date)}</span>' if date else ""
+    # source + date is the clickable article link (opens in a new tab); the URL
+    # lives on the card itself now, not in a separate Sources section.
+    if url:
+        foot = (f'<a class="nc-src" href="{url}" target="_blank" rel="noopener noreferrer">'
+                f'{src} ↗</a>{date_html}')
+    else:
+        foot = f'<span class="nc-src">{src}</span>{date_html}'
     return (
         f'<div class="{cls}"><span class="nc-n">{i:02d}</span>'
         f'<div class="nc-tags"><span class="nc-cat">{escape(it.get("category","Other"))}</span>'
         f'<span class="nc-hz {hzcls}">{escape(hz)}</span></div>'
         f'<div class="nc-ttl">{escape(it.get("title",""))}</div>'
         f'<div class="nc-b">{escape(it.get("summary",""))}</div>'
-        f'<div class="nc-f"><span class="nc-src">{src}</span>'
-        f'{("&middot; " + escape(date)) if date else ""}</div></div>')
+        f'<div class="nc-f">{foot}</div></div>')
 
 
 _TOGGLE_JS = """
@@ -842,19 +848,11 @@ def render_section(entry: dict) -> str:
                   f'data-total="{total}" onclick="__cnToggle()">'
                   f'See all {total} developments &rarr;</button>')
 
-    links, seen = [], set()
-    for it in items:                                  # Sources lists every article
-        u, name = it.get("url") or "", it.get("source") or "source"
-        if not u or u in seen:
-            continue
-        seen.add(u)
-        links.append(
-            f'<a class="srclink" href="{escape(u)}" target="_blank" rel="noopener noreferrer">'
-            f'{escape(name)} ↗</a>')
+    # Each card links to its own article; there is no separate Sources section.
     upd = escape(str(entry.get("updated_display") or ""))
-    src_strip = (f'<div class="cn-src"><span class="cn-src-l">Sources</span>{"".join(links)}'
-                 f'<span style="margin-left:auto;color:#9AA09D;font-size:11.5px">Updated {upd}'
-                 f'{" &middot; cached" if entry.get("stale") else ""}</span></div>')
+    updated = (f'<div class="cn-upd">Updated {upd}'
+               f'{" &middot; cached" if entry.get("stale") else ""} &middot; '
+               'trusted sources &middot; not investment advice</div>') if upd else ""
 
-    inner = head + f'<div class="cn-grid" id="cnGrid">{cards}</div>' + toggle + src_strip
+    inner = head + f'<div class="cn-grid" id="cnGrid">{cards}</div>' + toggle + updated
     return f'<section class="cn cn-sec" data-open="0">{_CSS}{inner}{_TOGGLE_JS}</section>'

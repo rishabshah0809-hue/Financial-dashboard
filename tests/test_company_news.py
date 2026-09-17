@@ -157,14 +157,16 @@ def test_ui_initial_three_and_expand():
     assert "cnToggle" in html and f"See all {n} developments" in html
 
 
-# 14 + 15. no hyperlink in cards; URLs only in Sources ----------------------
-def test_cards_have_no_links_sources_do():
+# 14 + 15. each card links to its own article; no separate Sources section ---
+def test_card_links_and_no_sources_section():
     entry = _entry_with(6)
+    n = len(entry["items"])
     html = CN.render_section(entry)
-    grid = html.split('id="cnGrid"')[1].split('class="cn-src"')[0]
-    assert "href" not in grid                     # no clickable URL in any card
-    src = html.split('class="cn-src"')[1]
-    assert "href=" in src and "http" in src       # URLs live in the Sources strip
+    assert 'class="cn-src"' not in html               # the Sources strip is gone
+    assert "cn-src-l" not in html                     # no "SOURCES" label either
+    # every card (visible or hidden) links to its own article in its footer
+    assert html.count('<a class="nc-src"') == n
+    assert 'href="http' in html
 
 
 # 16. missing news does not crash ------------------------------------------
