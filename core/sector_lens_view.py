@@ -325,7 +325,7 @@ _EXTRA_CSS = """
 """
 
 
-def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
+def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[str, int]:
     from . import shell as SH
     from . import tilt as TILT
     from . import seasonality as SEASON
@@ -658,6 +658,17 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
     hm_sub = (f"{escape(hm_index)} &middot; reconstructed from constituents" if hm_recon
               else f"{escape(hm_index)} &middot; monthly price returns by calendar year")
 
+    # Company News & Outlook — rendered INSIDE this shell (before the footer) so it
+    # flows with the sector-lens component instead of overlapping it. Optional:
+    # empty/None simply omits the section.
+    news_html = ""
+    if news:
+        try:
+            from . import company_news as CN
+            news_html = CN.render_section(news)
+        except Exception:                              # never break the shell
+            news_html = ""
+
     # The heatmap section is permanent: when the reference index has no stored
     # price history yet (not every NIFTY sub-index is in the dataset), show an
     # honest note in its place rather than leaving the panel blank.
@@ -832,6 +843,7 @@ def build(model, result, snap, sector_key, meta, context) -> tuple[str, int]:
       <span class="r">Values absent from the snapshot show &mdash;.</span></div>
   </section>
 
+  {news_html}
   <div class="foot"><span class="foot-l">Sources</span>
     <span class="foot-v">Screener.in &middot; IndianAPI &middot; NSE &middot; uploaded model</span>
     <span class="foot-r">Matched to {escape(idx_name)}{(" &middot; " + escape(str(period))) if period else ""}</span></div>

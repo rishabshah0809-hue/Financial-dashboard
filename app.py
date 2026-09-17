@@ -835,9 +835,32 @@ def sector_lens_tab(model, result) -> None:
         chosen, labels.get(chosen, chosen),
         (sector_snap or {}).get("earnings_growth"),
         (sector_snap or {}).get("current_tilt"))
+    # Company News & Outlook — fetched (cached per company per day) and rendered
+    # INSIDE the sector-lens shell, below the sector content and before its
+    # footer. Separate layer from the sector news above (core.market_context).
+    from datetime import datetime, timezone
+    if st.session_state.get("cn_company") != model.company:
+        st.session_state["cn_company"] = model.company
+    news_entry = None
+    try:
+        with st.spinner("Fetching company news…"):
+            news_entry = _company_news_cached(
+                model.company, sym or "",
+                datetime.now(timezone.utc).date().isoformat())
+    except Exception:                                  # never block the tab
+        news_entry = None
+
     html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen,
-                                   meta=meta, context=context)
+                                   meta=meta, context=context, news=news_entry)
     _render_shell(html, height)
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner=False)
+def _company_news_cached(company: str, symbol: str, day: str) -> dict:
+    """Retrieve + process this company's news, cached per company per day so
+    Streamlit reruns and the expand toggle never re-hit the network."""
+    from core import company_news as CN
+    return CN.get_company_news(company, symbol or None, analyst_config())
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)

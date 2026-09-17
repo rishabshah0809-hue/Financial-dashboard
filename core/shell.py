@@ -2121,13 +2121,14 @@ def _con_card(r: dict, is_financial: bool) -> str:
 
 def sector_shell(model, result, snap: dict | None,
                  sector_key: str | None = None, meta: dict | None = None,
-                 context: dict | None = None) -> tuple[str, int]:
+                 context: dict | None = None, news: dict | None = None) -> tuple[str, int]:
     """Sector Lens — premium research layout (see core.sector_lens_view), ported
     from assets/sector_lens_template.html with real FundaCheck data. Data logic
     (pooled sector metrics, Screener constituents, IndianAPI seasonality, tilt,
-    current cycle) is unchanged; this only reshapes the presentation."""
+    current cycle) is unchanged; this only reshapes the presentation. ``news`` is
+    the optional Company News & Outlook payload rendered before the footer."""
     from . import sector_lens_view as SLV
-    return SLV.build(model, result, snap, sector_key, meta, context)
+    return SLV.build(model, result, snap, sector_key, meta, context, news=news)
 
 
 def _sector_shell_legacy(model, result, snap: dict | None,
