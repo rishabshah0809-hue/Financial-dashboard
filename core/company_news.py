@@ -27,7 +27,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
-from html import escape
+from html import escape, unescape
 from pathlib import Path
 from urllib.parse import quote_plus
 from xml.etree import ElementTree as ET
@@ -240,6 +240,20 @@ def generate_queries(identity: CompanyIdentity) -> list[tuple[str, str]]:
 # fetch (dedicated to this module so market_context stays untouched; also keeps
 # the RSS <description> that the deterministic summary needs)
 # ---------------------------------------------------------------------------
+def _norm_text(s: str) -> str:
+    """Strip tags, decode HTML entities (&nbsp; &amp; &#39; …) and collapse
+    whitespace — so nothing like a literal '&nbsp;' ever reaches the card."""
+    return re.sub(r"\s+", " ", unescape(_strip_html(s or ""))).strip()
+
+
+def _bucket(now: datetime | None = None) -> str:
+    """A 6-hour retrieval window key: the news is written once and stays stable
+    until the next window, so it refreshes at most every ~6 hours (picking up any
+    new official development) rather than flickering on every rerun."""
+    now = now or datetime.now(timezone.utc)
+    return f"{now.date().isoformat()}-{now.hour // 6}"
+
+
 def _fetch(query: str, when: str, limit: int = 12) -> list[dict]:
     url = _GNEWS.format(q=quote_plus(f"{query} when:{when}"))
     try:
@@ -252,12 +266,12 @@ def _fetch(query: str, when: str, limit: int = 12) -> list[dict]:
         return []
     out = []
     for it in root.iter("item"):
-        title = _strip_html(it.findtext("title") or "")
-        src = _strip_html(it.findtext("{http://news.google.com}source")
-                          or it.findtext("source") or "")
+        title = _norm_text(it.findtext("title") or "")
+        src = _norm_text(it.findtext("{http://news.google.com}source")
+                         or it.findtext("source") or "")
         if not src and " - " in title:
             title, src = title.rsplit(" - ", 1)
-        desc = _strip_html(it.findtext("description") or "")
+        desc = _norm_text(it.findtext("description") or "")
         link = (it.findtext("link") or "").strip()
         pub = (it.findtext("pubDate") or "").strip()
         try:
@@ -672,12 +686,16 @@ def _save_cache(cache: dict) -> None:
 # ---------------------------------------------------------------------------
 def get_company_news(company_name: str, nse_symbol: str | None = None,
                      config=None, *, force: bool = False) -> dict:
-    """Retrieve + process company news. Cached per company per UTC day; on a soft
-    failure returns the last good cache (dated) then an honest empty state.
-    Never raises — the dashboard must survive a news outage."""
+    """Retrieve + process company news. Written once per 6-hour window per company
+    and cached, so it stays stable between refreshes and only changes when a new
+    window brings new official developments (≤~6h latency). On a soft failure it
+    returns the last good cache (marked stale) then an honest empty state. Never
+    raises — the dashboard must survive a news outage."""
     identity = resolve_identity(company_name, nse_symbol)
-    today = datetime.now(timezone.utc).date().isoformat()
-    key = f"{(identity.symbol or _norm(identity.name))}:{today}"
+    now = datetime.now(timezone.utc)
+    today, bucket = now.date().isoformat(), _bucket(now)
+    cid = identity.symbol or _norm(identity.name)
+    key = f"{cid}:{bucket}"
     cache = _load_cache()
     if not force and key in cache:
         return cache[key]
@@ -696,27 +714,23 @@ def get_company_news(company_name: str, nse_symbol: str | None = None,
         except Exception:                           # noqa: BLE001
             items = []
 
+    disp = now.strftime("%d %b %Y, %H:%M UTC")
     if not items:
-        prev = cache.get(f"{(identity.symbol or _norm(identity.name))}:")  # unused; explicit
-        # reuse the newest good entry for this company if today's fetch failed
+        # reuse the newest good entry for this company if this window's fetch failed
         good = [v for k, v in cache.items()
-                if k.startswith((identity.symbol or _norm(identity.name)) + ":")
-                and v.get("items")]
+                if k.startswith(cid + ":") and v.get("items")]
         if good:
-            best = max(good, key=lambda v: v.get("updated", ""))
-            best = dict(best)
+            best = dict(max(good, key=lambda v: v.get("updated", "")))
             best["stale"] = True
             return best
         entry = {"company": identity.name, "symbol": identity.symbol,
-                 "items": [], "updated": today,
-                 "updated_display": datetime.now(timezone.utc).strftime("%d %b %Y"),
+                 "items": [], "updated": bucket, "updated_display": disp,
                  "empty": True, "stale": False}
         return entry                                # not cached (empty is not success)
 
     entry = {"company": identity.name, "symbol": identity.symbol,
-             "items": [it.as_public() for it in items], "updated": today,
-             "updated_display": datetime.now(timezone.utc).strftime("%d %b %Y"),
-             "empty": False, "stale": False}
+             "items": [it.as_public() for it in items], "updated": bucket,
+             "updated_display": disp, "empty": False, "stale": False}
     cache[key] = entry
     if len(cache) > 120:
         for k in sorted(cache, key=lambda k: cache[k].get("updated", ""))[:-120]:
