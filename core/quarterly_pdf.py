@@ -401,10 +401,9 @@ def _header_dates(words, page_height: float) -> list[tuple[float, float, "date"]
             line_groups.append([w])
             cur_top = w["top"]
 
-    per_line: list[tuple[float, list[tuple[float, float, object]]]] = []
-    for row in line_groups:
-        key = row[0]["top"]
-        row.sort(key=lambda w: w["x0"])
+    def _scan(row_words):
+        """Slide a 1-3 word window across x-sorted words, returning date hits."""
+        row = sorted(row_words, key=lambda w: w["x0"])
         hits: list[tuple[float, float, object]] = []
         i = 0
         while i < len(row):
@@ -425,8 +424,19 @@ def _header_dates(words, page_height: float) -> list[tuple[float, float, "date"]
                 i += matched[0]
             else:
                 i += 1
-        if hits:
-            per_line.append((key, hits))
+        return hits
+
+    # Candidate rows: each single header line AND each adjacent pair merged.
+    # Many filings put the month/day on one line and the YEAR on the line just
+    # below ("June 30," / "2026"); merging adjacent lines recovers those.
+    per_line: list[tuple[float, list[tuple[float, float, object]]]] = []
+    for idx, row in enumerate(line_groups):
+        per_line.append((row[0]["top"], _scan(row)))
+        if idx + 1 < len(line_groups):
+            nxt = line_groups[idx + 1]
+            if abs(nxt[0]["top"] - row[-1]["top"]) < 18:
+                per_line.append((row[0]["top"], _scan(row + nxt)))
+    per_line = [(k, h) for k, h in per_line if h]
     if not per_line:
         return []
     # The real period-header row is the line with the most dates; ties broken by
@@ -449,6 +459,33 @@ def _group_header_type(words, cx: float, band_bottom: float) -> str:
             if w["top"] < band_bottom and abs(_center_x(w) - cx) < 70]
     text = " ".join(w["text"] for w in sorted(near, key=lambda w: (w["top"], w["x0"])))
     return qs.classify_period_type(text)
+
+
+_TTM_TOKENS = ("ttm", "trailing", "twelve month", "twelve-month", "12 month", "12m", "ltm")
+_CUML_TOKENS = ("nine month", "nine-month", "9 month", "9month", "9m", "six month",
+                "six-month", "half year", "half-year", "year to date",
+                "year-to-date", "ytd", "cumulative")
+
+
+def _column_type(words, cx: float, band_bottom: float, annual_x) -> str:
+    """Type ONE data column from tokens tightly above it (±38px).
+
+    Default is 'quarter'. TTM / cumulative are only assigned from their own
+    specific tokens (never from the shared 'three months ended' / 'quarter'
+    phrasing, which would bleed between columns). Annual is assigned from an
+    explicit 'year ended'/'annual' token or the geometric 'Year ended' x-region.
+    """
+    near = " ".join(w["text"].lower() for w in words
+                    if w["top"] < band_bottom and abs(_center_x(w) - cx) < 38)
+    near = re.sub(r"\s+", " ", near)
+    if any(k in near for k in _TTM_TOKENS):
+        return "ttm"
+    if any(k in near for k in _CUML_TOKENS):
+        return "cumulative"
+    if "year ended" in near or "annual" in near or "vear ended" in near \
+            or (annual_x is not None and cx >= annual_x - 6):
+        return "annual"
+    return "quarter"
 
 
 def _detect_periods(page) -> list[_Period]:
@@ -488,17 +525,14 @@ def _detect_periods(page) -> list[_Period]:
             if ix0 - 6 <= cx <= ix1 + 6:
                 src, col_x0, col_x1, cx = "image", ix0, ix1, (ix0 + ix1) / 2.0
                 break
-        kind = _group_header_type(words, cx, band_bottom)
-        if not kind:
-            kind = "annual" if (annual_x is not None and cx >= annual_x - 6) else "quarter"
+        kind = _column_type(words, cx, band_bottom, annual_x)
         periods.append(_Period(_period_label(d), d, kind, col_x0, col_x1, cx, src))
 
     known = [p.center for p in periods]
     for ix0, ix1 in image_cols:
         c = (ix0 + ix1) / 2.0
         if all(abs(c - kc) > 25 for kc in known):
-            kind = _group_header_type(words, c, band_bottom) or (
-                "annual" if (annual_x is not None and c >= annual_x - 6) else "quarter")
+            kind = _column_type(words, c, band_bottom, annual_x)
             if kind != "quarter":                     # only keep an undated non-quarter col
                 periods.append(_Period("FY?", date(1900, 1, 1), kind, ix0, ix1, c, "image"))
 
@@ -555,6 +589,40 @@ def _cluster_lines(page, periods: list[_Period], decimals_conv: int = 0) -> list
     text_cols = [p for p in periods if p.source == "text"]
     words = sorted(page.extract_words(), key=_center)
 
+    # Column centres from headers can sit left/right of the actual numbers, which
+    # breaks assignment when columns are close. So derive the true column centres
+    # from the DATA values (numeric words below the header band), then map each
+    # selected text column to a distinct value cluster (nearest, used once).
+    tol = 40.0
+    if text_cols:
+        frag_tops = [w["top"] for w in words
+                     if qs._MONTH_RE.search(w["text"].lower())
+                     or re.fullmatch(r"(19|20)\d{2}", re.sub(r"[^0-9]", "", w["text"]))]
+        header_bottom = (max(frag_tops) + 6) if frag_tops else page.height * 0.12
+        xs = sorted(_center_x(w) for w in words
+                    if re.search(r"\d", w["text"]) and _center_x(w) >= first_col_x - 2
+                    and _center(w) > header_bottom)
+        vcenters: list[float] = []
+        grp: list[float] = []
+        for x in xs:
+            if grp and x - grp[-1] > 22:
+                vcenters.append(sum(grp) / len(grp)); grp = []
+            grp.append(x)
+        if grp:
+            vcenters.append(sum(grp) / len(grp))
+        if len(vcenters) >= 2:
+            gaps = [b - a for a, b in zip(vcenters, vcenters[1:])]
+            tol = max(12.0, min(40.0, 0.45 * min(gaps)))
+        taken: set[int] = set()
+        for p in sorted(text_cols, key=lambda p: p.center):
+            best_i, best_d = None, 55.0
+            for i, c in enumerate(vcenters):
+                if i not in taken and abs(c - p.center) < best_d:
+                    best_i, best_d = i, abs(c - p.center)
+            if best_i is not None:
+                taken.add(best_i)
+                p.center = vcenters[best_i]
+
     clusters: list[list[dict]] = []
     cur: list[dict] = []
     cur_y = None
@@ -581,7 +649,7 @@ def _cluster_lines(page, periods: list[_Period], decimals_conv: int = 0) -> list
             if cx < first_col_x - 2:
                 continue
             nearest = min(text_cols, key=lambda p: abs(cx - p.center), default=None)
-            if nearest and abs(cx - nearest.center) <= 40:
+            if nearest and abs(cx - nearest.center) <= tol:
                 buckets[nearest.label].append(w)
         text_vals: dict[str, float] = {}
         for plabel, ws in buckets.items():
@@ -1078,7 +1146,8 @@ _PNL_ROW_MARKERS = (
     "revenue from operations", "total income", "profit before tax",
     "total expenses", "total expenditure", "tax expense", "profit for the period",
     "profit after tax", "net profit", "finance cost", "depreciation",
-    "interest earned", "earnings per")
+    "interest earned", "earnings per", "profit before exceptional",
+    "income from operations", "total revenue", "employee benefit")
 
 
 def _page_signature(text: str) -> dict:
@@ -1088,7 +1157,8 @@ def _page_signature(text: str) -> dict:
     standalone = bool(re.search(r"standalone", t))
     is_results = bool(_RESULTS_TITLE.search(t))
     pnl_hits = sum(1 for m in _PNL_ROW_MARKERS if m in t)
-    has_quarter = ("quarter ended" in t or "quarter and" in t or "quarter" in t)
+    has_quarter = ("quarter" in t or "three month" in t or "3 month" in t
+                   or "months ended" in t or "period ended" in t)
     return {"consolidated": consolidated, "standalone": standalone,
             "is_results": is_results, "pnl_hits": pnl_hits, "has_quarter": has_quarter}
 

@@ -173,6 +173,35 @@ validation). Unavailable metrics render as "—", never 0. The annual/Excel path
 is untouched (`parser.py`, `derive.py`, `charts.py`, `interpret.py` unchanged;
 `scoring.assess` unchanged; quarterly is isolated behind `meta.periodicity`).
 
+## v3 — multi-company native robustness (8 real filings)
+
+Tested against 8 additional real filings (Jash, BEL, BSE, TCS, Anand Rathi,
+Adani Enterprises, Kalyan, plus a decoy). Findings drove native-text fixes
+(OCR was NOT the bottleneck — 7 of 8 are native-text, only Jash/BEL are
+scanned/image):
+
+- **Multi-line period headers**: many filings print the month/day on one line
+  and the YEAR on the line below ("June 30," / "2026"), or say "Three months
+  ended" instead of "quarter". `_header_dates` now merges adjacent header lines
+  and `classify_period_type` treats "three months ended"/"for the quarter" as a
+  quarter. → unlocked TCS, BSE.
+- **Value-driven column centres**: header centres often sit left/right of the
+  numbers, which mis-assigned tightly-packed columns (TCS). Column centres are
+  now derived from the actual data values (below the header band) and each
+  selected quarter is mapped to a distinct value cluster. → TCS/BSE/Adani columns
+  correct.
+- **Decimal-convention detection is now share-based**: a couple of per-share/EPS
+  decimal rows no longer make an integer crore/lakh statement look 2-decimal
+  (which had divided every value by 100). → fixed BSE (₹ lakh) and TCS (₹ crore).
+- **Per-column period typing** (`_column_type`) uses tight, column-specific
+  tokens, so a shared "three months ended" header no longer bleeds a neighbour
+  into "cumulative".
+
+Verified extraction (native, no OCR needed): **BSE, TCS, Adani** — correct
+company, current=Jun-2026 / previous=Mar-2026, correct Revenue / Total Income /
+PAT and units. **Kalyan** — company + periods correct, but its text layer is
+garbled ("rnatelials", "Defemed") so line values are unreliable (an OCR case).
+
 ## Remaining limitations (honest)
 
 - Verified end-to-end on **two** real filings (Reliance, Lemon Tree) plus

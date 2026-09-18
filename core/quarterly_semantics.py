@@ -158,7 +158,9 @@ def classify_period_type(header_text: str) -> str:
             return "cumulative"
     if any(k in t for k in _ANNUAL):
         return "annual"
-    if "quarter" in t:
+    # "quarter", "for the quarter ended", or "three months ended" all mean a
+    # single quarter (checked AFTER cumulative, so "nine months" stays excluded).
+    if "quarter" in t or "three month" in t or "3 month" in t or "months ended" in t:
         return "quarter"
     return ""
 
@@ -222,15 +224,24 @@ def detect_decimals(tokens: list[str]) -> int:
     """
     from collections import Counter
     counts: Counter = Counter()
+    numeric = 0
     for t in tokens:
         s = str(t)
+        if not re.search(r"\d", s):
+            continue
+        numeric += 1
         if "." in s:
             frac = re.sub(r"[^0-9]", "", s.rsplit(".", 1)[1])
             # a 1-2 digit tail is a decimal (paise); a 3-digit tail is a
             # thousands group (OCR often renders the comma as a dot).
             if 0 < len(frac) <= 2:
                 counts[len(frac)] += 1
-    return counts.most_common(1)[0][0] if counts else 0
+    if not counts or not numeric:
+        return 0
+    # Only call the document "2-decimal" when decimals are the NORM, not a few
+    # per-share/EPS rows in an otherwise integer (crore/lakh) statement.
+    decimal_share = sum(counts.values()) / numeric
+    return counts.most_common(1)[0][0] if decimal_share >= 0.4 else 0
 
 
 def parse_amount(token: str, decimals: int = 0) -> float | None:

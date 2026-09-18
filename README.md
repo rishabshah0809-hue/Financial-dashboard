@@ -204,6 +204,40 @@ they never contaminate a time series.
 - The verdict is a screening aid. It is not investment advice, and it cannot see
   management quality, governance, or anything outside the workbook.
 
+## Quarterly results PDF ingestion
+
+FundaCheck also accepts a listed Indian company's **quarterly-results PDF** as an
+additional input mode, alongside the existing Excel/annual workflow (which is
+unchanged). Upload a PDF in the sidebar and it is auto-detected.
+
+Pipeline (deterministic; the LLM never calculates a number):
+
+```
+Quarterly-results PDF
+  → document / section detection   (consolidated preferred; standalone rejected)
+  → native PDF text + geometry     (pdfplumber; tables via row/column alignment)
+  → targeted OCR only where needed (rasterised / scanned tables)
+  → period detection               (current + immediately previous quarter only)
+  → label & unit normalisation     (₹ crore / lakh / million → normalised)
+  → Python deterministic ratios
+  → validation vs the PDF's own reported ratios
+  → Screener fallback ONLY for a genuinely missing quarterly value
+  → provenance-tagged quarterly dataset → charts / scoring / analyst text
+```
+
+- **Exactly two quarters** (current + previous) are used; annual / TTM / year-ago
+  and nine-month columns are detected and excluded from the quarterly dataset.
+- **OCR engines:** PaddleOCR PP-StructureV3 (primary) with Surya as an optional
+  secondary cross-check. OCR is targeted at the pages/regions that need it, not
+  the whole document, and the app **degrades gracefully** if an OCR engine is not
+  installed (native text still works; rasterised cells are marked unavailable).
+  Surya is heavy (Torch-based) and may exceed Streamlit Community Cloud limits —
+  it is therefore optional and not a hard requirement (see `requirements.txt`).
+- **Provenance:** every value is tagged `pdf_raw`, `python_derived`,
+  `pdf_reported_validation`, `screener_fallback`, or `unavailable`. Missing data
+  is shown as "—", never fabricated, and an annual/TTM Screener value is never
+  presented as a quarterly value.
+
 ## Roadmap
 
 - [ ] Peer comparison — load several models and rank them side by side
@@ -215,3 +249,14 @@ they never contaminate a time series.
 ---
 
 MIT licensed. Built as a portfolio project — issues and forks welcome.
+
+---
+
+**Repository:** https://github.com/rishabshah0809-hue/Financial-dashboard
+
+**Quarterly Data branch:** `quaterly-data`
+
+**Quarterly Data website:** https://fundacheck-quaterly.streamlit.app
+
+Quarterly PDF development is isolated to the `quaterly-data` branch. The `main`
+branch is not modified by this workflow.

@@ -497,6 +497,49 @@ class SyntheticLayouts(unittest.TestCase):
         self.assertEqual(m.meta["current_period"], "Jun-2026")
         self.assertEqual(m.meta["previous_period"], "Mar-2026")
 
+    def test_multiline_year_and_three_months(self):
+        # Header where the YEAR is on a separate line from month/day, and the
+        # group header says "Three months ended" (TCS/BSE-style). The engine must
+        # still recover current=Jun-2026 / previous=Mar-2026.
+        from fpdf import FPDF
+        p = self._path("multiline.pdf")
+        pdf = FPDF(unit="pt", format=(595, 842))
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=9)
+        pdf.text(40, 60, "Epsilon Technologies Limited")
+        pdf.text(40, 80, "Unaudited Consolidated Financial Results")
+        pdf.text(430, 96, "Rs. in Crore")
+        cols = [(300, False), (380, False), (460, False), (540, True)]
+        pdf.text(300, 108, "Three months ended")
+        pdf.text(540, 108, "Year ended")
+        for x, ann in cols:                          # month/day line
+            pdf.text(x, 122, "June 30," if x in (300, 460) else "March 31,")
+        for x, ann in cols:                          # YEAR on the next line
+            pdf.text(x, 132, "2026" if x != 460 else "2025")
+        rows = [("Revenue from operations", ["1,000", "900", "800", "3,600"]),
+                ("Other income", ["50", "40", "30", "160"]),
+                ("Total income", ["1,050", "940", "830", "3,760"]),
+                ("Total expenses", ["800", "720", "700", "3,000"]),
+                ("Finance costs", ["40", "36", "34", "150"]),
+                ("Depreciation", ["100", "90", "85", "360"]),
+                ("Profit before tax", ["250", "220", "130", "760"]),
+                ("Tax expense", ["50", "44", "26", "160"]),
+                ("Profit for the period", ["200", "176", "104", "600"])]
+        y = 160
+        for label, vals in rows:
+            pdf.text(40, y, label)
+            for (x, _), v in zip(cols, vals):
+                pdf.text(x, y, v)
+            y += 16
+        pdf.output(p)
+        m = q.load_quarterly_pdf(p)
+        self.assertEqual(m.meta["current_period"], "Jun-2026")
+        self.assertEqual(m.meta["previous_period"], "Mar-2026")
+        self.assertAlmostEqual(m.historical.loc["Sales", "Jun-2026"], 1000, delta=1)
+        self.assertAlmostEqual(m.historical.loc["Sales", "Mar-2026"], 900, delta=1)
+        # the annual column (3,600) must never leak into a quarter
+        self.assertNotIn(3600, list(m.historical.loc["Sales"]))
+
     def test_standalone_only_is_rejected(self):
         p = self._path("standalone.pdf")
         _make_results_pdf(
