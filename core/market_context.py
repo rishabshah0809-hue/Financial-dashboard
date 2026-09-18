@@ -46,7 +46,7 @@ CACHE_PATH = Path(__file__).resolve().parent.parent / "data" / "market_context_c
 _TIMEOUT = 12
 _FRESH_HOURS = 24                 # re-use today's cached entry; refetch when older
 _MAX_AGE_DAYS = 183               # never show a headline older than ~6 months
-_WANT_EACH = 4                    # 4 Global + 4 India items in the cycle section
+_WANT_EACH = 10                   # up to 10 Global + 10 India items (5 shown, 5 in "see all")
 _GNEWS = ("https://news.google.com/rss/search?q={q}&hl=en-IN&gl=IN&ceid=IN:en")
 
 # Credible sources we prefer to keep when ranking headlines (rule §6 priority).
@@ -303,11 +303,11 @@ def _messages(sector_name: str, structural: str,
         f"INDIA sector headlines (≤6 months):\n{_heads_block(india_heads)}\n\n"
         "Return STRICT JSON with keys:\n"
         f'  "label": one of {list(_CYCLE_LABELS)},\n'
-        '  "global": array of up to 4 objects {"i": <global headline index>, '
+        '  "global": array of up to 6 objects {"i": <global headline index>, '
         '"explain": a 3-4 line explanation (roughly 40-65 words) of what that '
         'development means for the global complex that drives this sector}. Cover the '
         'most relevant global headlines, one object each.\n'
-        '  "india": array of up to 4 objects {"i": <india headline index>, '
+        '  "india": array of up to 6 objects {"i": <india headline index>, '
         '"explain": a 3-4 line explanation (roughly 40-65 words) of the read-through '
         'to Indian producers/companies in this sector}.\n'
         '  "drivers": array of 2-5 short driver tags actually supported by the '
@@ -386,19 +386,20 @@ def _deterministic(sector_name: str, structural: str,
     """
     first = (structural.split(". ")[0].strip() or f"the {sector_name} cycle")
     lower_first = first[:1].lower() + first[1:] if first else ""
+    # Only the lead item of each column carries a structural explanation; the rest
+    # render as headline-only (no LLM to interpret them) so we never repeat the same
+    # sentence down the list.
+    g_intro = (f"An international development bearing on the {sector_name} complex. It "
+               f"matters because {lower_first}, so moves in the global market feed "
+               "through to the sector before domestic volumes react.")
+    i_intro = (f"The read-through to Indian {sector_name} producers: domestic demand, "
+               "policy and the rupee shape how this reaches reported earnings.")
     g_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
-                "date": h.get("date"),
-                "explain": (f"An international development bearing on the {sector_name} "
-                            f"complex. It matters because {lower_first}, so moves in the "
-                            "global market feed through to the sector before domestic "
-                            "volumes react.")}
-               for h in global_heads[:_WANT_EACH]]
+                "date": h.get("date"), "explain": (g_intro if j == 0 else "")}
+               for j, h in enumerate(global_heads[:_WANT_EACH])]
     i_items = [{"title": h["title"], "source": h.get("source"), "url": h.get("url"),
-                "date": h.get("date"),
-                "explain": (f"The read-through to Indian {sector_name} producers: "
-                            "domestic demand, policy and the rupee shape how this reaches "
-                            "reported earnings.")}
-               for h in india_heads[:_WANT_EACH]]
+                "date": h.get("date"), "explain": (i_intro if j == 0 else "")}
+               for j, h in enumerate(india_heads[:_WANT_EACH])]
 
     f = fundamentals or {}
     eg = f.get("earnings_growth")
@@ -492,8 +493,10 @@ def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = No
     soft to the latest cached entry (dated), then to a deterministic read built
     only from real headlines + the passed-in sector fundamentals."""
     cache = _load_cache()
-    today = datetime.now(timezone.utc).date().isoformat()
-    key = f"{sector_key}:{today}"
+    now = datetime.now(timezone.utc)
+    today = now.date().isoformat()
+    bucket = f"{today}-{now.hour // 6}"           # 6-hour window: refreshes ≤~6h
+    key = f"{sector_key}:{bucket}"
     if not force and key in cache:
         return cache[key]
 
@@ -526,8 +529,8 @@ def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = No
         "sector_key": sector_key,
         "sector_name": sector_name,
         "news_snapshot_date": today,
-        "retrieved_at": datetime.now(timezone.utc).isoformat(),
-        "updated_display": datetime.now(timezone.utc).strftime("%d %b %Y"),
+        "retrieved_at": now.isoformat(),
+        "updated_display": now.strftime("%d %b %Y, %H:%M UTC"),
         "label": read["label"],
         "lines": read.get("lines", []),
         "global_items": read.get("global_items", []),

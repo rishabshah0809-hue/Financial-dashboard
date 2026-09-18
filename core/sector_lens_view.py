@@ -81,12 +81,15 @@ def _valuation_head(priced: str | None, earning: str | None,
     return f'{escape(sector_name)} — company ratios unavailable.'
 
 
-def _cycle_list(items: list[dict]) -> str:
-    """Render one column of cycle headlines. Source name + date are PLAIN TEXT;
-    the clickable links live ONLY in the Sources strip (the url stays in the data
-    for that strip — it is never rendered as an <a> here)."""
+_CYC_VISIBLE = 5     # cycle headlines shown per column before "See more"
+
+
+def _cycle_list(items: list[dict], visible: int = _CYC_VISIBLE) -> str:
+    """Render one column of cycle headlines. The headline and its source·date are
+    clickable article links. Items beyond `visible` are marked cyc-extra/cyc-hidden
+    so the in-shell 'See more developments' toggle can reveal them (no network)."""
     out = []
-    for it in items or []:
+    for idx, it in enumerate(items or []):
         title = escape(str(it.get("title") or "").strip())
         expl = escape(str(it.get("explain") or "").strip())
         src = escape(str(it.get("source") or "").strip())
@@ -113,7 +116,8 @@ def _cycle_list(items: list[dict]) -> str:
                         f'</svg></a>')
             else:
                 meta = f'<span class="tsrc">{lab}</span>'
-        out.append(f'<li>{body}{meta}</li>')
+        cls = ' class="cyc-extra cyc-hidden"' if idx >= visible else ''
+        out.append(f'<li{cls}>{body}{meta}</li>')
     return "".join(out)
 
 
@@ -318,6 +322,12 @@ _EXTRA_CSS = """
   color:var(--ink-3,#8b918e);text-decoration:none}
 .tlist li a.tsrc:hover{color:var(--pos-deep,#0F5B34);text-decoration:underline}
 .tlist li a.tsrc svg{width:11px;height:11px;vertical-align:-1px;margin-left:3px}
+/* cycle "see more" toggle: hide the extra headlines until revealed */
+.tlist li.cyc-hidden{display:none}
+.cyc-toggle{margin:14px 2px 2px;background:#fff;border:1px solid #DFE6E1;border-radius:12px;
+  font-family:inherit;font-size:13px;font-weight:700;color:var(--brand,#177245);
+  padding:9px 16px;cursor:pointer;transition:border-color .15s,background .15s}
+.cyc-toggle:hover{border-color:var(--brand,#177245);background:#EEF4F0}
 /* valuation headline: colour each clause by its comparison state */
 .v-head .vpos{font-style:normal;color:var(--pos-deep,#0F5B34)}
 .v-head .vneg{font-style:normal;color:var(--neg,#B4483C)}
@@ -570,11 +580,17 @@ def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[st
     india_items = list(ctx.get("india_items") or [])
     have_news = bool(glob_items or india_items)
 
+    cyc_toggle = ""
     if have_news:
         global_html = _cycle_list(glob_items) or f'<li>{escape(prof.get("text",""))}</li>'
         india_html = _cycle_list(india_items) or (
             '<li>Indian producers in this sector track the same structural cycle; '
             'domestic demand, policy and the rupee shape the pass-through.</li>')
+        # "See more" reveals items beyond the first 5 in either column (JS only).
+        extra = max(len(glob_items) - _CYC_VISIBLE, 0) + max(len(india_items) - _CYC_VISIBLE, 0)
+        if extra > 0:
+            cyc_toggle = ('<button type="button" class="cyc-toggle" id="cycToggle" '
+                          'onclick="__cycToggle()">See more developments &rarr;</button>')
     else:
         global_html = f'<li>{escape(prof.get("text",""))}</li>'
         india_html = ('<li>Indian producers in this sector track the same structural '
@@ -795,7 +811,7 @@ def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[st
     </section>
   </div>
 
-  <section class="cycle">
+  <section class="cycle" data-open="0">
     <div class="cy-head"><div><div class="p-t">Where the cycle sits now</div>
       <div class="p-note">{escape(cyc_note)}</div></div>
       <div class="tags"><span class="tag t-pos">{escape(phase)}</span></div></div>
@@ -814,6 +830,7 @@ def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[st
         <div><div class="tc-t">Indian read-through</div><div class="tc-s">Domestic producers</div></div></div>
         <ul class="tlist">{india_html}</ul></div>
     </div>
+    {cyc_toggle}
     {"" if not watch_html else f'<div class="watch"><span class="watch-l">Watch</span>{watch_html}</div>'}
     <div class="tilts">
       <div class="tilt mkt"><span class="tilt-c">Market tilt</span><div class="tilt-b">{escape(mkt_tilt)}</div></div>
@@ -859,9 +876,24 @@ def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[st
         'wght@400;500;600;700;800&display=swap" rel="stylesheet">'
         f"<style>{_css()}{_EXTRA_CSS}</style></head><body>{body}"
         f"<script>window.__FC_SL__ = {data_json};</script>"
-        f"<script>{_SL_JS}</script><script>{_FIT_JS}</script></body></html>"
+        f"<script>{_SL_JS}</script><script>{_CYC_JS}</script><script>{_FIT_JS}</script></body></html>"
     )
     return html, 1600
+
+
+# "See more developments" toggle for the cycle columns (in-iframe, no network).
+_CYC_JS = r"""
+(function(){
+  window.__cycToggle = function(){
+    var sec = document.querySelector('.cycle'); if(!sec) return;
+    var open = sec.getAttribute('data-open') === '1';
+    sec.querySelectorAll('.cyc-extra').forEach(function(li){ li.classList.toggle('cyc-hidden', open); });
+    sec.setAttribute('data-open', open ? '0' : '1');
+    var b = document.getElementById('cycToggle');
+    if(b) b.innerHTML = open ? 'See more developments →' : 'Show fewer ↑';
+  };
+})();
+"""
 
 
 # --------------------------------------------------------------------------

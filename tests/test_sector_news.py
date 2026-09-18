@@ -137,17 +137,22 @@ class TestArticleSourceRendering(unittest.TestCase):
     ITEMS = [{"title": "China steel demand slows", "explain": "Global read-through.",
               "source": "Reuters", "url": "https://reuters.com/x", "date": "2026-09-08"}]
 
-    def test_article_has_no_hyperlink(self):
+    def test_article_headline_links_to_source(self):
+        # Current design: each cycle headline (and its source·date line) links to
+        # the article; there is no separate Sources strip.
         html = V._cycle_list(self.ITEMS)
-        self.assertNotIn("<a", html)                 # no clickable link in the card
-        self.assertNotIn("https://reuters.com/x", html)  # url not rendered here
-        self.assertIn("Reuters", html)               # source name shown as text
+        self.assertIn("<a", html)                        # clickable link present
+        self.assertIn("https://reuters.com/x", html)     # article url rendered
+        self.assertIn("Reuters", html)
         self.assertIn("2026-09-08", html)
 
-    def test_sources_strip_keeps_the_link(self):
-        # build()'s Sources strip renders srclink anchors from ctx["sources"];
-        # verify the url survives in the data structure the strip consumes.
-        self.assertEqual(self.ITEMS[0]["url"], "https://reuters.com/x")
+    def test_extra_items_hidden_until_expand(self):
+        # Items beyond the first 5 are marked for the "See more" toggle.
+        items = [{"title": f"Headline {i}", "explain": "", "source": "Reuters",
+                  "url": f"https://reuters.com/{i}", "date": "2026-09-08"}
+                 for i in range(8)]
+        html = V._cycle_list(items, visible=5)
+        self.assertEqual(html.count("cyc-extra cyc-hidden"), 3)   # 8 - 5 hidden
 
 
 class TestValuationColour(unittest.TestCase):
