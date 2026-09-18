@@ -1188,12 +1188,14 @@ def classify_pages(pdf) -> list[dict]:
 
 
 def _find_results_page(pdf) -> tuple[int | None, str]:
-    """Locate the consolidated quarterly P&L page semantically.
+    """Locate the quarterly P&L *table* page semantically and say its scope.
 
-    Returns (index, status) with status in {'ok', 'standalone_only',
-    'not_found'}. A page qualifies only if it carries enough P&L row markers AND
-    at least two quarter columns; consolidated is strongly preferred and the
-    standalone section is never used for the primary analysis.
+    Returns (index, scope) with scope in {'consolidated', 'standalone', ''}.
+    A page qualifies only if it reads as a results table (P&L row markers) AND
+    exposes at least two quarter columns. Consolidated is strongly preferred;
+    only when no usable consolidated table exists do we fall back to a standalone
+    table (clearly labelled by the caller) rather than failing outright. '' means
+    no usable quarterly results table was found at all.
     """
     pages = classify_pages(pdf)
 
@@ -1204,19 +1206,29 @@ def _find_results_page(pdf) -> tuple[int | None, str]:
             return False
         return sum(1 for p in periods if p.kind == "quarter") >= 2
 
-    consolidated = [p for p in pages if p["page_type"] == "consolidated_pnl"
-                    and p["consolidated"]]
-    consolidated.sort(key=lambda p: (-p["score"], p["index"]))
-    for p in consolidated:
-        if _has_two_quarters(p["index"]):
-            return p["index"], "ok"
+    # Real results-table candidates only (enough P&L rows + two quarter columns);
+    # this excludes notes/prose pages that merely mention "consolidated".
+    cands = [p for p in pages
+             if (p["pnl_hits"] >= 4 or (p["is_results"] and p["pnl_hits"] >= 3))
+             and _has_two_quarters(p["index"])]
+    if not cands:
+        return None, ""
 
-    standalone = [p for p in pages if p["page_type"].startswith("standalone")
-                  or (p["standalone"] and not p["consolidated"] and p["pnl_hits"] >= 4)]
-    for p in standalone:
-        if _has_two_quarters(p["index"]):
-            return None, "standalone_only"
-    return None, "not_found"
+    def _rank(p):
+        # consolidated table first; a table naming neither scope is treated as
+        # the primary (consolidated); an explicitly standalone-only table last.
+        if p["consolidated"]:
+            tier = 0
+        elif not p["standalone"]:
+            tier = 1
+        else:
+            tier = 2
+        return (tier, -p["score"], p["index"])
+
+    best = min(cands, key=_rank)
+    scope = "standalone" if (best["standalone"] and not best["consolidated"]) \
+        else "consolidated"
+    return best["index"], scope
 
 
 _ADDRESS_RE = re.compile(
@@ -1325,16 +1337,17 @@ def load_quarterly_pdf(source, screener_lookup=None):
     pdf = pdfplumber.open(io.BytesIO(raw_bytes))
     doc = _pm.open(stream=raw_bytes, filetype="pdf")
     try:
-        page_index, status = _find_results_page(pdf)
+        page_index, scope = _find_results_page(pdf)
         if page_index is None:
-            if status == "standalone_only":
-                raise QuarterlyPDFError(
-                    "Consolidated quarterly results could not be identified in "
-                    "this document — only standalone results were found. "
-                    "FundaCheck's quarterly analysis uses consolidated results.")
             raise QuarterlyPDFError(
-                "Unable to identify quarterly financial results in this document. "
-                "Upload a listed company's consolidated quarterly-results PDF.")
+                "Unable to identify a quarterly financial-results table with two "
+                "comparable quarters in this document. Upload a listed company's "
+                "quarterly-results PDF (consolidated preferred).")
+        scope_warnings: list[str] = []
+        if scope == "standalone":
+            scope_warnings.append(
+                "Consolidated results were not found or could not be read in this "
+                "filing — showing STANDALONE quarterly results instead.")
 
         company = _company_name(pdf, page_index) or "Unknown Company"
         symbol = _company_symbol(pdf)
@@ -1361,7 +1374,7 @@ def load_quarterly_pdf(source, screener_lookup=None):
 
         raw_values, raw_prov, warns, unit_info = _extract_results_table(
             results_page, two, page_index)
-        warns = warns + _reconcile_expenses(raw_values, raw_prov, two)
+        warns = scope_warnings + warns + _reconcile_expenses(raw_values, raw_prov, two)
         validations = _validate_identities(raw_values, two)
         if not unit_info.get("unit_known"):
             warns.append("Reporting unit could not be detected from the filing; "
@@ -1440,7 +1453,7 @@ def load_quarterly_pdf(source, screener_lookup=None):
             "current_period_end": current.end.isoformat(),
             "previous_period_end": previous.end.isoformat(),
             "source_type": "quarterly_pdf",
-            "source_scope": "consolidated",
+            "source_scope": scope,
             "source_pages": [page_index + 1, page_index + 2],
             "quarter_column_centers": [previous.center, current.center],
             "column_source": {current.label: current.source,

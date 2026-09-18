@@ -540,7 +540,9 @@ class SyntheticLayouts(unittest.TestCase):
         # the annual column (3,600) must never leak into a quarter
         self.assertNotIn(3600, list(m.historical.loc["Sales"]))
 
-    def test_standalone_only_is_rejected(self):
+    def test_standalone_only_falls_back_with_label(self):
+        # When only a standalone results table is readable, use it — but label
+        # the scope 'standalone' and warn — rather than hard-failing.
         p = self._path("standalone.pdf")
         _make_results_pdf(
             p, company="Delta Limited",
@@ -548,8 +550,44 @@ class SyntheticLayouts(unittest.TestCase):
                   "Quarter ended June 30, 2026",
             unit_caption="Rs. in Crore", headers=_consolidated_headers(),
             rows=_ROWS_CRORE)
-        with self.assertRaises(q.QuarterlyPDFError):
-            q.load_quarterly_pdf(p)
+        m = q.load_quarterly_pdf(p)
+        self.assertEqual(m.meta["source_scope"], "standalone")
+        self.assertEqual(m.meta["current_period"], "Jun-2026")
+        self.assertTrue(any("standalone" in w.lower() for w in m.meta["warnings"]))
+
+    def test_consolidated_preferred_over_standalone(self):
+        # A doc with BOTH a consolidated and a standalone results page must use
+        # the consolidated one.
+        import tempfile
+        from fpdf import FPDF
+        p = self._path("both.pdf")
+        pdf = FPDF(unit="pt", format=(595, 842))
+        for scope, sales in (("Consolidated", "1,000"), ("Standalone", "555")):
+            pdf.add_page()
+            pdf.set_font("Helvetica", size=9)
+            pdf.text(40, 60, "Omega Limited")
+            pdf.text(40, 80, f"Unaudited {scope} Financial Results for the "
+                             "Quarter ended June 30, 2026")
+            pdf.text(430, 96, "Rs. in Crore")
+            for label, x, _ in _consolidated_headers():
+                pdf.text(x, 130, label)
+            y = 160
+            rows = [("Revenue from operations", [sales, "900", "800", "3,600"]),
+                    ("Other income", ["50", "40", "30", "160"]),
+                    ("Total income", ["1,050", "940", "830", "3,760"]),
+                    ("Total expenses", ["800", "720", "700", "3,000"]),
+                    ("Profit before tax", ["250", "220", "130", "760"]),
+                    ("Tax expense", ["50", "44", "26", "160"]),
+                    ("Profit for the period", ["200", "176", "104", "600"])]
+            for lab, vals in rows:
+                pdf.text(40, y, lab)
+                for (_, x, _), v in zip(_consolidated_headers(), vals):
+                    pdf.text(x, y, v)
+                y += 16
+        pdf.output(p)
+        m = q.load_quarterly_pdf(p)
+        self.assertEqual(m.meta["source_scope"], "consolidated")
+        self.assertAlmostEqual(m.historical.loc["Sales", "Jun-2026"], 1000, delta=1)
 
     def test_unrelated_pdf_is_rejected(self):
         p = self._path("unrelated.pdf")

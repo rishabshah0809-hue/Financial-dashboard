@@ -214,7 +214,9 @@ Pipeline (deterministic; the LLM never calculates a number):
 
 ```
 Quarterly-results PDF
-  → document / section detection   (consolidated preferred; standalone rejected)
+  → document / section detection   (consolidated preferred; falls back to a
+                                     clearly-labelled standalone table if no
+                                     consolidated table is readable)
   → native PDF text + geometry     (pdfplumber; tables via row/column alignment)
   → targeted OCR only where needed (rasterised / scanned tables)
   → period detection               (current + immediately previous quarter only)
