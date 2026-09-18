@@ -1,23 +1,30 @@
 # Core application
-streamlit==1.38.0
-pandas==2.2.2
-numpy==1.26.4
-plotly==5.24.1
-openpyxl==3.1.5
-requests==2.32.3
-beautifulsoup4==4.12.3
-fpdf2==2.8.4
+# Version FLOORS (>=) rather than exact pins: Streamlit Community Cloud currently
+# builds on Python 3.14, and the old exact pins (numpy 1.26.4, pandas 2.2.2,
+# streamlit 1.38.0) have no 3.14 wheels, which made the install fail / build from
+# source. Floors let the resolver pick 3.14-compatible wheels.
+streamlit>=1.40
+pandas>=2.2
+numpy>=1.26
+plotly>=5.24
+openpyxl>=3.1
+requests>=2.32
+beautifulsoup4>=4.12
+fpdf2>=2.8
 
-# Quarterly-results PDF ingestion (core/quarterly_pdf.py)
-# The Excel workflow never imports these; every use site degrades gracefully if one is missing.
-pdfplumber==0.11.6
-PyMuPDF==1.25.4
-paddlepaddle==2.6.2
-paddleocr==2.10.0
-Pillow==10.4.0
-# Optional SECONDARY OCR cross-check: Surya (Torch-based, multi-GB models).
-# It is imported lazily and the app degrades gracefully without it, so it is
-# intentionally NOT pinned here — installing it alongside PaddleOCR is likely to
-# exceed Streamlit Community Cloud's image/memory limits. Install it explicitly
-# (`pip install surya-ocr`) in an environment that can host it to enable the
-# PaddleOCR↔Surya cross-check on financially-sensitive rasterised cells.
+# Quarterly-results PDF ingestion — native text + geometry (the workhorse).
+# The Excel/annual workflow never imports these.
+pdfplumber>=0.11
+PyMuPDF>=1.24
+Pillow>=10
+
+# OCR is OPTIONAL and deliberately NOT installed on Streamlit Community Cloud:
+#   * PaddleOCR PP-StructureV3 (primary) — `paddlepaddle` has no wheel for the
+#     Cloud's Python (3.14) and is too heavy for its image/memory limits, so it
+#     is omitted here. Install `paddlepaddle` + `paddleocr` in an environment
+#     that can host them to enable OCR of rasterised / scanned tables.
+#   * Surya (secondary cross-check) — Torch-based, multi-GB; install `surya-ocr`
+#     explicitly where it fits.
+# core/quarterly_pdf.py imports these lazily and degrades gracefully: native-text
+# filings work fully, and rasterised/scanned cells are marked "unavailable"
+# (never fabricated) when no OCR engine is present.

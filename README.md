@@ -227,12 +227,14 @@ Quarterly-results PDF
 
 - **Exactly two quarters** (current + previous) are used; annual / TTM / year-ago
   and nine-month columns are detected and excluded from the quarterly dataset.
-- **OCR engines:** PaddleOCR PP-StructureV3 (primary) with Surya as an optional
-  secondary cross-check. OCR is targeted at the pages/regions that need it, not
-  the whole document, and the app **degrades gracefully** if an OCR engine is not
-  installed (native text still works; rasterised cells are marked unavailable).
-  Surya is heavy (Torch-based) and may exceed Streamlit Community Cloud limits —
-  it is therefore optional and not a hard requirement (see `requirements.txt`).
+- **OCR engines (optional):** PaddleOCR PP-StructureV3 (primary) with Surya as a
+  secondary cross-check, targeted only at pages/regions that need it. **Neither
+  is installed on the Streamlit Community Cloud demo** — `paddlepaddle` has no
+  wheel for the Cloud's Python and both are too heavy for its image limits — so
+  the app **degrades gracefully**: native-text filings work fully, and
+  rasterised/scanned cells are marked unavailable (never fabricated). Install
+  `paddlepaddle`+`paddleocr` (and optionally `surya-ocr`) in a self-hosted
+  environment to enable OCR of scanned/image tables. See `requirements.txt`.
 - **Provenance:** every value is tagged `pdf_raw`, `python_derived`,
   `pdf_reported_validation`, `screener_fallback`, or `unavailable`. Missing data
   is shown as "—", never fabricated, and an annual/TTM Screener value is never
