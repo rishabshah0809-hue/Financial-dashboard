@@ -431,6 +431,19 @@ def assess_quarterly(model: FinancialModel, sector: SectorProfile) -> Assessment
     weight_sum = sum(weights.values()) or 1.0
     total = sum(pillar_scores[p] * weights[p] for p in pillar_scores) / weight_sum
     total = float(np.clip(total, 1.0, 100.0))
+
+    # Coverage-aware tempering (V1 conservatism): a quarterly filing exposes only
+    # a few metrics, so we must NOT award a confident 100/STRONG off one or two
+    # extreme margins with no returns / leverage / cash / growth context. Pull the
+    # score toward neutral in proportion to how little we could actually assess,
+    # and withhold a STRONG/WEAK verdict until enough pillars are covered.
+    n_scored = len(metric_scores)
+    n_pillars = len(pillar_scores)
+    coverage = min(1.0, n_scored / 5.0)
+    total = 50.0 + (total - 50.0) * coverage
+    if n_scored < 4 or n_pillars < 2:
+        total = float(np.clip(total, 41.0, 64.0))    # stay inside the NEUTRAL band
+    total = float(np.clip(total, 1.0, 100.0))
     verdict = "STRONG" if total >= STRONG_CUTOFF else "WEAK" if total < WEAK_CUTOFF else "NEUTRAL"
 
     ranked = sorted(metric_scores, key=lambda m: m.score, reverse=True)

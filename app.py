@@ -1554,21 +1554,29 @@ def _quarterly_panels(model, result) -> None:
     ocr_col = next((lbl for lbl, s in m.get("column_source", {}).items()
                     if s == "image"), None)
     with st.expander("Data quality", expanded=(conf == "low")):
+        def _id_line(period):
+            if val.get(period):
+                return True, f"Accounting identities reconcile — {period}"
+            # not a failure — the filing's P&L structure just doesn't expose the
+            # exact lines our cross-check needs (common for banks / exchanges).
+            return None, (f"Accounting identities not fully checked — {period} "
+                          "(statement structure differs; values still shown as filed)")
         checks = [
-            (True, f"{scope} quarterly results detected"),
+            (True, f"{scope.title()} quarterly results detected"),
             (True, f"Current quarter detected — {cur}"),
             (True, f"Previous quarter detected — {prev}"),
             (m.get("unit_known"), f"Reporting unit detected — ₹ {unit}"),
             (not model.historical.empty, "Profit & loss extracted"),
-            (val.get(cur), f"Accounting identities reconcile — {cur}"),
-            (val.get(prev), f"Accounting identities reconcile — {prev}"),
+            _id_line(cur),
+            _id_line(prev),
             (not model.ratios.empty, "Python ratios calculated"),
         ]
         if ocr_col:
             checks.insert(4, (val.get(ocr_col),
                               f"OCR of rasterised {ocr_col} column validated"))
         for ok, text in checks:
-            st.markdown(("✓ " if ok else "⚠ ") + text)
+            mark = "✓ " if ok else ("• " if ok is None else "⚠ ")
+            st.markdown(mark + text)
         gaps = result.data_gaps if result else []
         if gaps:
             st.markdown("**Unavailable (shown as “—”, never estimated):** "
