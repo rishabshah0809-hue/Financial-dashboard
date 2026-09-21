@@ -127,7 +127,10 @@ def _cycle_list(items: list[dict], visible: int = _CYC_VISIBLE) -> str:
 def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
     you, sector = _num(you), _num(sector)
     val = lambda v: (_pctx(v) if kind == "x" else _pct(v))          # noqa: E731
-    if you is None or sector is None:
+
+    # Two different kinds of "no bar", told apart so the page never blames the
+    # uploaded workbook for a number the workbook actually contains.
+    if you is None:
         why = note or ("Book value missing from the uploaded model" if kind == "x"
                        else "Not in the uploaded model")
         return (f'<div class="dev"><div class="dev-h"><span class="dev-n">{escape(name)}</span>'
@@ -136,6 +139,16 @@ def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
                 f'<div class="dev-track"><div class="dev-empty"></div></div>'
                 f'<div class="dev-f"><span>{escape(why)}</span>'
                 f'<span>sector {val(sector) or "&mdash;"}</span></div></div>')
+    if sector is None:
+        # The company's own figure IS known — show it. Only the sector side is
+        # missing, so there is a value but no gap to draw.
+        why = note or "No sector benchmark to compare against"
+        return (f'<div class="dev"><div class="dev-h"><span class="dev-n">{escape(name)}</span>'
+                f'<span class="dev-you">you <b>{val(you)}</b></span>'
+                f'<span class="dev-d d-na">No sector benchmark</span></div>'
+                f'<div class="dev-track"><div class="dev-empty"></div></div>'
+                f'<div class="dev-f"><span>{escape(why)}</span>'
+                f'<span>sector &mdash;</span></div></div>')
     # Unified rule: BETTER than sector → green bar to the RIGHT; WORSE → red bar to
     # the LEFT. Centre line is the sector. "Better" is lower for valuation (cheaper)
     # and higher for returns/growth.
@@ -170,28 +183,48 @@ def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
 # structural month strip (qualitative states -> bar height + colour). Never a
 # percentage — the real returns live in the heatmap below.
 # --------------------------------------------------------------------------
-# Filled-block seasonality strip (height + colour encode the qualitative state).
-_STATE_BLOCK = {"Strong": (48, "#177245"), "Positive": (34, "#2F9E63"),
-                "Neutral": (20, "#C9D3CC"), "Soft": (26, "#E0B876"),
-                "Weak": (34, "#C56B5C")}
+# Filled-block seasonality strip. Height, colour AND DIRECTION encode the
+# qualitative state: a good month grows UP from the baseline, a soft or weak
+# month hangs DOWN below it, so the shape of the business year is readable at a
+# glance without reading the legend. Neutral is a thin marker on the line.
+#                     (height px, colour,   direction)
+_STATE_BLOCK = {"Strong":   (48, "#177245", "up"),
+                "Positive": (32, "#2F9E63", "up"),
+                "Neutral":  (10, "#C9D3CC", "up"),
+                "Soft":     (28, "#E0B876", "down"),
+                "Weak":     (42, "#C56B5C", "down")}
 _STATE_ORDER = ("Strong", "Positive", "Neutral", "Soft", "Weak")
+# Tallest block on either side of the baseline, so both halves reserve the room
+# they need and the baseline stays put whatever the sector's pattern is.
+_STATE_MAX_UP = max(h for h, _c, d in _STATE_BLOCK.values() if d == "up")
+_STATE_MAX_DOWN = max(h for h, _c, d in _STATE_BLOCK.values() if d == "down")
 
 
 def _months_strip(qual: dict) -> str:
     cells = (qual or {}).get("cells") or []
     out = []
     for c in cells:
-        h, col = _STATE_BLOCK.get(c.get("state"), _STATE_BLOCK["Neutral"])
+        h, col, direction = _STATE_BLOCK.get(c.get("state"),
+                                             _STATE_BLOCK["Neutral"])
+        up = f'<i style="height:{h}px;background:{col}"></i>' if direction == "up" else ""
+        down = f'<i style="height:{h}px;background:{col}"></i>' if direction == "down" else ""
         out.append(f'<div class="mo" title="{escape(c["month"]+": "+c["state"])}">'
-                   f'<i style="height:{h}px;background:{col}"></i>'
+                   f'<div class="mo-up">{up}</div>'
+                   f'<div class="mo-base"></div>'
+                   f'<div class="mo-dn">{down}</div>'
                    f'<span>{escape(c["month"]).upper()}</span></div>')
     return "".join(out)
 
 
 def _seas_legend() -> str:
-    return "".join(
-        f'<span class="slg"><i style="background:{_STATE_BLOCK[s][1]}"></i>{s}</span>'
-        for s in _STATE_ORDER)
+    """Legend chips, each carrying the same up/down cue as the strip itself."""
+    out = []
+    for s in _STATE_ORDER:
+        _h, col, direction = _STATE_BLOCK[s]
+        arrow = "&#9650;" if direction == "up" else "&#9660;"
+        out.append(f'<span class="slg"><i style="background:{col}"></i>{s}'
+                   f'<em class="slg-d">{arrow}</em></span>')
+    return "".join(out)
 
 
 # --------------------------------------------------------------------------
@@ -304,12 +337,19 @@ _EXTRA_CSS = """
 .dev-bar.good.right{background:linear-gradient(90deg,#2F9E63,#7CC49A);border-radius:0 3px 3px 0}
 .dev-bar.bad.left{background:linear-gradient(270deg,#B4483C,#C86A5F);border-radius:3px 0 0 3px}
 .dev-bar.bad.right{background:linear-gradient(90deg,#B4483C,#C86A5F);border-radius:0 3px 3px 0}
-/* filled-block seasonality strip + legend */
-.months{display:flex;gap:6px;align-items:flex-end;padding:6px 0 2px}
-.months .mo{flex:1;display:flex;flex-direction:column;align-items:stretch;gap:6px}
-.months .mo i{display:block;width:100%;border-radius:5px 5px 3px 3px}
+/* filled-block seasonality strip + legend. Good months rise above the
+   baseline, soft/weak months hang below it. */
+.months{display:flex;gap:6px;align-items:stretch;padding:6px 0 2px}
+.months .mo{flex:1;display:flex;flex-direction:column;align-items:stretch}
+.months .mo-up{height:48px;display:flex;align-items:flex-end}
+.months .mo-dn{height:42px;display:flex;align-items:flex-start}
+.months .mo-base{height:1px;background:#DDE4DF;margin:3px 0}
+.months .mo i{display:block;width:100%}
+.months .mo-up i{border-radius:5px 5px 2px 2px}
+.months .mo-dn i{border-radius:2px 2px 5px 5px}
 .months .mo span{font-family:var(--mono,inherit);font-size:9px;font-weight:700;
-  letter-spacing:.4px;color:#8b918e;text-align:center}
+  letter-spacing:.4px;color:#8b918e;text-align:center;padding-top:6px}
+.slg-d{font-style:normal;font-size:9px;opacity:.55;margin-left:1px}
 .seas-lg{display:flex;flex-wrap:wrap;gap:6px 16px;padding:12px 0 2px}
 .slg{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#5b625d}
 .slg i{width:11px;height:11px;border-radius:3px;display:inline-block}
@@ -522,7 +562,10 @@ def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[st
         + '<div class="dev-grp">What you get</div>'
         + _dev("ROE", comp["roe"], sect.get("roe"), "pct")
         + _dev("ROCE", comp["roce"], (sect.get("roce") if roce_app else None), "pct",
-               note="The widest gap on the page" if (roce_gap is not None and abs(roce_gap) >= 8) else "")
+               note=(applic.get("roce_reason") or
+                     "ROCE is not a meaningful metric for lenders.") if not roce_app
+               else ("The widest gap on the page"
+                     if (roce_gap is not None and abs(roce_gap) >= 8) else ""))
         + _dev("ROA", comp["roa"], sect.get("roa"), "pct")
         + '<div class="dev-grp">How it’s growing</div>'
         + _dev("Sales growth", comp_sales_g, sec_sales_g, "g",
