@@ -357,7 +357,14 @@ _INFRA = ("larsen and toubro", "larsen", "l and t", "ntpc", "power grid",
           "coal india", "tata power", "jsw energy", "nhpc", "sjvn", "siemens",
           "abb india", "cummins india", "bhel", "irfc", "ircon", "rvnl",
           "torrent power", "petronet lng", "indraprastha gas", "gujarat gas",
-          "gmr airports")
+          "gmr airports",
+          # Full legal names — a Screener export names the company the way the
+          # exchange does ("BHARAT HEAVY ELECTRICALS LTD"), not by its ticker,
+          # so the long form has to resolve to the same identity as the short.
+          "bharat heavy electricals", "bharat electronics",
+          "rail vikas nigam", "indian railway finance corporation",
+          "oil india", "mazagon dock shipbuilders", "cochin shipyard",
+          "hindustan aeronautics", "hal")
 # Manufacturing & industrials (metals, cement, auto, chemicals, durables)
 _MFG = ("tata steel", "jsw steel", "hindalco", "vedanta", "nmdc", "sail",
         "jindal steel", "jindal steel and power", "ultratech cement", "shree cement",

@@ -37,7 +37,11 @@ from core import sector_universe as U
 from core import shell as SH
 from core import viz
 from core.llm import LLMConfig, analyse, answer_question, config_from_env
-from core.derive import fill_missing_common_size, fill_missing_ratios
+from core.derive import (
+    fill_missing_common_size,
+    fill_missing_ratios,
+    fill_missing_statement_lines,
+)
 from core.interpret import SECTIONS as INTERP_SECTIONS
 from core.interpret import fingerprint as interp_fingerprint
 from core.interpret import interpret as build_interpretation
@@ -1565,6 +1569,15 @@ def main() -> None:
     # shows today's value, not the workbook's stale one. Done before the ratios
     # below because the trailing P/E is priced off current_price.
     _apply_live_quote(model)
+
+    # Build the standard aggregate statement lines (Gross Profit, EBITDA, EBIT,
+    # Equity, Capital Employed, Total Assets) when the workbook reports the
+    # components but not the totals — a raw Screener-style export usually does.
+    # A line the workbook DOES report is always kept as reported.
+    derived_lines = fill_missing_statement_lines(model)
+    if derived_lines:
+        LOGGER.info("derived %d statement lines for %s",
+                    len(derived_lines), model.company)
 
     # Fill in any benchmark ratio the workbook did not supply, computed from
     # its own statements, so a formulas-only export still analyses.

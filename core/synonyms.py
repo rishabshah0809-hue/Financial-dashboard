@@ -156,7 +156,66 @@ CANONICAL_CONCEPTS: dict[str, list[str]] = {
     "total_assets": [
         "Total Assets", "Total Asset",
     ],
+    # Trade payables ONLY. "Other Liabilities" is a different, much broader line
+    # (it bundles provisions, advances from customers, statutory dues…), so it is
+    # deliberately NOT a payables synonym — see other_liabilities above. When a
+    # workbook has no true payables line, Creditor Turnover / Payable Days /
+    # Cash Conversion Cycle stay unavailable rather than being faked.
+    "payables": [
+        "Trade Payables", "Accounts Payable", "Accounts Payables",
+        "Sundry Creditors", "Creditors", "Payables", "Trade Creditors",
+        "Trade and Other Payables", "Bills Payable",
+    ],
+    # ---- cash flow ----
+    "cfo": [
+        "Cash from Operating Activity", "Cash from Operating Activities",
+        "Cash from Operations", "Operating Cash Flow",
+        "Net Cash from Operating Activities",
+        "Net Cash Flow from Operating Activities",
+        "Cash Flow from Operations", "Cash Flow from Operating Activities",
+        "CFO",
+    ],
+    "cfi": [
+        "Cash from Investing Activity", "Cash from Investing Activities",
+        "Investing Cash Flow", "Net Cash from Investing Activities",
+        "Cash Flow from Investing Activities",
+    ],
+    "cff": [
+        "Cash from Financing Activity", "Cash from Financing Activities",
+        "Financing Cash Flow", "Net Cash from Financing Activities",
+        "Cash Flow from Financing Activities",
+    ],
+    "net_cash_flow": [
+        "Net Cash Flow", "Net Increase in Cash",
+        "Net Increase / (Decrease) in Cash",
+        "Net Change in Cash",
+    ],
+    # ---- per-share / market ----
+    "eps": [
+        "Earnings per Share", "Earnings Per Share", "EPS", "Basic EPS",
+        "EPS (Basic)", "Basic Earnings per Share", "Earning per Share",
+    ],
+    "share_count": [
+        "No of Equity Shares", "No. of Equity Shares", "Number of Shares",
+        "Number of Equity Shares", "Equity Shares Outstanding",
+        "Shares Outstanding", "Share Count",
+    ],
+    "adjusted_share_count": [
+        "Adjusted Equity Shares in Cr", "Adjusted Equity Shares",
+        "Adjusted Shares Outstanding", "Adjusted No of Equity Shares",
+    ],
+    "dividend_amount": [
+        "Dividend Amount", "Dividend Paid", "Total Dividend",
+        "Dividends Paid", "Equity Dividend",
+    ],
+    "price": [
+        "Price", "Share Price", "Market Price", "Closing Price",
+        "Price per Share",
+    ],
 }
+
+# The label FundaCheck prefers for each concept — the first synonym listed.
+PREFERRED_LABEL: dict[str, str] = {c: s[0] for c, s in CANONICAL_CONCEPTS.items()}
 
 # Per-concept DISqualifiers: if a candidate label normalizes to include any of
 # these whole tokens, it is never mapped to that concept. This protects monetary
@@ -167,6 +226,16 @@ EXCLUSION_TOKENS: dict[str, tuple[str, ...]] = {
               "interest", "other_income", "profit_before_tax", "tax", "net_profit",
               "selling_general")
 }
+# Balance-sheet and cash-flow concepts: block derived views of the same idea
+# (days / turnover / % lines) from being read as the monetary line itself.
+EXCLUSION_TOKENS.update({
+    c: ("days", "turnover", "ratio", "percent", "growth", "margin")
+    for c in ("payables", "receivables", "inventory", "borrowings", "cash",
+              "cfo", "cfi", "cff", "net_cash_flow")
+})
+# "Other Liabilities" must never be read as trade payables (Part 3: do not map
+# superficially similar labels that are not economically equivalent).
+EXCLUSION_TOKENS["payables"] = EXCLUSION_TOKENS["payables"] + ("other",)
 
 
 def normalize(label) -> str:

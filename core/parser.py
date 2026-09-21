@@ -28,13 +28,17 @@ from typing import Any
 
 import pandas as pd
 
+from . import synonyms as SYN
+
 warnings.filterwarnings("ignore", category=UserWarning, module="openpyxl")
 
 # Sheet names we look for, and the friendly key we store them under.
 # Matching is fuzzy (lower-cased, spaces stripped) so small naming differences
 # between workbooks do not break the import.
 SHEET_ALIASES: dict[str, tuple[str, ...]] = {
-    "historical": ("historicalfs", "historical", "financials", "3smodel", "model"),
+    "historical": ("historicalfs", "historicalfinancials",
+                   "historicalfinancialdata", "historical", "financials",
+                   "3smodel", "3statementmodel", "model"),
     "ratios": ("ratioanalysis", "ratios", "ratio", "keyratios"),
     "common_size": ("commonsizestatement", "commonsize", "commonsizeanalysis"),
     "data": ("datasheet", "data", "raw"),
@@ -42,10 +46,25 @@ SHEET_ALIASES: dict[str, tuple[str, ...]] = {
 
 # When a workbook has no single combined statements sheet, it usually splits the
 # statements across separate tabs. These are parsed and stacked into one frame.
+# Names are matched on the NORMALIZED sheet name (lower-cased, non-alphanumerics
+# stripped), so "Profit & Loss", "Profit and Loss", "P&L" and "PROFIT_LOSS" all
+# land on the same alias.
 STATEMENT_SHEET_ALIASES: tuple[str, ...] = (
-    "incomestatement", "profitloss", "profitandloss", "pandl", "pl",
-    "balancesheet", "cashflow", "cashflowstatement", "cashflowstatment",
+    "incomestatement", "statementofincome", "income",
+    "profitloss", "profitandloss", "profitlossaccount",
+    "statementofprofitandloss", "pandl", "pl", "pnl",
+    "balancesheet", "statementoffinancialposition",
+    "cashflow", "cashflowstatement", "cashflowstatment",
+    "statementofcashflows",
 )
+
+# Short aliases must match the WHOLE normalized sheet name — "pl" as a loose
+# substring would fire on unrelated tabs ("Sample Plan" → "sampleplan").
+_SHORT_ALIAS_LEN = 6
+
+# How many canonical financial lines a sheet must show before it is accepted as
+# the workbook's combined statements (see _first_parsable).
+MIN_STATEMENT_CONCEPTS = 4
 
 
 class ParseError(Exception):
@@ -66,6 +85,12 @@ class FinancialModel:
     rebuilt_from_data_sheet: bool = False
     # metric label -> the section it was found under ("PROFITABILITY & MARGINS")
     sections: dict[str, str] = field(default_factory=dict)
+    # metric label -> {"kind": "source"|"derived", "formula": "..."}
+    # SOURCE  = the number was read straight out of the workbook.
+    # DERIVED = FundaCheck computed it (the formula says how).
+    # Kept internally so the UI can explain a number's origin; FundaCheck must
+    # never present a computed figure as if the workbook supplied it.
+    provenance: dict[str, dict[str, str]] = field(default_factory=dict)
 
     @property
     def latest_year(self) -> str:
@@ -85,6 +110,24 @@ class FinancialModel:
 
     def metrics_in_section(self, section: str) -> list[str]:
         return [m for m, sec in self.sections.items() if sec == section]
+
+    # -- provenance ------------------------------------------------------
+    def mark_source(self, label: str, where: str = "") -> None:
+        self.provenance[label] = {"kind": "source", "formula": "",
+                                  "where": where}
+
+    def mark_derived(self, label: str, formula: str = "") -> None:
+        self.provenance[label] = {"kind": "derived", "formula": formula,
+                                  "where": "FundaCheck"}
+
+    def provenance_of(self, label: str) -> str:
+        """"source", "derived", or "unknown" for a metric label."""
+        entry = self.provenance.get(label)
+        return entry["kind"] if entry else "unknown"
+
+    def provenance_formula(self, label: str) -> str:
+        entry = self.provenance.get(label)
+        return entry.get("formula", "") if entry else ""
 
 
 # --------------------------------------------------------------------------
@@ -107,9 +150,26 @@ AGGREGATE_COLUMNS = {
 }
 
 
+# Financial-model templates tag each column as actual or projected: "FY23A" is
+# reported, "FY27E" / "FY27P" / "FY27F" is someone's forecast. FundaCheck scores
+# REPORTED history only, so projected columns are recognised (so the header row
+# is still found) and then dropped from the model rather than silently scored as
+# if they had happened.
+_FY_COLUMN = re.compile(r"(?i)^fy\s?['’]?(\d{2,4})\s*(a|e|p|f|est|proj)?$")
+_PROJECTED_SUFFIXES = ("e", "p", "f", "est", "proj")
+
+
+def _is_projection(label: Any) -> bool:
+    match = _FY_COLUMN.match(str(label).strip())
+    return bool(match and (match.group(2) or "").lower() in _PROJECTED_SUFFIXES)
+
+
 def _is_period(label: str) -> bool:
-    """True for a real reporting period (FY24, TTM), False for Mean/Median/CAGR."""
+    """True for a real reporting period (FY24, TTM), False for Mean/Median/CAGR
+    and for projected columns (FY27E)."""
     if not label:
+        return False
+    if _is_projection(label):
         return False
     return _norm(label) not in AGGREGATE_COLUMNS
 
@@ -126,7 +186,7 @@ def _looks_period(value: Any) -> bool:
     if isinstance(value, pd.Timestamp) or hasattr(value, "year"):
         return True
     text = str(value).strip()
-    if re.match(r"(?i)^fy\s?['’]?\d{2,4}$", text):
+    if _FY_COLUMN.match(text):
         return True
     if re.match(r"^(19|20)\d{2}(-\d{2})?", text):
         return True
@@ -142,6 +202,13 @@ def _year_label(value: Any) -> str:
     text = str(value).strip()
     if _norm(text) in ("ttm", "ltm", "trailing"):
         return "TTM"
+    fy = _FY_COLUMN.match(text)
+    if fy:
+        year = fy.group(1)[-2:]
+        suffix = (fy.group(2) or "").lower()
+        # Keep the projection marker in the label so a forecast column can never
+        # be mistaken for reported history further down the pipeline.
+        return f"FY{year}E" if suffix in _PROJECTED_SUFFIXES else f"FY{year}"
     match = re.search(r"(19|20)\d{2}", text)
     if match:
         return f"FY{match.group(0)[-2:]}"
@@ -189,15 +256,106 @@ def _find_sheets(book: dict[str, pd.DataFrame], key: str) -> list[tuple[str, pd.
     return [(name, frame) for _, _, name, frame in scored]
 
 
-def _first_parsable(candidates: list[tuple[str, pd.DataFrame]]):
-    """First candidate sheet that parses to a non-empty frame; else empties."""
+def _matches_statement_alias(sheet_name: Any) -> bool:
+    """True when a sheet name reads as one of the individual statement tabs."""
+    nm = _norm(sheet_name)
+    if not nm or "quarter" in nm:          # quarterly tabs are not FY periods
+        return False
+    for alias in STATEMENT_SHEET_ALIASES:
+        if len(alias) < _SHORT_ALIAS_LEN:
+            if nm == alias:                # "pl" / "pnl" only as the whole name
+                return True
+        elif nm.startswith(alias) or alias in nm:
+            return True
+    return False
+
+
+# --------------------------------------------------------------------------
+# workbook format detection
+# --------------------------------------------------------------------------
+# What kind of workbook was uploaded. Detection is by NORMALIZED sheet name, so
+# "Profit & Loss" / "Profit and Loss" / "P&L" / "Income Statement" all count as
+# the same thing.
+FORMAT_HISTORICAL = "fundacheck_historical"   # HistoricalFS + Ratio Analysis …
+FORMAT_STATEMENTS = "screener_statements"     # P&L / Balance Sheet / Cash Flow
+FORMAT_DATA_SHEET = "data_sheet"              # only the raw Data Sheet is usable
+FORMAT_UNSUPPORTED = "unsupported"
+
+FORMAT_LABELS = {
+    FORMAT_HISTORICAL: "FundaCheck / HistoricalFS workbook",
+    FORMAT_STATEMENTS: "Screener-style separate statements workbook",
+    FORMAT_DATA_SHEET: "raw workbook (Data Sheet only)",
+    FORMAT_UNSUPPORTED: "unsupported workbook",
+}
+
+
+def detect_format(book: dict[str, pd.DataFrame]) -> str:
+    """Classify an open workbook into one of the four supported shapes.
+
+    A workbook can hold several of these at once (every Screener export carries
+    a Data Sheet). The most structured shape that actually holds *values* wins,
+    because that is the one the parser will read first.
+    """
+    if not book:
+        return FORMAT_UNSUPPORTED
+
+    def _has_values(frame: pd.DataFrame, min_concepts: int = 0) -> bool:
+        try:
+            _f, _s, _t = _parse_statement_sheet(frame)
+        except ParseError:
+            return False
+        if _f.empty:
+            return False
+        if min_concepts:
+            return len(SYN.find_all([str(i) for i in _f.index])) >= min_concepts
+        return True
+
+    if any(_has_values(f, MIN_STATEMENT_CONCEPTS)
+           for _n, f in _find_sheets(book, "historical")):
+        return FORMAT_HISTORICAL
+    if any(_has_values(f) for name, f in book.items()
+           if _matches_statement_alias(name)):
+        return FORMAT_STATEMENTS
+
+    data_sheet = _find_sheet(book, "data")
+    if data_sheet is not None and not _parse_data_sheet_statements(data_sheet).empty:
+        return FORMAT_DATA_SHEET
+
+    # No values anywhere, but the *shape* is still recognisable — report the
+    # shape so the error message can say what was expected and what was missing.
+    if _find_sheets(book, "historical"):
+        return FORMAT_HISTORICAL
+    if any(_matches_statement_alias(name) for name in book):
+        return FORMAT_STATEMENTS
+    if data_sheet is not None:
+        return FORMAT_DATA_SHEET
+    return FORMAT_UNSUPPORTED
+
+
+def _first_parsable(candidates: list[tuple[str, pd.DataFrame]],
+                    min_concepts: int = 0):
+    """First candidate sheet that parses to a non-empty frame; else empties.
+
+    `min_concepts` guards against decoy tabs: a sheet only counts as the
+    combined statements when the shared synonym layer recognises at least that
+    many canonical financial lines on it. Without the gate, a "Revenue Model" or
+    "DCF Inputs" tab (which parses fine, but holds segment build-ups rather than
+    a P&L) would be accepted as the company's statements.
+    """
     for _name, raw in candidates:
         try:
             frame, sections, title = _parse_statement_sheet(raw)
         except ParseError:
             continue
-        if not frame.empty:
-            return frame, sections, title
+        if frame.empty:
+            continue
+        if min_concepts:
+            found = SYN.find_all([str(i) for i in frame.index])
+            if len(found) < min_concepts:
+                SYN.LOGGER.debug("skipping sheet %r: only %d recognised "
+                                 "financial lines", _name, len(found))
+                continue
+        return frame, sections, title
     return pd.DataFrame(), {}, ""
 
 
@@ -221,7 +379,11 @@ def _parse_statement_sheet(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, s
             if cell is None or (isinstance(cell, float) and pd.isna(cell)):
                 continue
             text = str(cell).strip()
-            if len(text) > 12 and "-" in text and not _looks_period(text):
+            # A title line, not a footnote: long enough to be a name, carrying a
+            # separator, and free of the punctuation that marks a note/formula.
+            if (12 < len(text) <= 90 and ("-" in text or "|" in text)
+                    and not any(ch in text for ch in ";=%")
+                    and not _looks_period(text)):
                 title = title or text
             break
 
@@ -313,10 +475,7 @@ def _combine_statement_sheets(book: dict[str, pd.DataFrame]):
     sections: dict[str, str] = {}
     title = ""
     for name, raw in book.items():
-        nm = _norm(name)
-        if "quarter" in nm:                       # quarterly tabs are not FY periods
-            continue
-        if not any(nm.startswith(a) or a in nm for a in STATEMENT_SHEET_ALIASES):
+        if not _matches_statement_alias(name):
             continue
         try:
             frame, secs, sheet_title = _parse_statement_sheet(raw)
@@ -359,11 +518,32 @@ def _parse_data_sheet(raw: pd.DataFrame) -> dict[str, Any]:
     return meta
 
 
+# Words that name a STATEMENT, not a company — dropped from a title line so
+# "ADANI ENTERPRISES LIMITED | CONSOLIDATED INCOME STATEMENT" yields the company.
+_TITLE_NOISE = ("income statement", "balance sheet", "cash flow statement",
+                "cash flow", "profit and loss", "profit & loss",
+                "historical financial data", "common size statement",
+                "financial statements", "consolidated", "standalone")
+
+
 def _company_from_title(title: str) -> str:
-    """'Historical Financial Data - ADANI ENTERPRISES LTD' -> 'Adani Enterprises Ltd'."""
-    if "-" in title:
-        title = title.split("-", 1)[1]
-    return _clean_label(title).title() or "Unknown Company"
+    """'Historical Financial Data - ADANI ENTERPRISES LTD' -> 'Adani Enterprises Ltd'.
+
+    Splits on '-' or '|' and keeps the part that is not a statement name, so
+    both the Screener title row and a "COMPANY | CONSOLIDATED INCOME STATEMENT"
+    banner resolve to the company.
+    """
+    parts = [p.strip() for p in re.split(r"[|\-]", str(title)) if p.strip()]
+    if not parts:
+        return "Unknown Company"
+
+    def _is_noise(part: str) -> bool:
+        low = part.lower()
+        return any(word in low for word in _TITLE_NOISE)
+
+    named = [p for p in parts if not _is_noise(p)]
+    chosen = named[-1] if named else parts[-1]
+    return _clean_label(chosen).title() or "Unknown Company"
 
 
 
@@ -375,6 +555,13 @@ def _company_from_title(title: str) -> str:
 # Data Sheet next to them holds every raw number. This rebuilds the statements
 # from those raw values so such a workbook still analyses.
 DATA_SHEET_ALIASES: dict[str, str] = {
+    "debtors": "Receivables",
+    "tradepayables": "Trade Payables",
+    "sundrycreditors": "Trade Payables",
+    "creditors": "Trade Payables",
+    "accountspayable": "Trade Payables",
+    "dividendamount": "Dividend Amount",
+    "adjustedequitysharesincr": "Adjusted Equity Shares",
     "sales": "Sales",
     "netprofit": "Net Profit",
     "profitbeforetax": "Earnings Before Tax",
@@ -415,6 +602,39 @@ OPERATING_COST_KEYS = (
     *COGS_COST_KEYS, *SGA_COST_KEYS, CHANGE_IN_INVENTORY_KEY,
 )
 
+# Concepts the Data-Sheet rebuild is willing to accept from the shared synonym
+# layer when a row label is not one of Screener's own fixed labels above. This
+# is how a raw workbook that spells a line differently ("Revenue from
+# Operations", "Finance Costs", "Trade Payables") still rebuilds — the mapping
+# lives in core/synonyms.py, not scattered here.
+DATA_SHEET_CONCEPTS: dict[str, str] = {
+    "sales": "Sales",
+    "other_income": "Other Income",
+    "depreciation": "Depreciation",
+    "interest": "Interest",
+    "profit_before_tax": "Earnings Before Tax",
+    "tax": "Tax",
+    "net_profit": "Net Profit",
+    "equity_share_capital": "Equity Share Capital",
+    "reserves": "Reserves",
+    "borrowings": "Borrowings",
+    "other_liabilities": "Other Liabilities",
+    "payables": "Trade Payables",
+    "net_block": "Net Block",
+    "cwip": "Capital Work in Progress",
+    "investments": "Investments",
+    "receivables": "Receivables",
+    "inventory": "Inventory",
+    "cash": "Cash & Bank",
+    "cfo": "Cash from Operating Activity",
+    "cfi": "Cash from Investing Activity",
+    "cff": "Cash from Financing Activity",
+    "net_cash_flow": "Net Cash Flow",
+    "share_count": "No of Equity Shares",
+    "adjusted_share_count": "Adjusted Equity Shares",
+    "dividend_amount": "Dividend Amount",
+}
+
 
 def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
     """
@@ -444,7 +664,17 @@ def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
         if key in ("quarters",):
             in_quarters = True
             continue
-        if key in ("balancesheet", "cashflow", "profitloss", "price", "derived", "meta"):
+        if key == "price":
+            # The PRICE: row is both a block marker and a data row — Screener
+            # prints the year-end share price for each annual column on it.
+            in_quarters = False
+            if years:
+                values = [_to_float(v) for v in cells[start:start + len(years)]]
+                row_map = {y: v for y, v in zip(years, values) if v is not None}
+                if row_map:
+                    records.setdefault("Price", {}).update(row_map)
+            continue
+        if key in ("balancesheet", "cashflow", "profitloss", "derived", "meta"):
             in_quarters = False
             continue
         if key == "reportdate":
@@ -466,6 +696,13 @@ def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
             costs[label] = row_map
         elif key in DATA_SHEET_ALIASES:
             records.setdefault(DATA_SHEET_ALIASES[key], {}).update(row_map)
+        else:
+            # Not one of Screener's fixed labels — fall back to the shared
+            # synonym layer, which only answers when it is confident.
+            concept = SYN.resolve(label)
+            target = DATA_SHEET_CONCEPTS.get(concept) if concept else None
+            if target:
+                records.setdefault(target, {}).update(row_map)
 
     if not records:
         return pd.DataFrame()
@@ -508,10 +745,10 @@ def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
             frame.loc["EBIT (OPM)"] = frame.loc["EBITDA"] - frame.loc["Depreciation"]
 
     if "Equity Share Capital" in frame.index and "Reserves" in frame.index:
-        frame.loc["Total Asset"] = frame.loc[
-            ["Equity Share Capital", "Reserves", "Borrowings", "Other Liabilities"]
-        ].reindex(["Equity Share Capital", "Reserves", "Borrowings",
-                   "Other Liabilities"]).sum(axis=0, min_count=1)
+        _liability_lines = ["Equity Share Capital", "Reserves", "Borrowings",
+                            "Other Liabilities", "Trade Payables"]
+        frame.loc["Total Asset"] = frame.reindex(
+            _liability_lines).sum(axis=0, min_count=1)
 
         # "Other Assets" is the remainder of the asset side that the Data Sheet
         # does not itemise, so the assets shown add up to the balance-sheet total
@@ -527,20 +764,66 @@ def _parse_data_sheet_statements(raw: pd.DataFrame) -> pd.DataFrame:
             if other.abs().max() and float(other.abs().max()) > 1.0:
                 frame.loc["Other Assets"] = other
 
-    if "Net Profit" in frame.index and "No of Equity Shares" in frame.index:
-        shares = frame.loc["No of Equity Shares"].replace(0, pd.NA)
+    # Share count: Screener's Data Sheet carries the raw count AND a
+    # bonus/split-adjusted count in crore ("Adjusted Equity Shares in Cr"). The
+    # adjusted series is the one the HistoricalFS template divides by, because a
+    # bonus issue is not new economic capital — using the raw count overstates
+    # EPS in the years before a bonus. Prefer adjusted whenever it is present.
+    raw_shares = None
+    if "No of Equity Shares" in frame.index:
+        raw_shares = frame.loc["No of Equity Shares"].replace(0, pd.NA)
         # Screener stores the absolute share count; the statements use crore.
-        if shares.dropna().max() and float(shares.dropna().max()) > 1e6:
-            shares = shares / 1e7
-        frame.loc["No of Equity Shares"] = shares
+        if raw_shares.dropna().max() and float(raw_shares.dropna().max()) > 1e6:
+            raw_shares = raw_shares / 1e7
+        frame.loc["No of Equity Shares"] = raw_shares
+
+    shares = None
+    if "Adjusted Equity Shares" in frame.index:
+        adjusted = frame.loc["Adjusted Equity Shares"].replace(0, pd.NA)
+        if adjusted.dropna().max() and float(adjusted.dropna().max()) > 1e6:
+            adjusted = adjusted / 1e7
+        frame.loc["Adjusted Equity Shares"] = adjusted
+        if not adjusted.dropna().empty:
+            shares = adjusted
+    if shares is None:
+        shares = raw_shares
+
+    if "Net Profit" in frame.index and shares is not None:
         frame.loc["Earnings per Share"] = frame.loc["Net Profit"] / shares
+        if "Dividend Amount" in frame.index:
+            frame.loc["Dividend per Share"] = frame.loc["Dividend Amount"] / shares
 
     return frame.dropna(axis=1, how="all")
+
+
+# Lines the Data-Sheet rebuild COMPUTES rather than reads. Everything else it
+# produces came straight off the sheet. Used for provenance (Part 8).
+REBUILD_DERIVED_LINES: dict[str, str] = {
+    "COGS": "Raw Material + Power & Fuel + Other Mfr + Employee − Change in Inventory",
+    "Selling & General Expenses": "Selling & admin + Other Expenses",
+    "Gross Profit": "Sales − COGS",
+    "EBITDA": "Sales − (COGS + Selling & General Expenses)",
+    "EBIT (OPM)": "EBITDA − Depreciation",
+    "Total Asset": "Equity Share Capital + Reserves + Borrowings + Other Liabilities",
+    "Other Assets": "Total Assets − (Net Block + CWIP + Investments + Receivables "
+                    "+ Inventory + Cash)",
+    "Earnings per Share": "Net Profit ÷ adjusted equity shares",
+    "Dividend per Share": "Dividend Amount ÷ adjusted equity shares",
+}
 
 
 # --------------------------------------------------------------------------
 # public entry point
 # --------------------------------------------------------------------------
+def _mark_rebuilt(model: FinancialModel, label: str) -> None:
+    """Record whether a rebuilt Data-Sheet line was read or computed."""
+    formula = REBUILD_DERIVED_LINES.get(label)
+    if formula:
+        model.mark_derived(label, formula)
+    else:
+        model.mark_source(label, "Data Sheet")
+
+
 def load_model(source: Any) -> FinancialModel:
     """
     Parse an uploaded 3-statement workbook.
@@ -553,21 +836,29 @@ def load_model(source: Any) -> FinancialModel:
         raise ParseError("The workbook appears to be empty.")
 
     model = FinancialModel()
+    model.meta["workbook_format"] = detect_format(book)
+    model.meta["workbook_format_label"] = FORMAT_LABELS[model.meta["workbook_format"]]
+    model.meta["sheets"] = list(book)
     title = ""
 
     # Try every sheet that could be the combined statements, best match first,
     # and use the first that actually parses (skips decoys like a 'Financials>'
     # cover tab). If none do, stitch separate statement tabs together.
-    model.historical, sections, title = _first_parsable(_find_sheets(book, "historical"))
+    model.historical, sections, title = _first_parsable(
+        _find_sheets(book, "historical"), min_concepts=MIN_STATEMENT_CONCEPTS)
     if model.historical.empty:
         model.historical, sections, title = _combine_statement_sheets(book)
     model.sections.update(sections)
     model.years = list(model.historical.columns)
+    for label in model.historical.index:
+        model.mark_source(label, "statement sheet")
 
     ratios, ratio_sections, ratio_title = _first_parsable(_find_sheets(book, "ratios"))
     if not ratios.empty:
         model.ratios = ratios
         model.sections.update(ratio_sections)
+        for label in ratios.index:
+            model.mark_source(label, "Ratio Analysis sheet")
         title = title or ratio_title
 
     common_size, cs_sections, _cs_title = _first_parsable(_find_sheets(book, "common_size"))
@@ -575,10 +866,14 @@ def load_model(source: Any) -> FinancialModel:
         model.common_size = common_size
         for label, section in cs_sections.items():
             model.sections.setdefault(label, section)
+        for label in common_size.index:
+            model.provenance.setdefault(
+                label, {"kind": "source", "formula": "",
+                        "where": "Common Size sheet"})
 
     data_sheet = _find_sheet(book, "data")
     if data_sheet is not None:
-        model.meta = _parse_data_sheet(data_sheet)
+        model.meta.update(_parse_data_sheet(data_sheet))
 
         # The Data Sheet holds the raw numbers. Use it two ways: if the formula
         # sheets parsed to almost nothing, rebuild wholesale; otherwise just fill
@@ -592,6 +887,7 @@ def load_model(source: Any) -> FinancialModel:
                 model.rebuilt_from_data_sheet = True
                 for label in rebuilt.index:
                     model.sections.setdefault(label, "REBUILT FROM DATA SHEET")
+                    _mark_rebuilt(model, label)
             else:
                 missing = [l for l in rebuilt.index if l not in model.historical.index]
                 if missing:
@@ -600,13 +896,18 @@ def load_model(source: Any) -> FinancialModel:
                     model.historical = pd.concat([model.historical, extra])
                     for label in extra.index:
                         model.sections.setdefault(label, "REBUILT FROM DATA SHEET")
+                        _mark_rebuilt(model, label)
 
     if model.historical.empty:
+        seen = ", ".join(str(s) for s in book) or "none"
+        shape = FORMAT_LABELS.get(model.meta.get("workbook_format", ""),
+                                  "unsupported workbook")
         raise ParseError(
-            "Could not read any financial statements from this workbook. It needs "
-            "either a combined statements sheet (like 'HistoricalFS') or separate "
-            "Income Statement / Balance Sheet / Cash Flow tabs, each with a row of "
-            "yearly dates."
+            f"Could not read any financial statements from this workbook "
+            f"(detected shape: {shape}; sheets found: {seen}). It needs either a "
+            "combined statements sheet (like 'HistoricalFS'), separate "
+            "Profit & Loss / Balance Sheet / Cash Flow tabs, or a Screener "
+            "'Data Sheet' — each with a row of yearly reporting dates."
         )
 
     model.company = model.meta.get("company") or _company_from_title(title)
