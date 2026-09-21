@@ -268,13 +268,11 @@ _LENDER_NOTE = {
     "Payable Days":
         "Trade credit from suppliers is not how a lender is funded — deposits "
         "and borrowings are.",
-    "Debt to Equity Ratio":
-        "Leverage is the business model for a lender, not a warning sign. It is "
-        "still shown, but it should be read against capital-adequacy rules "
-        "rather than against an industrial company's debt level.",
-    "Interest Coverage Ratio":
-        "Interest is a lender's cost of goods, not an overhead its profits have "
-        "to survive, so coverage does not read the way it does elsewhere.",
+    # NOTE: Debt/Equity and Interest Coverage are deliberately NOT listed. They
+    # read differently for a lender, but the banking profile already carries
+    # purpose-built bands for both (D/E 12x→6x, coverage 1.1x→1.6x), so they are
+    # scored correctly here. Marking them "not meaningful" would contradict the
+    # scorer. This table is only for ratios that say nothing at all.
     "Fixed Asset Turnover":
         "A lender's earning assets are loans, not plant and machinery, so sales "
         "per rupee of fixed assets says little.",

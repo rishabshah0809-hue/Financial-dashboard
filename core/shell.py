@@ -871,10 +871,28 @@ def _score_rationale(result) -> str:
         f'<div class="pillars">{bars}</div></div>')
 
 
+def _sector_key_of(result) -> str:
+    """The sector key behind the profile the scorer applied."""
+    from .sectors import SECTORS
+    name = getattr(getattr(result, "sector", None), "name", "")
+    return next((k for k, p in SECTORS.items() if p.name == name), "")
+
+
+def _na_tag(result, metric: str) -> str:
+    """" (not meaningful)" when this sector does not really use the ratio.
+
+    The number is always still shown — only a bracket is added, so the reader
+    sees the figure AND knows not to read it the way they would elsewhere.
+    """
+    from .sectors import metric_note
+    return " (not meaningful)" if metric_note(_sector_key_of(result), metric) else ""
+
+
 def _drivers_html(result) -> str:
     ranked = sorted(result.metrics, key=lambda m: m.score, reverse=True)[:6]
     rows = "".join(
-        f'<div class="drow"><div class="dl"><span>{_esc(S.short_name(m.metric))}'
+        f'<div class="drow"><div class="dl">'
+        f'<span>{_esc(S.short_name(m.metric) + _na_tag(result, m.metric))}'
         f'</span><b style="color:{viz.band(m.score)}">{round(m.score)}</b></div>'
         f'<div class="track"><div class="fill" '
         f'style="width:{m.score:.0f}%;background:{viz.band(m.score)}"></div></div></div>'
@@ -1187,7 +1205,8 @@ def ratios_shell(model, result, model_filename: str = "") -> tuple[str, int]:
     except Exception:
         pass
     flows_html = S.flows_card(model)
-    rows = [(S.short_name(m.metric), m.display(m.latest), float(m.score))
+    rows = [(S.short_name(m.metric) + _na_tag(result, m.metric),
+             m.display(m.latest), float(m.score))
             for m in result.metrics]
     sc_html, sc_h = viz.scorecard_chart(rows)
     charts = S.deepdive_charts(model)

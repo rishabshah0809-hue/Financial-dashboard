@@ -114,3 +114,43 @@ class TestSectorApplicability(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNotMeaningfulIsShownBesideTheNumber(unittest.TestCase):
+    """The number is never hidden — a bracket is added next to it."""
+
+    def test_deep_dive_tags_the_label_and_keeps_the_value(self):
+        self.assertEqual(RD._na_tag("banking", "Fixed Asset Turnover"),
+                         RD.NOT_MEANINGFUL_TAG)
+        self.assertEqual(RD._na_tag("banking", "Return on Equity (ROE) %"), "")
+        self.assertEqual(RD._na_tag("fmcg", "Fixed Asset Turnover"), "")
+
+    def test_ratios_the_sector_bands_already_handle_are_not_tagged(self):
+        """A lender's D/E and interest cover have purpose-built bands, so
+        marking them 'not meaningful' would contradict the scorer."""
+        for metric in ("Debt to Equity Ratio", "Interest Coverage Ratio"):
+            self.assertEqual(RD._na_tag("banking", metric), "", metric)
+            self.assertIsNone(sectors.metric_note("banking", metric), metric)
+
+    def test_gap_bar_shows_the_value_with_the_bracket(self):
+        from core import sector_lens_view as V
+        html = V._dev("ROCE", 10.99, None, "pct", note="A lender…",
+                      not_meaningful=True)
+        self.assertIn("10.99%", html)
+        self.assertIn("(not meaningful)", html)
+        self.assertIn("Not meaningful", html)
+
+    def test_gap_bar_without_the_flag_is_unchanged(self):
+        from core import sector_lens_view as V
+        html = V._dev("ROCE", 10.99, None, "pct")
+        self.assertIn("10.99%", html)
+        self.assertNotIn("(not meaningful)", html)
+
+    def test_overview_drivers_tag_uses_the_same_table(self):
+        from core import shell as SH
+
+        class _R:
+            sector = type("S", (), {"name": "Banking & Financial Services"})()
+        self.assertEqual(SH._na_tag(_R(), "Fixed Asset Turnover"),
+                         " (not meaningful)")
+        self.assertEqual(SH._na_tag(_R(), "Return on Assets (ROA) %"), "")

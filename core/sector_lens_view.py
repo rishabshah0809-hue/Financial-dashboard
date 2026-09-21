@@ -131,7 +131,8 @@ def _not_meaningful_note(sector_key: str, metric: str, fallback: str = "") -> st
             or f"{metric} is not a meaningful measure for this kind of business.")
 
 
-def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
+def _dev(name: str, you, sector, kind: str, note: str = "",
+         not_meaningful: bool = False) -> str:
     you, sector = _num(you), _num(sector)
     val = lambda v: (_pctx(v) if kind == "x" else _pct(v))          # noqa: E731
 
@@ -148,11 +149,15 @@ def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
                 f'<span>sector {val(sector) or "&mdash;"}</span></div></div>')
     if sector is None:
         # The company's own figure IS known — show it. Only the sector side is
-        # missing, so there is a value but no gap to draw.
+        # missing, so there is a value but no gap to draw. When the reason is
+        # that the ratio does not describe this kind of business, the number
+        # still shows, with "(not meaningful)" in brackets beside it.
         why = note or "No sector benchmark to compare against"
+        chip = "Not meaningful" if not_meaningful else "No sector benchmark"
+        tag = ' <em class="dev-na">(not meaningful)</em>' if not_meaningful else ""
         return (f'<div class="dev"><div class="dev-h"><span class="dev-n">{escape(name)}</span>'
-                f'<span class="dev-you">you <b>{val(you)}</b></span>'
-                f'<span class="dev-d d-na">No sector benchmark</span></div>'
+                f'<span class="dev-you">you <b>{val(you)}</b>{tag}</span>'
+                f'<span class="dev-d d-na">{chip}</span></div>'
                 f'<div class="dev-track"><div class="dev-empty"></div></div>'
                 f'<div class="dev-f"><span>{escape(why)}</span>'
                 f'<span>sector &mdash;</span></div></div>')
@@ -357,6 +362,9 @@ _EXTRA_CSS = """
 .months .mo span{font-family:var(--mono,inherit);font-size:9px;font-weight:700;
   letter-spacing:.4px;color:#8b918e;text-align:center;padding-top:6px}
 .slg-d{font-style:normal;font-size:9px;opacity:.55;margin-left:1px}
+/* "(not meaningful)" sits beside the number, never in place of it */
+.dev-na{font-style:normal;font-size:11px;font-weight:600;color:#B5761F;
+  margin-left:5px;white-space:nowrap}
 .seas-lg{display:flex;flex-wrap:wrap;gap:6px 16px;padding:12px 0 2px}
 .slg{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#5b625d}
 .slg i{width:11px;height:11px;border-radius:3px;display:inline-block}
@@ -573,7 +581,8 @@ def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[st
                    sector_key, "Return on Capital Employed (ROCE) %",
                    applic.get("roce_reason")) if not roce_app
                else ("The widest gap on the page"
-                     if (roce_gap is not None and abs(roce_gap) >= 8) else ""))
+                     if (roce_gap is not None and abs(roce_gap) >= 8) else ""),
+               not_meaningful=not roce_app)
         + _dev("ROA", comp["roa"], sect.get("roa"), "pct")
         + '<div class="dev-grp">How it’s growing</div>'
         + _dev("Sales growth", comp_sales_g, sec_sales_g, "g",

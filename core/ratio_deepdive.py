@@ -254,11 +254,29 @@ def _explain(r: dict) -> tuple[str, str]:
 # context builder
 # --------------------------------------------------------------------------
 
+def _sector_caveat(sector_key: str, metric: str) -> str:
+    """The plain-English reason, without the leading label, or ""."""
+    from .sectors import metric_note
+    return metric_note(sector_key, metric) or ""
+
+
 def _sector_key(result) -> str:
     """The sector's key (e.g. "banking") from the profile the scorer applied."""
     from .sectors import SECTORS
     name = getattr(getattr(result, "sector", None), "name", "")
     return next((k for k, p in SECTORS.items() if p.name == name), "")
+
+
+# Shown in brackets beside a ratio that IS computable but does not describe this
+# kind of business. The number stays visible — hiding it would look like missing
+# data — and the bracket plus the tooltip say why it should not be read straight.
+NOT_MEANINGFUL_TAG = " (not meaningful)"
+
+
+def _na_tag(sector_key: str, metric: str) -> str:
+    """The bracketed marker for a metric this sector does not really use."""
+    from .sectors import metric_note
+    return NOT_MEANINGFUL_TAG if metric_note(sector_key, metric) else ""
 
 
 def _na_reason(ctx: dict, metric: str, fallback: str) -> str:
@@ -276,16 +294,19 @@ def build_context(model, result, model_filename: str = "") -> dict:
     by_metric = {m.metric: m for m in result.metrics}
 
     scorecard: list[dict] = []
+    sector_key = _sector_key(result)
     for metric, label, kind in SPECS:
         m = by_metric.get(metric)
         if m is None or m.latest is None or pd.isna(m.latest):
-            scorecard.append({"label": label, "metric": metric, "score": None,
+            scorecard.append({"label": label + _na_tag(sector_key, metric),
+                              "metric": metric, "score": None,
                               "raw": None, "display": "unavailable",
                               "band": None, "available": False})
             continue
         sc = int(round(max(1.0, min(100.0, float(m.score)))))
         avg = (float(m.average_3y) if m.average_3y is not None
                and not pd.isna(m.average_3y) else None)
+        label = label + _na_tag(sector_key, metric)
         scorecard.append({"label": label, "metric": metric, "score": sc,
                           "raw": float(m.latest), "display": _fmt_raw(float(m.latest), kind),
                           "band": _band(sc), "available": True, "kind": kind, "avg": avg,
@@ -295,6 +316,17 @@ def build_context(model, result, model_filename: str = "") -> dict:
                    key=lambda r: -r["score"])
     for r in avail:                     # per-ratio "how the 0-100 score is built"
         r["explain"], r["tip"] = _explain(r)
+        r["na_note"] = _sector_caveat(sector_key, r["metric"])
+        if r["na_note"]:
+            # Lead the explanation with the caveat, so a reader who opens the
+            # panel learns why the number should not be taken at face value
+            # before they read how it was scored.
+            caveat = (f'<p style="color:#B5761F;font-weight:700;margin:0 0 6px">'
+                      f'Not meaningful for this kind of business.</p>'
+                      f'<p style="margin:0 0 8px">{escape(r["na_note"])}</p>')
+            r["explain"] = caveat + r["explain"]
+            r["tip"] = ("<b>Not meaningful for this kind of business.</b> "
+                        + escape(r["na_note"]) + "<br><br>" + r["tip"])
     missing = [r for r in scorecard if not r["available"]]
 
     pillars = sorted(
@@ -430,7 +462,8 @@ def build_context(model, result, model_filename: str = "") -> dict:
             s = s.reindex(years).dropna()
         s = s.tail(10)
         if len(s) >= 4:
-            turnover.append((label, float(s.iloc[-1]), float(s.median())))
+            turnover.append((label + _na_tag(_sector_key(result), key),
+                             float(s.iloc[-1]), float(s.median())))
 
     period_txt = f"{years[0]}–{years[-1]} · {len(years)} years" if years else "—"
     try:
