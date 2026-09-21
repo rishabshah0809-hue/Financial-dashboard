@@ -235,6 +235,111 @@ PERCENT_METRICS = {
 }
 
 
+# --------------------------------------------------------------------------
+# metrics that are NOT MEANINGFUL in a given sector
+# --------------------------------------------------------------------------
+# A ratio can be perfectly computable and still say nothing useful about a
+# business: inventory days mean nothing to a bank, which holds no stock. Showing
+# such a ratio next to a sector benchmark invites a false comparison, and showing
+# it as "missing from your workbook" is simply wrong. So each (sector, metric)
+# pair that does not apply carries a plain-English reason here, and every surface
+# — the gap bars, the score's data notes, the analyst prompt — reads from this
+# one table.
+#
+# This NEVER changes a score: a metric listed here is either already unavailable
+# for that kind of company, or it stays scored exactly as before. The table only
+# governs how a missing or incomparable metric is EXPLAINED.
+_LENDER_NOTE = {
+    "Return on Capital Employed (ROCE) %":
+        "A lender funds itself with borrowing, so 'capital employed' is not a "
+        "cost base you can earn a return on the way a factory can. Return on "
+        "equity and return on assets are the meaningful returns here.",
+    "Return on Invested Capital (ROIC) %":
+        "Same reason as ROCE — for a lender, borrowed money is the raw "
+        "material, not invested capital.",
+    "Inventory Turnover": "A lender carries no stock, so there is nothing to turn over.",
+    "Inventory Days": "A lender carries no stock, so there is nothing to turn over.",
+    "Cash Conversion Cycle":
+        "The cash cycle measures how long money is tied up in stock and unpaid "
+        "bills. A lender's money is its product, so the cycle does not apply.",
+    "Creditor Turnover Ratio":
+        "Trade credit from suppliers is not how a lender is funded — deposits "
+        "and borrowings are.",
+    "Payable Days":
+        "Trade credit from suppliers is not how a lender is funded — deposits "
+        "and borrowings are.",
+    "Debt to Equity Ratio":
+        "Leverage is the business model for a lender, not a warning sign. It is "
+        "still shown, but it should be read against capital-adequacy rules "
+        "rather than against an industrial company's debt level.",
+    "Interest Coverage Ratio":
+        "Interest is a lender's cost of goods, not an overhead its profits have "
+        "to survive, so coverage does not read the way it does elsewhere.",
+    "Fixed Asset Turnover":
+        "A lender's earning assets are loans, not plant and machinery, so sales "
+        "per rupee of fixed assets says little.",
+    "Gross Margin":
+        "There is no cost of goods sold in a lending business, so there is no "
+        "gross margin to compute.",
+}
+
+_SERVICES_NOTE = {
+    "Inventory Turnover": "A services business holds almost no stock, so this ratio is noise.",
+    "Inventory Days": "A services business holds almost no stock, so this ratio is noise.",
+    "Gross Margin":
+        "Software and services firms rarely report a cost of goods sold, so "
+        "gross margin is either absent or not comparable with a manufacturer's.",
+    "Fixed Asset Turnover":
+        "An asset-light business will always show a very high number here; it "
+        "reflects having few assets, not superior efficiency.",
+}
+
+METRIC_NOT_MEANINGFUL: dict[str, dict[str, str]] = {
+    "banking": dict(_LENDER_NOTE),
+    "it_services": dict(_SERVICES_NOTE),
+    "realestate": {
+        "Inventory Days":
+            "A developer's 'inventory' is unsold property, which turns over in "
+            "years, not days — the number is real but does not compare with "
+            "another industry's stock.",
+        "Inventory Turnover":
+            "A developer's 'inventory' is unsold property, which turns over in "
+            "years, not days — the number is real but does not compare with "
+            "another industry's stock.",
+    },
+    "retail": {
+        "Debtor Days":
+            "A retailer is paid at the till, so days-to-collect is close to "
+            "zero by design and says nothing about how well it is run.",
+    },
+}
+
+
+def _metric_key(metric: str) -> str:
+    """Fold a metric label so a display spelling still finds its note.
+
+    The UI shows "Cash conversion cycle" where the engine calls it "Cash
+    Conversion Cycle"; both must resolve to the same entry.
+    """
+    return re.sub(r"[^a-z0-9]", "", str(metric).lower())
+
+
+_NOT_MEANINGFUL_INDEX: dict[str, dict[str, str]] = {
+    sector: {_metric_key(m): reason for m, reason in notes.items()}
+    for sector, notes in METRIC_NOT_MEANINGFUL.items()
+}
+
+
+def metric_note(sector_key: str, metric: str) -> str | None:
+    """Plain-English reason a metric does not apply to a sector, else None."""
+    return _NOT_MEANINGFUL_INDEX.get(sector_key or "", {}).get(_metric_key(metric))
+
+
+def not_meaningful_metrics(sector_key: str) -> dict[str, str]:
+    """Every {metric: reason} pair that does not apply to this sector."""
+    return dict(METRIC_NOT_MEANINGFUL.get(sector_key or "", {}))
+
+
 def get_sector(key: str) -> SectorProfile:
     """Look up a sector by key, name or alias. Falls back to 'generic'."""
     if not key:

@@ -124,6 +124,13 @@ def _cycle_list(items: list[dict], visible: int = _CYC_VISIBLE) -> str:
 # --------------------------------------------------------------------------
 # the "gap, measure by measure" deviation bars (server-side; centre = sector)
 # --------------------------------------------------------------------------
+def _not_meaningful_note(sector_key: str, metric: str, fallback: str = "") -> str:
+    """The shared, plain-English reason a metric does not apply to a sector."""
+    from .sectors import metric_note
+    return (metric_note(sector_key, metric) or fallback
+            or f"{metric} is not a meaningful measure for this kind of business.")
+
+
 def _dev(name: str, you, sector, kind: str, note: str = "") -> str:
     you, sector = _num(you), _num(sector)
     val = lambda v: (_pctx(v) if kind == "x" else _pct(v))          # noqa: E731
@@ -562,8 +569,9 @@ def build(model, result, snap, sector_key, meta, context, news=None) -> tuple[st
         + '<div class="dev-grp">What you get</div>'
         + _dev("ROE", comp["roe"], sect.get("roe"), "pct")
         + _dev("ROCE", comp["roce"], (sect.get("roce") if roce_app else None), "pct",
-               note=(applic.get("roce_reason") or
-                     "ROCE is not a meaningful metric for lenders.") if not roce_app
+               note=_not_meaningful_note(
+                   sector_key, "Return on Capital Employed (ROCE) %",
+                   applic.get("roce_reason")) if not roce_app
                else ("The widest gap on the page"
                      if (roce_gap is not None and abs(roce_gap) >= 8) else ""))
         + _dev("ROA", comp["roa"], sect.get("roa"), "pct")

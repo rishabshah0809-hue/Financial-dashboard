@@ -254,6 +254,23 @@ def _explain(r: dict) -> tuple[str, str]:
 # context builder
 # --------------------------------------------------------------------------
 
+def _sector_key(result) -> str:
+    """The sector's key (e.g. "banking") from the profile the scorer applied."""
+    from .sectors import SECTORS
+    name = getattr(getattr(result, "sector", None), "name", "")
+    return next((k for k, p in SECTORS.items() if p.name == name), "")
+
+
+def _na_reason(ctx: dict, metric: str, fallback: str) -> str:
+    """Why a metric has no chart: because this sector does not use it, or
+    because the workbook does not contain it. Never conflate the two."""
+    from .sectors import metric_note
+    note = metric_note(ctx.get("sector_key", ""), metric)
+    if note:
+        return f"{metric} is not a meaningful measure for this kind of business. {note}"
+    return fallback
+
+
 def build_context(model, result, model_filename: str = "") -> dict:
     years = full_years(model)
     by_metric = {m.metric: m for m in result.metrics}
@@ -425,7 +442,8 @@ def build_context(model, result, model_filename: str = "") -> dict:
     return {
         "years": years, "scorecard": avail, "missing": missing,
         "pillars": pillars, "total": total, "verdict": verdict_word, "weighted": weighted,
-        "sector": result.sector.name, "company": model.company,
+        "sector": result.sector.name, "sector_key": _sector_key(result),
+        "company": model.company,
         "filename": model_filename or str(getattr(model.meta, "get", lambda *a: "")("filename", "") or ""),
         "period_txt": period_txt, "growth": growth,
         "margins": {"Gross": pct(gm), "EBITDA": pct(em), "EBIT": pct(om), "Net": pct(nm)},
@@ -584,7 +602,8 @@ def _read_cash(ctx: dict) -> str:
 
 def _read_wc(ctx: dict) -> str:
     if ctx["ccc"] is None:
-        return "Working-capital days are unavailable in this workbook."
+        return _na_reason(ctx, "Cash Conversion Cycle",
+                          "Working-capital days are unavailable in this workbook.")
     cyc = ctx["ccc"][-1]
     pay = (ctx["pay"] or [None])[-1]
     inv = (ctx["iv"] or [None])[-1]
@@ -597,7 +616,8 @@ def _read_wc(ctx: dict) -> str:
 def _read_turnover(ctx: dict) -> str:
     rows = ctx["turnover"]
     if not rows:
-        return "Turnover history is unavailable in this workbook."
+        return _na_reason(ctx, "Fixed Asset Turnover",
+                          "Turnover history is unavailable in this workbook.")
     below = sum(1 for _, a, m in rows if a < m)
     fat = next(((a, m) for n, a, m in rows if "Fixed" in n), None)
     if fat:
@@ -844,9 +864,31 @@ _EXP_JS = r"""
 """
 
 
+def _missing_footnote(ctx: dict) -> str:
+    """Source-line tail naming unscored metrics, split by WHY they are unscored."""
+    from .sectors import metric_note
+    key = ctx.get("sector_key", "")
+    labels = [m["label"] for m in (ctx.get("missing") or [])]
+    if not labels:
+        return ""
+    na = [l for l in labels if metric_note(key, l)]
+    absent = [l for l in labels if not metric_note(key, l)]
+
+    def _tail(items: list[str], lead: str) -> str:
+        if not items:
+            return ""
+        shown = ", ".join(items[:4]) + ("…" if len(items) > 4 else "")
+        return f" · {lead}: {escape(shown)}"
+
+    return _tail(absent, "unavailable") + _tail(na, "not meaningful for this sector")
+
+
 def _unavail(msg: str = "Unavailable — not in this workbook") -> str:
+    # "nothing assumed" is the right reassurance for a MISSING metric; a metric
+    # that simply does not apply to the sector already carries its own reason.
+    tail = "" if "not a meaningful measure" in msg else " — no score assigned, nothing assumed."
     return (f'<div style="padding:26px 6px;color:#9AA09D;font-size:14.4px;line-height:1.6">'
-            f'{escape(msg)} — no score assigned, nothing assumed.</div>')
+            f'{escape(msg)}{tail}</div>')
 
 
 def render(model, result, model_filename: str = "") -> tuple[str, int]:
@@ -974,7 +1016,7 @@ def render(model, result, model_filename: str = "") -> tuple[str, int]:
 
   <div class="sechead"><h2>Efficiency</h2><span class="rule"></span><span class="sc" style="color:#B5761F">Efficiency {next((p['score'] for p in ctx['pillars'] if p['key'] == 'efficiency'), '—')}</span></div>
   <div class="g2">
-    {_card("Working capital cycle", "Debtor + inventory − payable, days", _read_wc(ctx), "lg-wc", "ch-wc", bool(ctx["ccc"]))}
+    {_card("Working capital cycle", "Debtor + inventory − payable, days", _read_wc(ctx), "lg-wc", "ch-wc", bool(ctx["ccc"]), _na_reason(ctx, "Cash Conversion Cycle", "Working capital cycle history is unavailable in this workbook"))}
     <section class="card">
       <div class="c-h"><div class="c-t">Turnover</div><div class="c-s">Latest versus the ten-year median</div></div>
       <p class="c-read">{_read_turnover(ctx)}</p>
@@ -990,7 +1032,7 @@ def render(model, result, model_filename: str = "") -> tuple[str, int]:
 
   <div class="foot">
     <span class="foot-l">Source</span>
-    <span class="foot-v">Uploaded model only — {fname}, {period}{" · includes derived rows (" + escape(", ".join(ctx["derived"][:6])) + (", …" if len(ctx["derived"]) > 6 else "") + ")" if ctx.get("derived") else ""}{" · unavailable: " + escape(", ".join(ctx["missing"][i]["label"] for i in range(min(4, len(ctx["missing"])))) ) + ("…" if len(ctx["missing"]) > 4 else "") if ctx.get("missing") else ""}</span>
+    <span class="foot-v">Uploaded model only — {fname}, {period}{" · includes derived rows (" + escape(", ".join(ctx["derived"][:6])) + (", …" if len(ctx["derived"]) > 6 else "") + ")" if ctx.get("derived") else ""}{_missing_footnote(ctx)}</span>
     <span class="foot-r">Scores blended by sector weight · higher is better throughout</span>
   </div>"""
 

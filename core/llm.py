@@ -547,7 +547,116 @@ def analyse(result: Assessment, config: LLMConfig) -> dict:
     return note
 
 
-def answer_question(result: Assessment, question: str, config: LLMConfig) -> str:
+# Keys a model might wrap a plain answer in when it defaults to JSON habits.
+_ANSWER_KEYS = ("answer", "response", "text", "reply", "summary", "note",
+                "explanation", "content")
+
+
+def unwrap_answer(raw: str) -> str:
+    """Return the prose from a reply that came back wrapped in JSON.
+
+    Some models answer `{"answer": "…"}` however plainly the prompt asks for
+    prose, because the rest of the app asks them for JSON. Rendering that raw
+    shows the reader braces and quotes. This unwraps the common shapes and
+    otherwise returns the text untouched — it never drops content it cannot
+    confidently unwrap.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return text
+    fence = re.match(r"^```[a-zA-Z]*\s*(.*?)\s*```$", text, re.S)
+    if fence:
+        text = fence.group(1).strip()
+    if not (text.startswith("{") and text.endswith("}")):
+        return text
+    try:
+        data = json.loads(text)
+    except (ValueError, TypeError):
+        return text
+    if not isinstance(data, dict):
+        return text
+    for key in _ANSWER_KEYS:
+        value = data.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    # A single string field under any other name is unambiguous too.
+    strings = [v.strip() for v in data.values() if isinstance(v, str) and v.strip()]
+    if len(strings) == 1:
+        return strings[0]
+    return text
+
+
+def _is_percent_metric(name: str) -> bool:
+    """True for ratios expressed as a percentage (margins, growth, returns)."""
+    low = name.lower()
+    if "days" in low or "cycle" in low:
+        return False
+    return ("%" in name or "margin" in low or "growth" in low
+            or "return on" in low or "payout" in low)
+
+
+def _fmt_ratio_value(name: str, value: float) -> str:
+    """One ratio in the units a reader (and the model) should see it in."""
+    low = name.lower()
+    if "days" in low or "cycle" in low:
+        return f"{value:.0f} days"
+    if _is_percent_metric(name):
+        return f"{value:.1f}%"
+    return f"{value:.2f}x"
+
+
+def full_ratio_context(model) -> str:
+    """EVERY ratio present in the loaded model, with its first and latest value.
+
+    The scored table only carries the dozen benchmark metrics, so the analyst
+    used to answer "that is not in the data" about ratios the model really did
+    contain (gross margin, interest cover, the turns). This block closes that
+    gap — and, because it lists first -> latest, the analyst can answer
+    questions about how a ratio MOVED, not just where it stands.
+    """
+    if model is None or getattr(model, "ratios", None) is None or model.ratios.empty:
+        return ""
+    from . import sections as S
+
+    lines: list[str] = []
+    for name in model.ratios.index:
+        series = S.ser(model, str(name))
+        if series.empty:
+            continue
+        # pct_series rescales a fraction (0.12) to 12 — right for a margin,
+        # WRONG for a turnover ratio, which is already in its own units and
+        # would be multiplied by a hundred (0.30x reading as 30x).
+        if _is_percent_metric(str(name)):
+            series = S.pct_series(series)
+        first, last = float(series.iloc[0]), float(series.iloc[-1])
+        first_year, last_year = str(series.index[0]), str(series.index[-1])
+        if len(series) == 1:
+            lines.append(f"{name}: {_fmt_ratio_value(str(name), last)} ({last_year})")
+        else:
+            lines.append(
+                f"{name}: {_fmt_ratio_value(str(name), first)} in {first_year} "
+                f"-> {_fmt_ratio_value(str(name), last)} in {last_year}")
+    if not lines:
+        return ""
+    return ("\n\nEVERY RATIO IN THE LOADED MODEL (first year -> latest year). "
+            "These are all available to answer from, not only the scored ones "
+            "above:\n" + "\n".join(lines))
+
+
+def sector_applicability_context(sector_key: str) -> str:
+    """Ratios that do not apply to this kind of business, and why."""
+    from .sectors import not_meaningful_metrics
+    notes = not_meaningful_metrics(sector_key)
+    if not notes:
+        return ""
+    body = "\n".join(f"- {metric}: {reason}" for metric, reason in notes.items())
+    return ("\n\nNOT MEANINGFUL FOR THIS KIND OF BUSINESS — if the reader asks "
+            "about one of these, say plainly that it does not apply here and "
+            "give the reason, instead of saying the data is missing:\n" + body)
+
+
+def answer_question(result: Assessment, question: str, config: LLMConfig,
+                    model=None, sector_key: str = "") -> str:
     """Free-text Q&A about the loaded company (the 'ask the analyst' box)."""
     if not config.is_live and not any(c.is_live for c in config.fallbacks):
         return (
@@ -566,11 +675,19 @@ def answer_question(result: Assessment, question: str, config: LLMConfig) -> str
                 "no markdown headings. (The 4-sentence and 2-sentence shape rules "
                 "above apply to notes, not to this free-text answer — but every other "
                 "rule, especially explaining the 'why' in plain words, still applies.)"
+                "\n\nOUTPUT FORMAT: reply with the answer text ONLY. This one is "
+                "NOT JSON — no braces, no field names, no quotes wrapped around "
+                "the whole answer, no code fences. Just the sentences."
             ),
         },
-        {"role": "user", "content": f"{build_user_prompt(result)}\n\nANALYST QUESTION: {question}"},
+        {"role": "user", "content": (
+            build_user_prompt(result)
+            + full_ratio_context(model)
+            + sector_applicability_context(sector_key)
+            + f"\n\nANALYST QUESTION: {question}"
+        )},
     ]
     try:
-        return post(config, messages).strip()
+        return unwrap_answer(post(config, messages))
     except Exception as exc:                      # noqa: BLE001
         return f"The model could not be reached: {exc}"

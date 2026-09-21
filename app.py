@@ -1470,7 +1470,9 @@ def qa_tab(model, result, config: LLMConfig) -> None:
             if question:
                 if question not in answers:
                     with st.spinner("Analysing…"):
-                        answers[question] = answer_question(result, question, config)
+                        answers[question] = answer_question(
+                            result, question, config,
+                            model=model, sector_key=sector_key)
                 last = (question, answers[question])
                 st.session_state["qa_last"] = last
 
@@ -1642,10 +1644,23 @@ def main() -> None:
         if note.get("_error"):
             LOGGER.info("AI analyst fell back to rule-based note: %s", note["_error"])
         if result.data_gaps:
-            st.caption(
-                "Metrics not found in this workbook (excluded from the score): "
-                + ", ".join(result.data_gaps)
-            )
+            # Two different reasons a metric has no score, never conflated: it
+            # does not apply to this kind of business, or the workbook does not
+            # contain it.
+            from core.sectors import metric_note
+            inapplicable = [(m, metric_note(sector_key, m)) for m in result.data_gaps]
+            not_meaningful = [m for m, n in inapplicable if n]
+            missing = [m for m, n in inapplicable if not n]
+            if missing:
+                st.caption(
+                    "Metrics not found in this workbook (excluded from the score): "
+                    + ", ".join(missing)
+                )
+            if not_meaningful:
+                st.caption(
+                    f"Not meaningful for {result.sector.name} and so excluded from "
+                    "the score: " + ", ".join(not_meaningful)
+                )
     elif page == "ratios":
         ratios_tab(model, result, source_label)
     elif page == "lens":
