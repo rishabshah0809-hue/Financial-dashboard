@@ -479,6 +479,13 @@ function tipHide(){ tip.style.display = "none"; }
 var W = 460, H = 208, PL = 38, PR = 10, PT = 12, PB = 24;
 var IW = W - PL - PR, IH = H - PT - PB;
 
+// Keep every plotted y-coordinate inside the plot box, and map any non-finite
+// value (Inf/NaN from a divide-by-zero upstream) to the floor. With SVG
+// overflow:visible this is what stops a line/area streaking off the canvas when
+// the data has an out-of-range or negative outlier (e.g. negative interest cover
+// in a loss year). Every sy() below is wrapped in this.
+function clampY(y){ return isFinite(y) ? Math.max(PT, Math.min(PT + IH, y)) : (PT + IH); }
+
 function niceMax(v){
   if (v <= 0) return 1;
   var p = Math.pow(10, Math.floor(Math.log10(v)));
@@ -551,7 +558,7 @@ function lineChart(elId, svgId, series, fmt, fmtY){
   series.forEach(function(s){ all = all.concat(s[2]); });
   var yMax = niceMax(Math.max.apply(null, all));
   var yMin = Math.min(0, Math.min.apply(null, all));
-  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+  var sy = function(v){ return clampY(PT + IH - IH * (v - yMin) / (yMax - yMin)); };
 
   var body = series.map(function(s){
     var d = s[2].map(function(v, i){ return (i ? "L" : "M") + xAt(i, n).toFixed(1) + " " + sy(v).toFixed(1); }).join(" ");
@@ -570,20 +577,25 @@ function lineChart(elId, svgId, series, fmt, fmtY){
 /* ---- bars + overlay line (leverage) ------------------------------------- */
 function barLineChart(elId, svgId, bar, line, fmt, fmtY){
   var n = Y.length;
-  var yMax = niceMax(Math.max(Math.max.apply(null, bar[2]), Math.max.apply(null, line[2])));
-  var yMin = 0;
-  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
-  var bw = bandW(n), w = bw * 0.5;
+  var barV = (bar && bar[2] && bar[2].length) ? bar[2] : [0];
+  var yMax = niceMax(Math.max(Math.max.apply(null, barV), Math.max.apply(null, line[2])));
+  // Include the negative range (e.g. negative interest cover in a loss year) with
+  // a nice floor, so the line dips below a zero baseline instead of off-canvas.
+  var lo = Math.min(0, Math.min.apply(null, line[2]), Math.min.apply(null, barV));
+  var yMin = lo < 0 ? -niceMax(-lo) : 0;
+  var sy = function(v){ return clampY(PT + IH - IH * (v - yMin) / (yMax - yMin)); };
+  var bw = bandW(n), w = bw * 0.5, y0 = sy(0);          // bars grow from the zero line
 
   var bars = bar[2].map(function(v, i){
-    return '<rect x="' + (xAt(i, n) - w / 2) + '" y="' + sy(v) + '" width="' + w
-         + '" height="' + (PT + IH - sy(v)) + '" rx="3" fill="' + bar[1] + '"/>';
+    var yb = sy(v);
+    return '<rect x="' + (xAt(i, n) - w / 2) + '" y="' + Math.min(y0, yb).toFixed(1) + '" width="' + w
+         + '" height="' + Math.abs(yb - y0).toFixed(1) + '" rx="3" fill="' + bar[1] + '"/>';
   }).join("");
   var d = line[2].map(function(v, i){ return (i ? "L" : "M") + xAt(i, n).toFixed(1) + " " + sy(v).toFixed(1); }).join(" ");
 
   document.getElementById(elId).innerHTML =
     '<svg id="' + svgId + '" viewBox="0 0 ' + W + ' ' + H + '">'
-    + axisLabels(n, yMin, yMax, fmtY) + bars
+    + axisLabels(n, yMin, yMax, fmtY) + zeroLine(yMin, yMax) + bars
     + '<path d="' + d + '" fill="none" stroke="' + line[1] + '" stroke-width="2" stroke-linejoin="round"/>'
     + '<circle cx="' + xAt(n - 1, n) + '" cy="' + sy(line[2][n - 1]) + '" r="3.4" fill="' + line[1] + '" stroke="#fff" stroke-width="1.6"/>'
     + hitCols(svgId, n) + '</svg>';
@@ -596,7 +608,7 @@ function groupedBars(elId, svgId, series, fmt, fmtY){
   series.forEach(function(s){ all = all.concat(s[2]); });
   var yMax = niceMax(Math.max.apply(null, all));
   var yMin = -niceMax(Math.abs(Math.min.apply(null, all)));
-  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+  var sy = function(v){ return clampY(PT + IH - IH * (v - yMin) / (yMax - yMin)); };
   var z = sy(0), bw = bandW(n), w = bw * 0.72 / series.length;
 
   var bars = "";
@@ -622,7 +634,7 @@ function stackedArea(elId, svgId, series, fmt, fmtY){
     return series.reduce(function(a, s){ return a + s[2][i]; }, 0);
   });
   var yMax = niceMax(Math.max.apply(null, totals)), yMin = 0;
-  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+  var sy = function(v){ return clampY(PT + IH - IH * (v - yMin) / (yMax - yMin)); };
 
   var base = Y.map(function(){ return 0; }), body = "";
   series.forEach(function(s){
@@ -649,7 +661,7 @@ function wcChart(elId, svgId){
     if (WC_UP[k] && WC_UP[k][2]) t += WC_UP[k][2][i]; } return t; });
   var yMax = niceMax(Math.max.apply(null, ups));
   var yMin = -niceMax(Math.max(Math.max.apply(null, WC_DOWN[2]), Math.abs(Math.min.apply(null, WC_LINE[2]))));
-  var sy = function(v){ return PT + IH - IH * (v - yMin) / (yMax - yMin); };
+  var sy = function(v){ return clampY(PT + IH - IH * (v - yMin) / (yMax - yMin)); };
   var z = sy(0), bw = bandW(n), w = bw * 0.52;
 
   var bars = "";
