@@ -453,6 +453,127 @@ class TestDerivation(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------
+# analyst-built models: FY spans, quarter columns, statutory line wording
+# --------------------------------------------------------------------------
+ANALYST_PERIODS = ["FY 2022-23", "Q1 2023-24", "Q2 2023-24", "Q3 2023-24",
+                   "Q4 2023-24", "FY 2023-24", "FY 2024-25", "E FY 2025-26",
+                   "E FY 2026-27"]
+
+
+def _analyst_rows(labels: dict[str, list]) -> list[list]:
+    """A hand-built model: mixed annual / quarterly / forecast columns, and an
+    'Add'/'Less' marker column to the left of the labels."""
+    rows: list[list] = [[None, "FY Mar (Rs in Crores)", *ANALYST_PERIODS]]
+    for label, values in labels.items():
+        rows.append(["Add", label, *values])
+    return rows
+
+
+def analyst_workbook() -> io.BytesIO:
+    nine = lambda base: [base * m for m in (1, .25, .25, .25, .25, 1.05, 1.1, 1.2, 1.3)]
+    pnl = {
+        "Gross Revenue from sale of products and services": nine(1100.0),
+        "REVENUE FROM OPERATIONS": nine(1000.0),
+        "OTHER INCOME": nine(20.0),
+        "Net Revenue": nine(1020.0),          # revenue INCLUDING other income
+        "COGS": nine(600.0),
+        "Gross Profit": nine(400.0),
+        "Employee benefits expense": nine(150.0),
+        "EBITDA": nine(250.0),
+        "Depreciation and amortization expense": nine(50.0),
+        "EBIT": nine(200.0),
+        "Finance costs": nine(10.0),
+        "PROFIT BEFORE TAX": nine(210.0),
+        "TAX EXPENSE": nine(52.0),
+        "Net Profit": nine(158.0),
+    }
+    bs = {
+        "Property, Plant and Equipment": nine(500.0),
+        "Inventories": nine(120.0),
+        "(ii) Trade receivables": nine(150.0),
+        "(iii) Cash and cash equivalents": nine(90.0),
+        "Total Asset": nine(1500.0),
+        "Equity Share capital": nine(100.0),
+        "Other Equity": nine(900.0),
+        "(i)  Borrowings": nine(40.0),        # non-current
+        "(iii) Trade payables": nine(130.0),
+        "Other current liabilities": nine(200.0),
+    }
+    # The current-liabilities section repeats the same label — the parser
+    # suffixes it and the real position is the sum.
+    bs_rows = _analyst_rows(bs)
+    bs_rows.append(["Add", "(i)  Borrowings", *nine(60.0)])
+    cf = {
+        "NET CASH FROM OPERATING ACTIVITIES": nine(180.0),
+        "NET CASH USED IN INVESTING ACTIVITIES": nine(-80.0),
+        "NET CASH USED IN FINANCING ACTIVITIES": nine(-60.0),
+        "Dividend paid": nine(-70.0),         # an outflow, reported negative
+        "NET (DECREASE) / INCREASE IN CASH AND CASH EQUIVALENTS": nine(40.0),
+    }
+    return _write({"Income statement": _analyst_rows(pnl),
+                   "Balance Sheet": bs_rows,
+                   "Cash Flow": _analyst_rows(cf)})
+
+
+class TestAnalystModel(unittest.TestCase):
+    def setUp(self):
+        self.model = P.load_model(analyst_workbook(),
+                                  filename="ITC Day 10 bcm.xlsx")
+        derive.fill_missing_statement_lines(self.model)
+        derive.fill_missing_ratios(self.model)
+
+    def test_fy_spans_become_financial_years(self):
+        """FY 2022-23 is FY23; quarters and E-marked forecasts are dropped."""
+        self.assertEqual(self.model.years, ["FY23", "FY24", "FY25"])
+
+    def test_a_row_of_figures_is_not_mistaken_for_the_header(self):
+        self.assertIn("REVENUE FROM OPERATIONS", self.model.historical.index)
+        self.assertAlmostEqual(self.model.historical.loc[
+            "REVENUE FROM OPERATIONS", "FY23"], 1000.0, places=6)
+
+    def test_statutory_enumerators_are_stripped(self):
+        for label, concept in (("(ii) Trade receivables", "receivables"),
+                               ("(iii) Trade payables", "payables"),
+                               ("(iii) Cash and cash equivalents", "cash"),
+                               ("(i)  Borrowings", "borrowings")):
+            self.assertEqual(SYN.resolve(label), concept, label)
+
+    def test_sales_is_the_statutory_top_line_not_net_revenue(self):
+        """'Net Revenue' here includes other income, so it must not win."""
+        self.assertAlmostEqual(
+            self.model.latest("Net Profit Margin"), 158.0 * 1.1 / (1000.0 * 1.1),
+            places=6)
+
+    def test_split_balance_sheet_lines_are_added_together(self):
+        """Borrowings appear under both non-current and current liabilities."""
+        equity = 100.0 * 1.1 + 900.0 * 1.1
+        self.assertAlmostEqual(self.model.latest("Debt to Equity Ratio"),
+                               (40.0 + 60.0) * 1.1 / equity, places=6)
+
+    def test_dividend_payout_uses_the_magnitude_of_an_outflow(self):
+        payout = self.model.latest("Dividend Payout %")
+        self.assertGreater(payout, 0)
+        self.assertAlmostEqual(payout, 70.0 / 158.0, places=6)
+
+    def test_company_falls_back_to_the_file_name(self):
+        self.assertEqual(self.model.company, "ITC")
+        self.assertEqual(classify_sector(self.model.company).sector, "fmcg")
+
+    def test_file_name_noise_is_trimmed(self):
+        cases = {"ITC Day 10 bcm.xlsx": "ITC",
+                 "Asian Paints FY25 model.xlsx": "Asian Paints",
+                 "TCS_model_v3_final.xlsx": "TCS",
+                 "Bharat Heavy Electricals - DCF.xlsx": "Bharat Heavy Electricals",
+                 "2026 export.xlsx": ""}
+        for name, expected in cases.items():
+            self.assertEqual(P.company_from_filename(name), expected, name)
+
+    def test_a_workbook_title_still_beats_the_file_name(self):
+        model = P.load_model(historical_workbook(), filename="wrong name.xlsx")
+        self.assertEqual(model.company, "Synthetic Widgets Ltd")
+
+
+# --------------------------------------------------------------------------
 # company identity + sector (Parts 9 and 10)
 # --------------------------------------------------------------------------
 class TestIdentityAndSector(unittest.TestCase):

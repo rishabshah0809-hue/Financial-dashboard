@@ -1492,8 +1492,10 @@ def qa_tab(model, result, config: LLMConfig) -> None:
 # main
 # --------------------------------------------------------------------------
 @st.cache_data(show_spinner=False)
-def _load(file_bytes: bytes | None, path: str | None):
-    return load_model(path) if path else load_model(pd.io.common.BytesIO(file_bytes))
+def _load(file_bytes: bytes | None, path: str | None, filename: str | None = None):
+    if path:
+        return load_model(path, filename=filename or path)
+    return load_model(pd.io.common.BytesIO(file_bytes), filename=filename)
 
 
 @st.cache_data(ttl=60 * 60 * 24, show_spinner=False)
@@ -1554,10 +1556,12 @@ def main() -> None:
         return
 
     try:
+        # source_label is the uploaded file's own name; it is the last-resort
+        # source for the company name when the sheets carry no title row.
         if isinstance(source, (bytes, bytearray)):
-            model = _load(bytes(source), None)
+            model = _load(bytes(source), None, source_label)
         else:
-            model = _load(None, str(source))
+            model = _load(None, str(source), source_label)
     except ParseError as exc:
         st.error(f"That workbook could not be read: {exc}")
         return

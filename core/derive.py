@@ -48,7 +48,38 @@ def _concept(model: FinancialModel, concept: str) -> pd.Series:
         if not frame.empty:
             available.extend(str(i) for i in frame.index)
     label = SYN.find_label(available, concept)
-    return _row(model, label) if label else pd.Series(dtype="float64")
+    if not label:
+        return pd.Series(dtype="float64")
+    series = _row(model, label)
+    if concept in SPLIT_BALANCE_SHEET_CONCEPTS:
+        series = _add_split_lines(model, label, series)
+    return series
+
+
+# Balance-sheet stock concepts a statutory statement reports TWICE — once under
+# non-current and once under current ("(i) Borrowings" in both sections). The
+# parser suffixes the repeat as "… (2)", and the company's real position is the
+# sum. Only these concepts are summed: an income-statement line repeated on a
+# sheet is far more likely to be a subtotal than a second half of the same
+# balance, and summing that would double-count.
+SPLIT_BALANCE_SHEET_CONCEPTS = frozenset({
+    "borrowings", "investments", "receivables", "inventory", "cash",
+    "payables", "other_liabilities", "other_assets",
+})
+
+
+def _add_split_lines(model: FinancialModel, label: str,
+                     series: pd.Series) -> pd.Series:
+    """Add the '(2)', '(3)' … repeats of an identical label to `series`."""
+    total = series
+    index = 2
+    while True:
+        repeat = _row(model, f"{label} ({index})")
+        if repeat.empty:
+            break
+        total = total.add(repeat, fill_value=0.0)
+        index += 1
+    return total.dropna()
 
 
 # Every ratio FundaCheck derives, with the exact formula used and the statement
@@ -70,7 +101,7 @@ RATIO_FORMULAS: dict[str, str] = {
     "Depreciation % Sales": "Depreciation ÷ Sales",
     "Interest % Sales": "Interest ÷ Sales",
     "Tax Payout %": "Tax ÷ Earnings Before Tax",
-    "Dividend Payout %": "Dividend Amount ÷ Net Profit",
+    "Dividend Payout %": "|Dividend Amount| ÷ Net Profit",
     "Return on Equity (ROE) %": "Net Profit ÷ (Equity Share Capital + Reserves)",
     "Return on Capital Employed (ROCE) %":
         "EBIT ÷ (Equity Share Capital + Reserves + Borrowings)",
@@ -149,6 +180,10 @@ def derived_ratios(model: FinancialModel) -> dict[str, pd.Series]:
     capital = _concept(model, "equity_share_capital")
     reserves = _concept(model, "reserves")
     assets = _concept(model, "total_assets")
+    if assets.empty:
+        # A statutory balance sheet often prints only "Total Equity and
+        # Liabilities" — the same total by the accounting identity.
+        assets = _concept(model, "total_liabilities_equity")
     net_block = _concept(model, "net_block")
     receivables = _concept(model, "receivables")
     inventory = _concept(model, "inventory")
@@ -160,6 +195,10 @@ def derived_ratios(model: FinancialModel) -> dict[str, pd.Series]:
     ebt = _concept(model, "profit_before_tax")
     tax = _concept(model, "tax")
     dividend = _concept(model, "dividend_amount")
+    # A cash-flow statement reports dividends as a negative outflow; a Data
+    # Sheet reports the same amount positive. The payout RATIO is about size,
+    # not direction, so the magnitude is used (documented in RATIO_FORMULAS).
+    dividend = dividend.abs()
     price = _concept(model, "price")
 
     equity = capital.add(reserves, fill_value=0.0) if not reserves.empty else capital

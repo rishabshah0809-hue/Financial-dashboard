@@ -32,12 +32,15 @@ LOGGER = logging.getLogger("fundacheck.synonyms")
 # --------------------------------------------------------------------------
 CANONICAL_CONCEPTS: dict[str, list[str]] = {
     # ---- income statement (monetary) ----
+    # ORDER MATTERS: find_label() prefers an earlier synonym. "Revenue from
+    # Operations" is the statutory top line and must win over "Net Revenue",
+    # which in many analyst models means revenue INCLUDING other income.
     "sales": [
-        "Sales", "Revenue", "Total Revenue", "Net Sales", "Net Revenue",
-        "Sales Revenue", "Revenue from Operations", "Revenue from Operations (Net)",
-        "Revenue from Operations / Sales", "Operating Revenue", "Operating Revenues",
-        "Turnover", "Net Turnover", "Total Sales", "Gross Sales",
-        "Sales Revenue from Operations", "Income from Operations",
+        "Sales", "Revenue from Operations", "Revenue from Operations (Net)",
+        "Revenue from Operations / Sales", "Sales Revenue from Operations",
+        "Net Sales", "Operating Revenue", "Operating Revenues", "Turnover",
+        "Net Turnover", "Total Sales", "Gross Sales", "Income from Operations",
+        "Sales Revenue", "Revenue", "Total Revenue", "Net Revenue",
     ],
     "cogs": [
         "COGS", "Cost of Goods Sold", "Cost of Goods", "Cost of Sales",
@@ -70,6 +73,11 @@ CANONICAL_CONCEPTS: dict[str, list[str]] = {
         "Depreciation", "Depreciation Expense", "Depreciation & Amortisation",
         "Depreciation and Amortization", "Depreciation & Amortization",
         "Depreciation / Amortisation", "D&A",
+        "Depreciation and Amortization Expense",
+        "Depreciation and Amortisation Expense",
+        "Depreciation & Amortisation Expense",
+        "Depreciation, Amortisation and Impairment Expense",
+        "Depreciation and Depletion",
     ],
     "interest": [
         "Interest", "Interest Expense", "Interest Expenses", "Finance Cost",
@@ -100,7 +108,7 @@ CANONICAL_CONCEPTS: dict[str, list[str]] = {
     ],
     "reserves": [
         "Reserves", "Reserves & Surplus", "Reserves and Surplus", "Other Reserves",
-        "Other Equity",
+        "Other Equity", "Total Reserves and Surplus",
     ],
     "borrowings": [
         "Borrowings", "Total Borrowings", "Debt", "Total Debt", "Loans",
@@ -179,16 +187,23 @@ CANONICAL_CONCEPTS: dict[str, list[str]] = {
         "Cash from Investing Activity", "Cash from Investing Activities",
         "Investing Cash Flow", "Net Cash from Investing Activities",
         "Cash Flow from Investing Activities",
+        "Net Cash Used in Investing Activities",
+        "Net Cash Used In / From Investing Activities",
     ],
     "cff": [
         "Cash from Financing Activity", "Cash from Financing Activities",
         "Financing Cash Flow", "Net Cash from Financing Activities",
         "Cash Flow from Financing Activities",
+        "Net Cash Used in Financing Activities",
+        "Net Cash Used In / From Financing Activities",
     ],
     "net_cash_flow": [
         "Net Cash Flow", "Net Increase in Cash",
         "Net Increase / (Decrease) in Cash",
         "Net Change in Cash",
+        "Net Increase / (Decrease) in Cash and Cash Equivalents",
+        "Net (Decrease) / Increase in Cash and Cash Equivalents",
+        "Net Increase in Cash and Cash Equivalents",
     ],
     # ---- per-share / market ----
     "eps": [
@@ -250,7 +265,16 @@ def normalize(label) -> str:
     s = re.sub(r"[\/\-_]", " ", s)
     s = re.sub(r"[^a-z0-9 ]", " ", s)       # drop (), %, commas, etc.
     s = re.sub(r"\s+", " ", s).strip()
+    # Statutory statements number their sub-lines: "(i) Investments",
+    # "(ii) Trade receivables", "(A) Total outstanding dues…". The enumerator is
+    # formatting, not meaning, so a single leading roman numeral / letter /
+    # small number is dropped — but only when something else follows it.
+    s = _ENUMERATOR.sub("", s, count=1).strip()
     return s
+
+
+# A leading enumerator token: i, ii, iii, iv … x, a single letter, or 1-2 digits.
+_ENUMERATOR = re.compile(r"^(?:i{1,3}|iv|vi{0,3}|ix|xi{0,2}|[a-z]|\d{1,2})\s+(?=\S)")
 
 
 def _tokens(norm: str) -> set[str]:

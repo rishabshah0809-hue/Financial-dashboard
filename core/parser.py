@@ -158,6 +158,55 @@ AGGREGATE_COLUMNS = {
 _FY_COLUMN = re.compile(r"(?i)^fy\s?['’]?(\d{2,4})\s*(a|e|p|f|est|proj)?$")
 _PROJECTED_SUFFIXES = ("e", "p", "f", "est", "proj")
 
+# An Indian financial year written as a span: "FY 2022-23", "FY2022-23",
+# "2022-23", "FY 22-23", "2022-2023". The year that ENDS the span names the
+# financial year, so "FY 2022-23" is FY23.
+# A leading or trailing marker tags the span as an estimate: "E FY 2026-27",
+# "FY 2026-27E", "P FY2026-27".
+_FY_SPAN = re.compile(
+    r"(?i)^(e|est|p|proj|f)?\s*(?:fy\s?)?(\d{4}|\d{2})\s*[-/–]\s*(\d{4}|\d{2})"
+    r"\s*(a|e|p|f|est|proj)?$")
+
+# A quarter column: "Q1 2023-24", "Q1FY24", "Q3 FY 2024", "1Q24". Quarters are
+# recognised so the header row is still found on a sheet that mixes them with
+# annual columns — and then dropped, because a quarter is not a financial year.
+_QUARTER_COLUMN = re.compile(
+    r"(?i)^(?:q\s?([1-4])|([1-4])\s?q)\s*(?:fy\s?)?['’]?(\d{2,4})?(?:\s*[-/–]\s*(\d{2,4}))?$")
+
+
+def _fy_span_label(text: str) -> str | None:
+    """'FY 2022-23' -> 'FY23'. The closing year names the financial year."""
+    match = _FY_SPAN.match(text.strip())
+    if not match:
+        return None
+    start, end = match.group(2), match.group(3)
+    marker = (match.group(1) or match.group(4) or "").lower()
+    # "2022-23" and "2022-2023" both close in 2023; a 2-digit close rolls the
+    # century of the opening year forward ("99-00" -> FY00).
+    # A financial-year span closes exactly one year after it opens
+    # ("2022-23", "2022-2023", "99-00"). This is what separates a span from a
+    # date fragment such as "2017-03", whose "03" is a month, not a year.
+    if (int(start[-2:]) + 1) % 100 != int(end[-2:]) % 100:
+        return None
+    label = f"FY{end[-2:]}"
+    # Keep the projection marker so _is_period() can drop a forecast column.
+    return f"{label}E" if marker in _PROJECTED_SUFFIXES else label
+
+
+def _quarter_label(text: str) -> str | None:
+    """'Q1 2023-24' -> 'Q1FY24' (a label _is_period() then rejects)."""
+    match = _QUARTER_COLUMN.match(text.strip())
+    if not match:
+        return None
+    quarter = match.group(1) or match.group(2)
+    year = match.group(4) or match.group(3) or ""
+    return f"Q{quarter}FY{year[-2:]}" if year else f"Q{quarter}"
+
+
+def _is_quarter(label: Any) -> bool:
+    return bool(_QUARTER_COLUMN.match(str(label).strip())) or bool(
+        re.match(r"(?i)^q[1-4]fy\d{0,2}$", str(label).strip()))
+
 
 def _is_projection(label: Any) -> bool:
     match = _FY_COLUMN.match(str(label).strip())
@@ -169,7 +218,7 @@ def _is_period(label: str) -> bool:
     and for projected columns (FY27E)."""
     if not label:
         return False
-    if _is_projection(label):
+    if _is_projection(label) or _is_quarter(label):
         return False
     return _norm(label) not in AGGREGATE_COLUMNS
 
@@ -185,10 +234,19 @@ def _looks_period(value: Any) -> bool:
         return False
     if isinstance(value, pd.Timestamp) or hasattr(value, "year"):
         return True
+    if isinstance(value, (int, float)):
+        # A NUMBER is only a period when it is a whole, plausible year. Without
+        # this a data cell such as 21047.45 reads as "2104" and a row of figures
+        # is mistaken for the header row.
+        return float(value).is_integer() and 1900 <= int(value) <= 2100
     text = str(value).strip()
-    if _FY_COLUMN.match(text):
+    if _FY_COLUMN.match(text) or _QUARTER_COLUMN.match(text):
         return True
-    if re.match(r"^(19|20)\d{2}(-\d{2})?", text):
+    if _fy_span_label(text):
+        return True
+    # A plain year or an ISO-style date: 2017, 2017-03, 2017-03-31 (with or
+    # without a trailing time, which is how pandas stringifies a datetime).
+    if re.match(r"^(19|20)\d{2}([-/]\d{1,2}){0,2}( \d{2}:\d{2}:\d{2})?$", text):
         return True
     return _norm(text) in ("ttm", "ltm")
 
@@ -202,6 +260,12 @@ def _year_label(value: Any) -> str:
     text = str(value).strip()
     if _norm(text) in ("ttm", "ltm", "trailing"):
         return "TTM"
+    span = _fy_span_label(text)
+    if span:
+        return span
+    quarter = _quarter_label(text)
+    if quarter:
+        return quarter
     fy = _FY_COLUMN.match(text)
     if fy:
         year = fy.group(1)[-2:]
@@ -393,18 +457,25 @@ def _parse_statement_sheet(raw: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, s
     # column immediately to its left holds the metric labels. This locates the
     # grid wherever it sits and whatever the header cell is called ("Year",
     # "Years", "Report Date", or nothing at all).
+    # The BEST row wins, not merely the first one with three period cells: an
+    # analyst-built model can carry a stray row of round numbers above the real
+    # header, and the real header always holds more period cells than a fluke.
+    # Ties go to the earliest row.
+    best_row, best_cols = None, []
     for row_idx in range(min(len(raw), 25)):
         row = raw.iloc[row_idx]
         period_cols = [c for c in range(len(row)) if _looks_period(row.iloc[c])]
-        if len(period_cols) >= 3:
-            header_row = row_idx
-            first_value_col = period_cols[0]
-            for value in row.iloc[first_value_col:]:
-                if value is None or (isinstance(value, float) and pd.isna(value)):
-                    year_labels.append("")
-                else:
-                    year_labels.append(_year_label(value))
-            break
+        if len(period_cols) >= 3 and len(period_cols) > len(best_cols):
+            best_row, best_cols = row_idx, period_cols
+
+    if best_row is not None:
+        header_row = best_row
+        first_value_col = best_cols[0]
+        for value in raw.iloc[best_row].iloc[first_value_col:]:
+            if value is None or (isinstance(value, float) and pd.isna(value)):
+                year_labels.append("")
+            else:
+                year_labels.append(_year_label(value))
 
     if header_row is None:
         raise ParseError("Could not find a row of reporting periods on this sheet.")
@@ -524,6 +595,39 @@ _TITLE_NOISE = ("income statement", "balance sheet", "cash flow statement",
                 "cash flow", "profit and loss", "profit & loss",
                 "historical financial data", "common size statement",
                 "financial statements", "consolidated", "standalone")
+
+
+# Tokens that mark the rest of a FILE NAME as versioning/noise rather than the
+# company: "ITC Day 10 bcm.xlsx" -> "ITC", "TCS_model_v3_final" -> "TCS".
+_FILENAME_NOISE = {
+    "day", "days", "week", "model", "modelling", "modeling", "financial",
+    "financials", "fs", "bcm", "dcf", "valuation", "final", "draft", "copy",
+    "new", "old", "updated", "update", "version", "ver", "v1", "v2", "v3",
+    "template", "workbook", "analysis", "sheet", "data", "raw", "export",
+    "q1", "q2", "q3", "q4", "fy", "annual", "quarterly", "ltd", "limited",
+}
+
+
+def company_from_filename(filename: str) -> str:
+    """Best-effort company name from an uploaded file's name.
+
+    Keeps the leading words up to the first versioning/noise token, so
+    "ITC Day 10 bcm.xlsx" reads as "ITC" and "Asian Paints FY25 model.xlsx" as
+    "Asian Paints". Returns "" when nothing usable is left — the caller then
+    keeps "Unknown Company" rather than inventing one.
+    """
+    stem = re.split(r"[\/]", str(filename))[-1]
+    stem = re.sub(r"\.(xlsx|xlsm|xls|csv)$", "", stem, flags=re.I)
+    stem = re.sub(r"[_\-]+", " ", stem)
+    kept: list[str] = []
+    for token in stem.split():
+        low = token.lower()
+        if low in _FILENAME_NOISE or re.fullmatch(r"[\d.()]+", token)                 or re.fullmatch(r"(?i)v\d+", token)                 or re.fullmatch(r"(19|20)\d{2}", token)                 or re.fullmatch(r"(?i)(fy|q[1-4])\s?\d{2,4}", token)                 or re.fullmatch(r"(?i)\d{2,4}\s?-\s?\d{2,4}", token):
+            break
+        kept.append(token)
+        if len(kept) >= 4:
+            break
+    return " ".join(kept).strip()
 
 
 def _company_from_title(title: str) -> str:
@@ -824,12 +928,14 @@ def _mark_rebuilt(model: FinancialModel, label: str) -> None:
         model.mark_source(label, "Data Sheet")
 
 
-def load_model(source: Any) -> FinancialModel:
+def load_model(source: Any, filename: str | None = None) -> FinancialModel:
     """
     Parse an uploaded 3-statement workbook.
 
     `source` can be a file path or any file-like object (which is what
-    Streamlit's file uploader hands us).
+    Streamlit's file uploader hands us). `filename` is the original upload name,
+    used only as a LAST resort for the company name when no sheet carries a
+    title row — an analyst-built model often has none.
     """
     book = pd.read_excel(source, sheet_name=None, header=None, engine="openpyxl")
     if not book:
@@ -910,5 +1016,18 @@ def load_model(source: Any) -> FinancialModel:
             "'Data Sheet' — each with a row of yearly reporting dates."
         )
 
-    model.company = model.meta.get("company") or _company_from_title(title)
+    company = model.meta.get("company") or _company_from_title(title)
+    # A title scraped off a statement sheet can be a section heading rather than
+    # a name ("Current Assets"). If it matches a line label we already parsed, it
+    # is not the company — fall back to the file name.
+    scraped_is_a_row = any(
+        _norm(company) == _norm(label) for label in model.historical.index)
+    if (company in ("", "Unknown Company") or scraped_is_a_row) and filename:
+        from_file = company_from_filename(filename)
+        if from_file:
+            company = from_file
+            model.meta["company_source"] = "file name"
+    elif scraped_is_a_row:
+        company = "Unknown Company"
+    model.company = company or "Unknown Company"
     return model
