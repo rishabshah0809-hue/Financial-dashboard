@@ -263,9 +263,20 @@ class LocalPaddleOCRProvider(QuarterlyOCRProvider):
         from paddleocr import PaddleOCR
         # PaddleOCR 3.x dropped use_gpu/show_log/use_angle_cls. Try the modern
         # signature first, then degrade, rather than pinning one version.
+        # enable_mkldnn=False is REQUIRED, not an optimisation. PaddlePaddle
+        # 3.3.1's oneDNN inference path raises
+        #   NotImplementedError: ConvertPirAttribute2RuntimeAttribute not
+        #   support [pir::ArrayAttribute<pir::DoubleAttribute>]
+        # during text detection, so the engine initialises happily and then
+        # returns nothing for every image. With oneDNN off, recognition works.
+        # The document pre-processing models (orientation, unwarping, textline
+        # orientation) are disabled because this parser feeds it pre-cropped,
+        # correctly-oriented column images; they only cost time and memory.
+        base = {"lang": self._lang, "enable_mkldnn": False}
         for kwargs in (
-            {"lang": self._lang, "use_doc_orientation_classify": False,
+            {**base, "use_doc_orientation_classify": False,
              "use_doc_unwarping": False, "use_textline_orientation": False},
+            base,
             {"lang": self._lang},
             {"lang": self._lang, "use_angle_cls": True, "show_log": False},
         ):

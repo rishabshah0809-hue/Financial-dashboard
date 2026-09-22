@@ -165,6 +165,60 @@ points with `tokens_to_pdf_space()`.
 Note that this sends page images to the configured endpoint; it is inert unless
 `FUNDACHECK_OCR_URL` is set.
 
+## Verified end to end
+
+With `paddlepaddle==3.3.1` + `paddleocr==3.7.0` on Python 3.12, the Reliance
+filing's rasterised Jun-2026 column is read correctly and every figure matches
+the values transcribed from the filing:
+
+```
+                               Mar-2026  Jun-2026   (Jun read by OCR)
+Sales                          298621.0  311850.0
+Total Income                   303068.0  318400.0
+Total Expenses                 275873.0  287770.0
+Earnings Before Tax             27195.0   30630.0
+Finance Costs                    6585.0    8337.0
+Changes in Inventories           3179.0   -1326.0   ← "(1,326)" parsed as negative
+```
+
+Overall confidence rises from `low` to `medium`, and the 13
+`RelianceAcceptance` tests all pass — including the three that are skipped
+without an engine. One column took about 8 minutes on a cold cache
+(model download + load + inference); the engine is cached afterwards.
+
+### oneDNN must be disabled
+
+`LocalPaddleOCRProvider` passes `enable_mkldnn=False`. This is **required, not
+an optimisation**. With PaddlePaddle 3.3.1's default oneDNN path, text
+detection raises
+
+```
+NotImplementedError: (Unimplemented) ConvertPirAttribute2RuntimeAttribute
+not support [pir::ArrayAttribute<pir::DoubleAttribute>]
+```
+
+so the engine initialises successfully and then returns **zero tokens for every
+image** — OCR appears "available" while silently reading nothing. That failure
+mode was observed on Windows; the flag is set unconditionally because a silent
+empty result is the worst possible outcome for this engine.
+
+## Known gap: OCR is not wired into page discovery
+
+A filing that is a scan *end to end* (BEL, Jash Engineering) still fails even
+with OCR fully working, and it fails before OCR is ever consulted.
+
+`_find_results_page` → `classify_pages` reads the **native text layer** to
+decide which page holds the results table, and `_has_two_quarters` needs
+readable period headers. On a scanned filing both come back as noise, so no
+candidate page is found and `QuarterlyPDFError` is raised. OCR is currently
+invoked only later, per rasterised *column*, once a page has already been
+chosen.
+
+So OCR today rescues a filing whose page structure is readable but whose
+figures are not (Reliance's mixed text+image page). Making BEL and Jash work
+needs OCR moved earlier, into page classification and period detection — a
+separate change, not a dependency problem.
+
 ## Behaviour with no OCR at all
 
 This is the default and it is a supported state, not a broken one:

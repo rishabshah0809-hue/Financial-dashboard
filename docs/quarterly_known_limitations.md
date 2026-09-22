@@ -37,9 +37,9 @@ to enable it, and `RemoteOCRProvider` is the fallback if it does not fit.
 
 | Case | Behaviour |
 |---|---|
-| Whole filing is a scan (BEL, Jash) | `QuarterlyPDFError` with an explanation. Nothing is returned. |
+| Whole filing is a scan (BEL, Jash) | `QuarterlyPDFError` with an explanation. Nothing is returned. **Installing OCR does not fix this**: page discovery reads the text layer and fails before OCR is consulted — see `docs/quarterly_ocr_deployment.md`. |
 | Consolidated is a scan, standalone is text (Anand Rathi) | Falls back to standalone, labels `scope="standalone"`, records `scope_fallback_reason`, and the UI shows a warning. |
-| One column is a scan (Reliance) | That column's cells stay unavailable (`—`). `validation_detail` reports `insufficient_data` and overall confidence is forced to `low`. |
+| One column is a scan (Reliance) | Without OCR: cells stay unavailable (`—`), `validation_detail` reports `insufficient_data`, confidence forced to `low`. **With OCR installed this filing now parses fully and correctly** (confidence `medium`). |
 
 **To enable OCR**, see `requirements-ocr.txt` and
 `docs/quarterly_ocr_deployment.md`. `q.ocr_available()` reports whether an
