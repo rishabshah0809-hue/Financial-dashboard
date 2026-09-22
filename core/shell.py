@@ -738,7 +738,7 @@ def _doc(body: str, scripts: str = "", extra_css: str = "") -> str:
     )
 
 
-def _kpi_cards(model, result) -> list[str]:
+def _kpi_cards(model, result, quarterly: bool = False) -> list[str]:
     def pct(*names):
         s = S.pct_series(S.ser(model, *names))
         return float(s.iloc[-1]) if not s.empty else None
@@ -746,7 +746,8 @@ def _kpi_cards(model, result) -> list[str]:
     circ = '<div class="circ">&#8599;</div>'
     pe = S.ser(model, "PE Ratio")
     pe = pe[(pe > 0) & (pe < 1000)]
-    pe_big, pe_ft = "n/a", "not in this workbook"
+    missing = "not in this filing" if quarterly else "not in this workbook"
+    pe_big, pe_ft = "n/a", missing
     if not pe.empty:
         latest, med = float(pe.iloc[-1]), float(pe.median())
         cheaper = latest < med
@@ -755,7 +756,7 @@ def _kpi_cards(model, result) -> list[str]:
                  else f'<span class="chip w">\u25b2</span>10-yr median {med:.1f}')
     roe = pct("Return on Equity (ROE) %")
     roe_s = S.ser(model, "Return on Equity (ROE) %")
-    roe_big, roe_ft = "n/a", "not in this workbook"
+    roe_big, roe_ft = "n/a", missing
     if not roe_s.empty:
         latest = float(S.pct_series(roe_s).iloc[-1])
         prev = float(roe_s.iloc[-2]) * (100 if abs(float(roe_s.iloc[-2])) <= 3 else 1) \
@@ -765,13 +766,14 @@ def _kpi_cards(model, result) -> list[str]:
         chip = (f'<span class="chip g">{delta:+.1f} \u25b2</span>'
                 if delta >= 0 else f'<span class="chip r">{delta:+.1f} \u25bc</span>')
         roe_big = f"{latest:.1f}%"
-        roe_ft = f"{chip}{prev_txt} was previous year" if prev is not None \
-            else "single-year history"
+        prev_label = "previous quarter" if quarterly else "previous year"
+        roe_ft = f"{chip}{prev_txt} was {prev_label}" if prev is not None \
+            else ("single-quarter history" if quarterly else "single-year history")
     de_s = S.ser(model, "Debt to Equity Ratio")
     de_big = f"{float(de_s.iloc[-1]):.2f}" if not de_s.empty else "n/a"
     scored = result.metric("Debt to Equity Ratio")
     if scored is None:
-        de_ft = "no sector benchmark for this workbook"
+        de_ft = "no sector benchmark for this filing" if quarterly else "no sector benchmark for this workbook"
     elif scored.score >= 66:
         de_ft = "Comfortably within sector norms"
     elif scored.score >= 40:
@@ -1101,7 +1103,7 @@ def _hero(model, result) -> str:
             f'<div class="heroright">{stats}{export}</div></div>')
 
 
-def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, int]:
+def dashboard_shell(model, result, note: dict, peers: list[dict], quarterly: bool = False) -> tuple[str, int]:
     emoji = {"STRONG": "\U0001F603", "NEUTRAL": "\U0001F610"}.get(
         result.verdict, "\U0001F615")
     rail = result.colour if isinstance(result.colour, str) and \
@@ -1120,7 +1122,7 @@ def dashboard_shell(model, result, note: dict, peers: list[dict]) -> tuple[str, 
 
     body = "".join([
         _hero(model, result),
-        f'<div class="kpigrid">{"".join(_kpi_cards(model, result))}</div>',
+        f'<div class="kpigrid">{"".join(_kpi_cards(model, result, quarterly=quarterly))}</div>',
         (f'<div class="verdict" style="--rail:{rail}">'
          f'<div>{chips}<h2>{_esc(result.headline)} {emoji}</h2>'
          f"<p>{_esc(summary)}</p></div>{_drivers_html(result)}</div>"),
