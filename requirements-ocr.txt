@@ -28,9 +28,11 @@
 #   paddlepaddle 3.3.1 linux wheel .......... 195 MB compressed
 #   venv after paddlepaddle + paddleocr ..... 880 MB
 #   venv after adding paddlex[ocr] .......... 1.1 GB
-#   PP-OCR / PP-Structure model files ....... 295 MB+, downloaded at FIRST RUN
+#   PP-OCR models (text only) ............... ~300 MB, downloaded at FIRST RUN
 #                                             to ~/.paddlex, not at build time
-#   -> roughly 1.4 GB on top of streamlit/pandas/plotly.
+#   PP-StructureV3 model zoo ................ 1.2 GB, also at first run
+#   -> ~1.2 GB on top of streamlit/pandas/plotly for text-only OCR,
+#      ~2.3 GB with PP-StructureV3 enabled.
 #
 # Two consequences worth knowing before enabling:
 #   * models download on first use, so the first scanned filing a user opens
@@ -52,5 +54,5 @@ numpy>=1.26,<3
 # PP-StructureV3 (table-structure recognition) needs this extra. Without it
 # PaddleOCR still does plain text recognition, which is enough to read a
 # rasterised column positionally; core/quarterly_ocr.py degrades to that
-# automatically. Adds ~200 MB.
+# automatically. Adds ~200 MB of wheels AND a 1.2 GB model download at runtime.
 # paddlex[ocr]==3.7.2

@@ -24,7 +24,8 @@ native extraction could not read.
 Python. Both were wrong. `runtime.txt` pins `python-3.12`, and
 `paddlepaddle-3.3.1-cp312-cp312-manylinux1_x86_64.whl` exists and installs
 cleanly, as does `paddleocr` 3.7.0. The real obstacle is size, not
-availability: about 1.4 GB once the model files are downloaded at first use.
+availability: about 1.2 GB once the text-recognition models download at first
+use, and about 2.3 GB with PP-StructureV3 enabled.
 The measurements are in `docs/quarterly_ocr_deployment.md`.
 
 The OCR stack is therefore pinned in `requirements-ocr.txt` and deliberately

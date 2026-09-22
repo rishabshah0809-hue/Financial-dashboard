@@ -106,9 +106,11 @@ against.
 | `paddlepaddle` 3.3.1 linux wheel | 195 MB compressed |
 | venv after `paddlepaddle` + `paddleocr` | 880 MB |
 | venv after adding `paddlex[ocr]` (PP-StructureV3) | 1.1 GB |
-| PP-OCR / PP-Structure model files | 295 MB+, downloaded on **first use** |
+| PP-OCR model files (text recognition only) | ~300 MB, downloaded on **first use** |
+| PP-StructureV3 model zoo (layout + table + server OCR) | **1.2 GB**, downloaded on **first use** |
 
-Roughly **1.4 GB** on top of streamlit/pandas/plotly.
+Roughly **1.2 GB** on top of streamlit/pandas/plotly for text-only OCR, and
+**about 2.3 GB** with PP-StructureV3 enabled.
 
 Two operational consequences:
 
@@ -117,8 +119,10 @@ Two operational consequences:
   the container needs outbound network access plus room for the files. They
   land in `~/.paddlex`, which is not persisted across Community Cloud restarts,
   so the cost recurs after every redeploy or sleep.
-* **PP-StructureV3 is optional.** It needs the `paddlex[ocr]` extra (~200 MB
-  more) and loads a sizeable model zoo. Without it, PaddleOCR still performs
+* **PP-StructureV3 is optional, and expensive.** It needs the `paddlex[ocr]`
+  extra (~200 MB) and then downloads a 1.2 GB model zoo on first use
+  (PP-DocLayout, PP-DocBlockLayout, UVDoc, server-grade PP-OCRv5, table
+  recognition). Text-only OCR is far smaller. Without it, PaddleOCR still performs
   plain text recognition, which is enough to read a rasterised column
   positionally — `LocalPaddleOCRProvider` degrades to that automatically.
 

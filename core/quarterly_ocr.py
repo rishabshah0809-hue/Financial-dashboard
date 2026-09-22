@@ -233,6 +233,7 @@ class LocalPaddleOCRProvider(QuarterlyOCRProvider):
         self._lang = lang
         self._engine = None
         self._structure = None
+        self._structure_tried = False
         self._tried = False
         self._api = ""                               # '3x' | '2x'
         self._error = ""
@@ -253,7 +254,10 @@ class LocalPaddleOCRProvider(QuarterlyOCRProvider):
                 log.info("OCR unavailable: %s", self._error)
                 return
             self._init_text_engine()
-            self._init_structure_engine()
+            # PP-StructureV3 is NOT initialised here. It pulls a ~1.2 GB model
+            # zoo and takes minutes to load, and the column-wise extraction
+            # this parser does needs only text recognition. It is built on
+            # first actual use, in ocr_financial_table().
 
     def _init_text_engine(self) -> None:
         from paddleocr import PaddleOCR
@@ -273,14 +277,27 @@ class LocalPaddleOCRProvider(QuarterlyOCRProvider):
                 self._error = f"PaddleOCR init failed: {exc}"
         log.info("OCR text engine unavailable: %s", self._error)
 
-    def _init_structure_engine(self) -> None:
-        """PP-StructureV3 is optional: text OCR alone still reads a column."""
-        try:
-            from paddleocr import PPStructureV3
-            self._structure = PPStructureV3()
-        except Exception as exc:                     # noqa: BLE001
-            log.info("PP-StructureV3 unavailable (text OCR still usable): %s", exc)
-            self._structure = None
+    def _init_structure_engine(self):
+        """Build PP-StructureV3 on demand. Optional: text OCR reads a column.
+
+        Deliberately lazy -- loading it costs a ~1.2 GB model download on first
+        use and minutes of start-up, which must not be paid by a filing that
+        only needs text recognition (or by app start-up).
+        """
+        if self._structure_tried:
+            return self._structure
+        with self._lock:
+            if self._structure_tried:
+                return self._structure
+            self._structure_tried = True
+            try:
+                from paddleocr import PPStructureV3
+                self._structure = PPStructureV3()
+            except Exception as exc:                 # noqa: BLE001
+                log.info("PP-StructureV3 unavailable (text OCR still usable): %s",
+                         exc)
+                self._structure = None
+        return self._structure
 
     # -- interface -------------------------------------------------------
     def available(self) -> bool:
@@ -292,7 +309,9 @@ class LocalPaddleOCRProvider(QuarterlyOCRProvider):
         return {
             "provider": self.name,
             "text_engine": bool(self._engine),
+            # not initialised until ocr_financial_table() is called
             "structure_engine": bool(self._structure),
+            "structure_loaded": self._structure_tried,
             "api": self._api,
             "error": self._error,
         }
@@ -323,7 +342,10 @@ class LocalPaddleOCRProvider(QuarterlyOCRProvider):
 
     def ocr_financial_table(self, image: Any) -> OCRPageResult:
         self._init()
-        if self._structure is None:
+        if self._engine is None:
+            return OCRPageResult(engine=self.name,
+                                 error=self._error or "engine not initialised")
+        if self._init_structure_engine() is None:
             return self.ocr_page(image)
         pil = self._to_pil(image)
         if pil is None:
