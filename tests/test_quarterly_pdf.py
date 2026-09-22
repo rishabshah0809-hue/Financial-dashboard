@@ -227,11 +227,24 @@ def _find_sample() -> Path | None:
 
 
 _SAMPLE = _find_sample()
-_LIBS_OK = q._HAVE_PDFPLUMBER and q._HAVE_PYMUPDF and q.ocr_available()
+# Native-text extraction needs only the PDF libraries. Requiring an OCR engine
+# here as well used to skip the ENTIRE Reliance acceptance class on any machine
+# without Paddle/Surya -- which is every machine, since neither is installable
+# in the target environment -- so the only real-filing regression test in the
+# suite never ran. The OCR-dependent assertions are gated separately below.
+_LIBS_OK = q._HAVE_PDFPLUMBER and q._HAVE_PYMUPDF
+_OCR_OK = _LIBS_OK and q.ocr_available()
+
+#: the Jun-2026 column of the Reliance filing is a rasterised image, so every
+#: assertion about its VALUES needs an OCR engine. Everything else on that page
+#: (periods, scope, the native-text Mar-2026 column, provenance, derivation)
+#: does not, and must keep being tested without one.
+_needs_ocr = unittest.skipUnless(
+    _OCR_OK, "no OCR engine installed (rasterised column cannot be read)")
 
 
 @unittest.skipUnless(_SAMPLE, "sample Reliance PDF not found")
-@unittest.skipUnless(_LIBS_OK, "pdfplumber / PyMuPDF / OCR engine not available")
+@unittest.skipUnless(_LIBS_OK, "pdfplumber / PyMuPDF not available")
 class RelianceAcceptance(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -257,6 +270,7 @@ class RelianceAcceptance(unittest.TestCase):
         for col in list(self.model.historical.columns) + list(self.model.ratios.columns):
             self.assertNotRegex(col, r"(?i)fy")
 
+    @_needs_ocr
     def test_rasterised_current_quarter_ocr_values(self):
         jun = self.model.historical["Jun-2026"]
         expected = {"Sales": 311850, "Total Income": 318400, "Total Expenses": 287770,
@@ -267,27 +281,43 @@ class RelianceAcceptance(unittest.TestCase):
             self.assertAlmostEqual(jun[line], val, delta=1, msg=f"{line} wrong")
 
     def test_identities_validated(self):
-        self.assertTrue(self.meta["validated"]["Jun-2026"])
         self.assertTrue(self.meta["validated"]["Mar-2026"])
+        if _OCR_OK:
+            self.assertTrue(self.meta["validated"]["Jun-2026"])
+        else:
+            # Without OCR the rasterised column has no figures to check. That
+            # must be reported as "not checked", NOT as a failed check, and the
+            # cells must stay unavailable rather than being guessed.
+            self.assertEqual(
+                self.meta["validation_detail"]["Jun-2026"]["status"],
+                "insufficient_data")
+            self.assertEqual(self.meta["confidence"], "low")
 
+    @_needs_ocr
     def test_current_column_is_ocr(self):
         self.assertEqual(self.meta["column_source"]["Jun-2026"], "image")
         self.assertEqual(self.meta["column_source"]["Mar-2026"], "text")
 
+    @_needs_ocr
     def test_raw_values_are_pdf_raw_provenance(self):
         prov = self.meta["raw_provenance"]["Sales"]["Jun-2026"]
         self.assertEqual(prov["source"], "pdf_raw")
         self.assertIn("ocr", prov["note"])         # current column was OCR'd
 
     def test_margins_are_python_derived(self):
-        p = self.meta["metrics"]["EBITDA Margin"]["Jun-2026"]
-        self.assertEqual(p["source"], "python_derived")
-        self.assertIn("Revenue", p["formula"])
+        # Mar-2026 is the native-text column and is always available; the
+        # rasterised Jun-2026 column is only present when OCR ran.
+        periods = ["Mar-2026"] + (["Jun-2026"] if _OCR_OK else [])
+        for per in periods:
+            p = self.meta["metrics"]["EBITDA Margin"][per]
+            self.assertEqual(p["source"], "python_derived")
+            self.assertIn("Revenue", p["formula"])
 
     def test_interest_coverage_validated_against_pdf(self):
         # Python EBIT/Finance must match the PDF's reported Interest Service
-        # Coverage Ratio -> validation pass, in BOTH quarters.
-        for per in ("Mar-2026", "Jun-2026"):
+        # Coverage Ratio -> validation pass. Jun-2026 is rasterised, so it only
+        # has inputs to derive from when an OCR engine ran.
+        for per in ["Mar-2026"] + (["Jun-2026"] if _OCR_OK else []):
             p = self.meta["metrics"]["Interest Coverage Ratio"][per]
             self.assertEqual(p["source"], "python_derived")
             self.assertEqual(p["validation"], "pass")
@@ -296,6 +326,7 @@ class RelianceAcceptance(unittest.TestCase):
         p = self.meta["metrics"]["Debt to Equity Ratio"]["Mar-2026"]
         self.assertEqual(p["source"], "pdf_reported_validation")
 
+    @_needs_ocr
     def test_unavailable_metrics_not_fabricated(self):
         for metric in ("Return on Equity (ROE) %", "Cash Conversion Cycle", "CFO / PAT"):
             p = self.meta["metrics"][metric]["Jun-2026"]
