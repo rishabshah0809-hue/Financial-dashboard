@@ -1740,7 +1740,7 @@ def main() -> None:
     if page == "overview":
         note = _get_note(model, result, sector_key, config)
         peers = st.session_state.setdefault("peers", [])
-        html, height = SH.dashboard_shell(model, result, note, peers)
+        html, height = SH.dashboard_shell(model, result, note, peers, quarterly=quarterly)
         if quarterly:
             html = _quarterly_wording(html)
         _render_shell(html, height)
