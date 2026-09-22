@@ -132,7 +132,22 @@ def inject_css(mode: str = "dark", minimized: bool = False) -> None:
             # hugs the fitted iframe and both the trailing gap and the extra
             # scroll disappear. Covers the 0-height night/resizer helpers too.
             "\n[data-testid=\"stMain\"] [data-testid=\"stElementContainer\"]"
-            ":has(> iframe.stIFrame){height:auto!important;min-height:0!important}")
+            ":has(> iframe.stIFrame){height:auto!important;min-height:0!important}"
+            # An iframe is an INLINE replaced element, so an auto-height
+            # container measures it against the text baseline and can come out
+            # shorter than the frame actually paints. The next element then sits
+            # ON TOP of the dashboard. display:block removes the baseline gap and
+            # makes the container hug the frame exactly.
+            "\n[data-testid=\"stMain\"] iframe.stIFrame"
+            "{display:block!important;max-width:100%}"
+            # The score notes that follow the dashboard: their own block, above
+            # the frame in stacking order, so they can never be read as part of
+            # a card even if a frame mis-measures by a pixel.
+            "\n.fc-scorenote{position:relative;z-index:3;margin:14px 0 2px;"
+            "padding:10px 14px;border-radius:10px;background:#f2f5f2;"
+            "border:1px solid #dde4de;color:#5b625d;font-size:12.6px;"
+            "line-height:1.55}"
+            "\n.fc-scorenote b{color:#3c443f;font-weight:700}")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
 
@@ -1651,15 +1666,22 @@ def main() -> None:
             inapplicable = [(m, metric_note(sector_key, m)) for m in result.data_gaps]
             not_meaningful = [m for m, n in inapplicable if n]
             missing = [m for m, n in inapplicable if not n]
+            notes = []
             if missing:
-                st.caption(
-                    "Metrics not found in this workbook (excluded from the score): "
-                    + ", ".join(missing)
+                notes.append(
+                    "<b>Not found in this workbook</b> (excluded from the score): "
+                    + html.escape(", ".join(missing))
                 )
             if not_meaningful:
-                st.caption(
-                    f"Not meaningful for {result.sector.name} and so excluded from "
-                    "the score: " + ", ".join(not_meaningful)
+                notes.append(
+                    f"<b>Not meaningful for {html.escape(result.sector.name)}</b> "
+                    "and so excluded from the score: "
+                    + html.escape(", ".join(not_meaningful))
+                )
+            if notes:
+                st.markdown(
+                    '<div class="fc-scorenote">' + "<br>".join(notes) + "</div>",
+                    unsafe_allow_html=True,
                 )
     elif page == "ratios":
         ratios_tab(model, result, source_label)

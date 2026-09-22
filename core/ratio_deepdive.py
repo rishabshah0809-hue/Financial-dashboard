@@ -781,15 +781,25 @@ def _render_js(ctx: dict) -> str:
                      'barLineChart("ch-lev", "svLev", LEV_BAR, LEV_LINE, xx, xxY);')
     if has["cash"]:
         parts.append('legend("lg-cash", CASH, "sq");              groupedBars("ch-cash", "svCash", CASH, cr, crY);')
+    # The working-capital CARD is only rendered when the cash cycle exists (see
+    # its _card call). Without this guard the legend call targeted an element
+    # that was never created, threw, and — because every draw call runs in ONE
+    # script — silently killed each chart AFTER it. That is why both
+    # balance-sheet charts came up blank for a lender.
     if has["wc"] and ctx["ccc"]:
-        parts.append('legend("lg-wc", [WC_UP[0], WC_UP[1], WC_DOWN, WC_LINE].filter(function(s,i,a){return s && s[2] && s[2].length;}), "sq"); try{wcChart("ch-wc", "svWc");}catch(e){}')
-    elif has["wc"]:
-        parts.append('legend("lg-wc", [WC_UP[0], WC_UP[1], WC_DOWN].filter(function(s){return s && s[2] && s[2].length;}), "sq");')
+        parts.append('legend("lg-wc", [WC_UP[0], WC_UP[1], WC_DOWN, WC_LINE].filter(function(s,i,a){return s && s[2] && s[2].length;}), "sq"); wcChart("ch-wc", "svWc");')
     if has["assets"]:
         parts.append('legend("lg-assets", ASSETS, "sq");          stackedArea("ch-assets", "svAssets", ASSETS, cr, crY);')
     if has["liab"]:
         parts.append('legend("lg-liab", LIAB, "sq");              stackedArea("ch-liab", "svLiab", LIAB, cr, crY);')
-    return "\n".join(parts)
+
+    # Belt and braces: each chart draws inside its own try/catch, so whatever
+    # goes wrong with one, every other chart on the page still renders and the
+    # reason is left in the console rather than swallowed.
+    setup, draws = parts[:7], parts[7:]
+    guarded = ['try{ %s }catch(e){ if(window.console&&console.warn)'
+               'console.warn("FundaCheck chart skipped:", e); }' % d for d in draws]
+    return "\n".join(setup + guarded)
 
 
 # Score-explanation UI — appended only to the scorecard ("Every ratio, scored
