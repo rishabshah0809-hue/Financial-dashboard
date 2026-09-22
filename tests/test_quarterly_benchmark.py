@@ -104,6 +104,16 @@ def _series(model, row):
     return model.historical.loc[row]
 
 
+def _missing(value) -> bool:
+    """True when a cell carries no figure. NaN and None both mean unavailable."""
+    if value is None:
+        return True
+    try:
+        return bool(value != value)                  # NaN
+    except TypeError:                                # pragma: no cover
+        return False
+
+
 # --------------------------------------------------------------------------
 # per-filing benchmark
 # --------------------------------------------------------------------------
@@ -224,8 +234,8 @@ class QuarterlyBenchmark(unittest.TestCase):
                             series,
                             f"row {row!r} missing (page {filing.truth_page})")
                         got = series.get(period)
-                        self.assertIsNotNone(
-                            got,
+                        self.assertFalse(
+                            _missing(got),
                             f"{row} {period} unavailable "
                             f"(expected {printed:,} {filing.reported_unit})")
                         tol = max(_ABS_TOL, abs(want) * _REL_TOL)
@@ -283,12 +293,29 @@ class QuarterlyBenchmark(unittest.TestCase):
                     self.skipTest(f"{filing.filename} not available")
                 model, err = self._parse(filing)
                 self.assertIsNotNone(model, f"parse failed: {err}")
-                validated = model.meta.get("validated") or {}
-                failing = [p for p, ok in validated.items() if not ok]
+                detail = model.meta.get("validation_detail") or {}
+                self.assertTrue(detail, "no validation detail was recorded")
+
+                # A CONTRADICTION is an extraction bug and always fails here.
+                # INSUFFICIENT_DATA means too few rows were readable to check
+                # anything -- an honest limitation, not a wrong number -- so it
+                # is allowed, but only if the engine also degraded its own
+                # confidence and left the cells unavailable rather than guessed.
+                contradictions = [p for p, d in detail.items()
+                                  if d["status"] == "contradiction"]
                 self.assertFalse(
-                    failing,
-                    f"accounting identities failed for {failing} -- "
-                    f"extracted rows do not reconcile")
+                    contradictions,
+                    f"accounting identities contradict for {contradictions} -- "
+                    f"at least one row was read incorrectly: "
+                    f"{ {p: detail[p]['reason'] for p in contradictions} }")
+
+                unchecked = [p for p, d in detail.items()
+                             if d["status"] == "insufficient_data"]
+                if unchecked:
+                    self.assertEqual(
+                        model.meta.get("confidence"), "low",
+                        f"{unchecked} could not be cross-checked, so overall "
+                        f"confidence must be reported as low")
 
     def test_profit_is_below_revenue(self):
         """Cheap sanity invariant: PAT must not exceed revenue in a quarter."""
@@ -305,7 +332,7 @@ class QuarterlyBenchmark(unittest.TestCase):
                     self.skipTest("revenue or PAT not extracted")
                 for period in model.historical.columns:
                     s, p = sales.get(period), pat.get(period)
-                    if s is None or p is None:
+                    if _missing(s) or _missing(p):
                         continue
                     self.assertLessEqual(
                         abs(float(p)), abs(float(s)) * 1.5,
@@ -325,7 +352,7 @@ class QuarterlyBenchmark(unittest.TestCase):
                 for row in model.historical.index:
                     series = model.historical.loc[row]
                     for period in model.historical.columns:
-                        if series.get(period) is None:
+                        if _missing(series.get(period)):
                             continue
                         entry = prov.get(row, {}).get(period)
                         self.assertIsNotNone(

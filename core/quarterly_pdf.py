@@ -691,6 +691,36 @@ def _detect_table_decimals(page, periods: list[_Period]) -> int:
     return qs.detect_decimals(tokens)
 
 
+# --------------------------------------------------------------------------
+# statement sections
+# --------------------------------------------------------------------------
+# An Indian results statement runs: P&L -> Other Comprehensive Income ->
+# "attributable to" attribution blocks -> per-share / dividend lines. Rows below
+# the P&L reuse P&L vocabulary ("Remeasurement of defined employee benefit
+# plans", "Profit for the year attributable to:") and, when every match is
+# allowed to overwrite the last, they silently replace correct P&L figures with
+# OCI or attribution figures. These markers let the extractor stop treating the
+# tail of the statement as if it were still the P&L.
+_SECTION_OCI_RE = re.compile(
+    r"other\s+comprehensive\s+(income|loss)|items\s+that\s+will\s+(not\s+)?be\s+"
+    r"reclassified", re.IGNORECASE)
+
+#: attribution subtotals ("... attributable to: Shareholders of the Company",
+#: "Non-controlling interests") restate a total that was already reported. They
+#: must never be captured as the total itself.
+_SECTION_ATTRIB_RE = re.compile(
+    r"attributable\s+to|non[-\s]?controlling\s+interest|owners\s+of\s+the\s+"
+    r"(company|parent)|shareholders\s+of\s+the\s+(company|holding)",
+    re.IGNORECASE)
+
+#: the only canonical rows whose true value legitimately appears at or below the
+#: OCI heading. Everything else found there is a restatement or an OCI component.
+_POST_PNL_ROWS = frozenset({
+    "Other Comprehensive Income",
+    "Total Comprehensive Income",
+})
+
+
 def _extract_results_table(page, periods: list[_Period], page_index: int
                            ) -> tuple[dict, dict, list[str], dict]:
     """canonical line -> {period: value} for the consolidated P&L page, plus
@@ -724,29 +754,68 @@ def _extract_results_table(page, periods: list[_Period], page_index: int
     values: dict[str, dict[str, float]] = {}
     provenance: dict[str, dict[str, str]] = {}
     pending: list[str] = []
+    in_pnl = True          # False once the OCI heading has been passed
+    skipped_restatements = 0
+
+    def _record(canon: str, plabel: str, value: float, source: str) -> None:
+        """First match wins: never let a later row overwrite a captured cell.
+
+        The P&L line for a metric is always printed ABOVE the restatements and
+        OCI components that share its vocabulary, so the first match is the
+        statement line and any later one is a look-alike.
+        """
+        cell = values.setdefault(canon, {})
+        if plabel in cell:
+            return
+        cell[plabel] = value
+        provenance.setdefault(canon, {})[plabel] = source
+
     for ln in lines:
         if not ln.has_value:
             if ln.label:
+                if _SECTION_OCI_RE.search(ln.label):
+                    in_pnl = False
                 pending.append(ln.label)
             continue
+
         full_label = _norm(" ".join([*pending, ln.label]))
         pending = []
+
+        # A heading can share a physical line with its first value; check the
+        # combined label so the boundary is not missed.
+        if _SECTION_OCI_RE.search(full_label):
+            in_pnl = False
+
+        # Attribution subtotals restate a figure reported above them.
+        if _SECTION_ATTRIB_RE.search(full_label):
+            skipped_restatements += 1
+            continue
+
         canon = _match_line(full_label)
         if not canon:
             continue
+
+        # Below the P&L only the genuinely post-P&L rows may be captured;
+        # anything else there is an OCI component wearing a P&L label (e.g.
+        # "Remeasurement of defined employee benefit plans").
+        if not in_pnl and canon not in _POST_PNL_ROWS:
+            skipped_restatements += 1
+            continue
+
         for plabel, v in ln.text_vals.items():
-            values.setdefault(canon, {})[plabel] = v
-            provenance.setdefault(canon, {})[plabel] = "pdf_raw:text"
+            _record(canon, plabel, v, "pdf_raw:text")
         for p in image_cols:
             v, conf = _nearest_ocr(ocr_cache.get(p.label, []), ln.y, decimals_conv)
             if v is None:
                 continue
-            values.setdefault(canon, {})[p.label] = v
             src = "pdf_raw:ocr"
             # Tag low-confidence OCR for potential Surya cross-check upstream
             if conf < 0.85:
                 src += f":low_conf({conf:.2f})"
-            provenance.setdefault(canon, {})[p.label] = src
+            _record(canon, p.label, v, src)
+
+    if skipped_restatements:
+        unit_info["restatement_rows_skipped"] = skipped_restatements
     return values, provenance, warnings, unit_info
 
 
@@ -797,7 +866,18 @@ def _reconcile_expenses(values, provenance, periods) -> list[str]:
     return warns
 
 
-def _validate_identities(values, periods) -> dict[str, bool]:
+def _validate_identities(values, periods, detail: dict | None = None
+                         ) -> dict[str, bool]:
+    """Cross-check the extracted rows against the statement's own arithmetic.
+
+    Returns {period: True} only when at least two identities could be evaluated
+    and all of them hold. When `detail` is supplied it is filled with
+    {period: {"status", "checked", "failed", "reason"}} so callers can tell a
+    genuine CONTRADICTION (rows that disagree -- an extraction error) apart from
+    INSUFFICIENT DATA (too few rows read to check anything -- e.g. a scanned
+    column with no OCR). Both currently yield False, but they mean very
+    different things to the user and must not be reported identically.
+    """
     ok: dict[str, bool] = {}
     tol = 2.0
     for p in periods:
@@ -810,17 +890,57 @@ def _validate_identities(values, periods) -> dict[str, bool]:
         gross, gst, sales = g("Value of Sales & Services"), g("GST Recovered"), g("Sales")
         if None not in (gross, gst, sales):
             checks.append(abs(gross - gst - sales) <= tol)
+        # Total Income = Revenue + Other Income, plus any investment/treasury
+        # income line where the filing reports one (exchanges, banks, NBFCs).
         rev, oi, ti = g("Sales"), g("Other Income"), g("Total Income")
         if None not in (rev, oi, ti):
-            checks.append(abs(rev + oi - ti) <= tol)
+            checks.append(abs(rev + oi + (g("Investment Income") or 0.0) - ti) <= tol)
+        # Profit before tax = Total Income - Total Expenses, adjusted for the
+        # lines a filing may report BETWEEN those two and PBT:
+        #   * exceptional items (sign as printed: a charge is negative)
+        #   * share of profit of associates / joint ventures (added back)
+        #   * a regulatory appropriation such as an exchange's contribution to
+        #     the core settlement guarantee fund (deducted)
+        # Without these the identity spuriously fails on any filing that has
+        # them, which previously marked correct extractions as unvalidated.
         ti2, te, pbt = g("Total Income"), g("Total Expenses"), g("Earnings Before Tax")
         if None not in (ti2, te, pbt):
-            checks.append(abs(ti2 - te - pbt) <= tol)
+            base = ti2 - te - (g("Regulatory Appropriation") or 0.0)
+            # Two presentational choices vary between filings and cannot be
+            # resolved from the rows alone, so BOTH legal placements are
+            # accepted rather than one being assumed:
+            #   * share of profit of associates may sit above PBT (exchanges)
+            #     or below PAT (Reliance-style consolidations);
+            #   * an exceptional item may be printed signed, or as a positive
+            #     charge under an "Exceptional items" heading.
+            # This enumerates known presentations; it never adjusts a figure to
+            # make the identity fit.
+            assoc = g("Share of Profit of Associates") or 0.0
+            exc = g("Exceptional Items") or 0.0
+            candidates = {base + a + e
+                          for a in (0.0, assoc)
+                          for e in ({0.0, exc, -exc} if exc else {0.0})}
+            checks.append(any(abs(c - pbt) <= tol for c in candidates))
         pbt2, ct, dt, pat = (g("Earnings Before Tax"), g("Current Tax"),
                              g("Deferred Tax"), g("Profit After Tax"))
         if None not in (pbt2, ct, dt, pat):
             checks.append(abs(pbt2 - ct - dt - pat) <= tol)
         ok[lbl] = len(checks) >= 2 and all(checks)
+        if detail is not None:
+            failed = sum(1 for c in checks if not c)
+            if len(checks) < 2:
+                status, reason = "insufficient_data", (
+                    f"only {len(checks)} accounting identity could be "
+                    "evaluated from the rows that were readable, so the "
+                    "figures could not be cross-checked")
+            elif failed:
+                status, reason = "contradiction", (
+                    f"{failed} of {len(checks)} accounting identities did not "
+                    "hold, which means at least one row was read incorrectly")
+            else:
+                status, reason = "pass", ""
+            detail[lbl] = {"status": status, "checked": len(checks),
+                           "failed": failed, "reason": reason}
     return ok
 
 
@@ -1187,10 +1307,10 @@ def classify_pages(pdf) -> list[dict]:
     return out
 
 
-def _find_results_page(pdf) -> tuple[int | None, str]:
+def _find_results_page(pdf) -> tuple[int | None, str, str]:
     """Locate the quarterly P&L *table* page semantically and say its scope.
 
-    Returns (index, scope) with scope in {'consolidated', 'standalone', ''}.
+    Returns (index, scope, fallback_reason) with scope in {'consolidated', 'standalone', ''}.
     A page qualifies only if it reads as a results table (P&L row markers) AND
     exposes at least two quarter columns. Consolidated is strongly preferred;
     only when no usable consolidated table exists do we fall back to a standalone
@@ -1212,7 +1332,7 @@ def _find_results_page(pdf) -> tuple[int | None, str]:
              if (p["pnl_hits"] >= 4 or (p["is_results"] and p["pnl_hits"] >= 3))
              and _has_two_quarters(p["index"])]
     if not cands:
-        return None, ""
+        return None, "", ""
 
     def _rank(p):
         # consolidated table first; a table naming neither scope is treated as
@@ -1228,7 +1348,26 @@ def _find_results_page(pdf) -> tuple[int | None, str]:
     best = min(cands, key=_rank)
     scope = "standalone" if (best["standalone"] and not best["consolidated"]) \
         else "consolidated"
-    return best["index"], scope
+
+    # When we fall back to standalone, say WHY in machine-readable form: the UI
+    # has to show the user whether consolidated was absent from the filing or
+    # was present but unreadable. These are very different facts about the data.
+    reason = ""
+    if scope == "standalone":
+        cons_pages = [p for p in pages if p["consolidated"]]
+        cons_tables = [p for p in cands if p["consolidated"]]
+        if not cons_pages:
+            reason = ("This filing contains no consolidated results section "
+                      "(the company reports standalone results only).")
+        elif not cons_tables:
+            reason = ("A consolidated section exists in this filing (page(s) "
+                      + ", ".join(str(p["index"] + 1) for p in cons_pages[:4])
+                      + ") but its results table could not be read — most often "
+                        "because that page is a scanned image rather than text.")
+        else:                                        # pragma: no cover
+            reason = ("A consolidated results table was found but ranked below "
+                      "the standalone table.")
+    return best["index"], scope, reason
 
 
 _ADDRESS_RE = re.compile(
@@ -1290,13 +1429,24 @@ def _guess_business_type(company, raw_values, pdf, page_index) -> str | None:
 
 
 def _overall_confidence(validations, current, previous, unit_info,
-                        raw_provenance) -> str:
+                        raw_provenance, validation_detail=None) -> str:
     """Roll per-cell confidence into one HIGH/MEDIUM/LOW label for the header."""
     cur_ok = validations.get(current.label, False)
     prev_ok = validations.get(previous.label, False)
     confs = [c.get("confidence") for by in raw_provenance.values()
              for c in by.values()]
     any_low = "low" in confs
+
+    # The CURRENT quarter is the one every headline number and QoQ change is
+    # built from. If it could not be cross-checked at all -- typically because
+    # its column is a scan and no OCR engine is installed, leaving the cells
+    # unavailable -- then nothing about this quarter has been verified and the
+    # header must not imply otherwise, however clean the previous quarter is.
+    if validation_detail:
+        cur_detail = validation_detail.get(current.label) or {}
+        if cur_detail.get("status") == "insufficient_data":
+            return "low"
+
     if cur_ok and prev_ok and unit_info.get("unit_known") and not any_low:
         return "high"
     if (cur_ok or prev_ok) and not (any_low and not (cur_ok or prev_ok)):
@@ -1337,7 +1487,7 @@ def load_quarterly_pdf(source, screener_lookup=None):
     pdf = pdfplumber.open(io.BytesIO(raw_bytes))
     doc = _pm.open(stream=raw_bytes, filetype="pdf")
     try:
-        page_index, scope = _find_results_page(pdf)
+        page_index, scope, scope_reason = _find_results_page(pdf)
         if page_index is None:
             raise QuarterlyPDFError(
                 "Unable to identify a quarterly financial-results table with two "
@@ -1347,7 +1497,8 @@ def load_quarterly_pdf(source, screener_lookup=None):
         if scope == "standalone":
             scope_warnings.append(
                 "Consolidated results were not found or could not be read in this "
-                "filing — showing STANDALONE quarterly results instead.")
+                "filing — showing STANDALONE quarterly results instead. "
+                + scope_reason)
 
         company = _company_name(pdf, page_index) or "Unknown Company"
         symbol = _company_symbol(pdf)
@@ -1375,7 +1526,8 @@ def load_quarterly_pdf(source, screener_lookup=None):
         raw_values, raw_prov, warns, unit_info = _extract_results_table(
             results_page, two, page_index)
         warns = scope_warnings + warns + _reconcile_expenses(raw_values, raw_prov, two)
-        validations = _validate_identities(raw_values, two)
+        validation_detail: dict = {}
+        validations = _validate_identities(raw_values, two, validation_detail)
         if not unit_info.get("unit_known"):
             warns.append("Reporting unit could not be detected from the filing; "
                          "assuming ₹ crore for display — verify absolute figures.")
@@ -1403,8 +1555,17 @@ def load_quarterly_pdf(source, screener_lookup=None):
                 continue
             records[canon] = [None if v is None else v * mult for v in rowvals]
         hist = pd.DataFrame.from_dict(records, orient="index", columns=cols)
+        # 'Interest' is a display alias of the same extracted figure, not a
+        # second measurement. Mirror the raw values too so the provenance pass
+        # below covers it -- a value on screen with no recorded source is
+        # exactly what this engine is not allowed to produce.
         if "Finance Costs" in hist.index and "Interest" not in hist.index:
             hist.loc["Interest"] = hist.loc["Finance Costs"]
+            raw_values["Interest"] = dict(raw_values.get("Finance Costs", {}))
+            raw_prov["Interest"] = {
+                k: f"{v}:alias(Finance Costs)"
+                for k, v in raw_prov.get("Finance Costs", {}).items()}
+            records["Interest"] = records.get("Finance Costs")
 
         # Python-first derivation + provenance (ratios from raw, unit-agnostic)
         ratios, metrics_prov = derive_quarterly(
@@ -1432,7 +1593,8 @@ def load_quarterly_pdf(source, screener_lookup=None):
 
         business_type = _guess_business_type(company, raw_values, pdf, page_index)
         overall_conf = _overall_confidence(validations, current, previous,
-                                           unit_info, raw_provenance)
+                                           unit_info, raw_provenance,
+                                           validation_detail)
 
         model = FinancialModel()
         model.company = company
@@ -1454,17 +1616,34 @@ def load_quarterly_pdf(source, screener_lookup=None):
             "previous_period_end": previous.end.isoformat(),
             "source_type": "quarterly_pdf",
             "source_scope": scope,
+            "scope_fallback_reason": scope_reason,
             "source_pages": [page_index + 1, page_index + 2],
             "quarter_column_centers": [previous.center, current.center],
             "column_source": {current.label: current.source,
                               previous.label: previous.source},
             "validated": {current.label: validations.get(current.label, False),
                           previous.label: validations.get(previous.label, False)},
+            # Why each period did or did not validate. 'contradiction' means a
+            # row was misread; 'insufficient_data' means too little was
+            # readable to check. The UI must not present these as the same.
+            "validation_detail": validation_detail,
             "warnings": warns,
             "reporting_currency": "₹ crore",
             "source_unit": raw_unit,
             "unit_multiplier_to_crore": mult,
             "unit_known": unit_info.get("unit_known", False),
+            # One structured object so the data-quality panel can state the
+            # filing's own unit, how it was converted, and the decimal
+            # convention that was detected, without re-deriving any of it.
+            "unit_info": {
+                "raw_unit": raw_unit,
+                "display_unit": "₹ crore",
+                "multiplier_to_crore": mult,
+                "detected": bool(unit_info.get("unit_known", False)),
+                "decimals": unit_info.get("decimals"),
+                "restatement_rows_skipped":
+                    unit_info.get("restatement_rows_skipped", 0),
+            },
             "business_type": business_type,
             "confidence": overall_conf,
             "raw_provenance": raw_provenance,

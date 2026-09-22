@@ -327,6 +327,21 @@ ROW_SYNONYMS: list[tuple[str, tuple[str, ...]]] = [
     ("Sales",                     (r"revenue from operations", r"^revenue from",
                                    r"\bnet sales\b", r"income from operations",
                                    r"interest earned")),
+    # Exchanges, banks and NBFCs report investment/treasury income as a THIRD
+    # income line alongside revenue and other income, so Total Income does not
+    # close as Revenue + Other Income. Captured separately rather than folded
+    # into Other Income, because the filing distinguishes them.
+    # An exchange deducts a regulatory appropriation (core settlement guarantee
+    # fund) between total expenses and PBT; it is neither revenue nor an
+    # operating expense, so it needs its own line for the identity to close.
+    # NOTE: deliberately NOT "regulatory contribution" -- in an exchange's
+    # statement that is an operating expense line inside total expenses, a
+    # different figure from the core-SGF appropriation taken below the
+    # expense total.
+    ("Regulatory Appropriation",  (r"core settlement guarantee fund",
+                                   r"contribution to core sgf")),
+    ("Investment Income",         (r"^investment income", r"^treasury income",
+                                   r"^income from investments")),
     ("Other Income",              (r"o\w{0,2}her income",)),
     ("Total Income",              (r"^total income", r"^total revenue")),
     ("Cost of Materials Consumed",(r"cost of material",)),
@@ -346,8 +361,15 @@ ROW_SYNONYMS: list[tuple[str, tuple[str, ...]]] = [
     ("Depreciation",              (r"depreciation", r"\bd\s*&\s*a\b")),
     ("Other Expenses",            (r"other expense",)),
     ("Total Expenses",            (r"total expense", r"total expenditure")),
-    ("Exceptional Items",         (r"exceptional item",)),
-    ("Earnings Before Tax",       (r"profit before tax", r"profit/.*before tax", r"\bpbt\b")),
+    # "Profit before exceptional items and tax" is a PROFIT line, not the
+    # exceptional-item line; the lookbehind keeps it out of this bucket.
+    ("Exceptional Items",         (r"(?<!before )exceptional item",)),
+    # PBT means the figure that tax is actually charged on, i.e. the LAST
+    # "profit before tax" in the statement. Exchange-style filings print an
+    # earlier "Profit before tax and share of net profits of ... equity method"
+    # subtotal; that one is pre-associates and must not be taken as PBT.
+    ("Earnings Before Tax",       (r"profit before tax(?! and share)",
+                                   r"profit/.*before tax", r"\bpbt\b")),
     ("Current Tax",               (r"current\s*tax",)),
     ("Deferred Tax",              (r"deferred\s*tax",)),
     ("Tax Expense",               (r"^tax expense", r"income tax expense", r"^taxation")),
@@ -372,15 +394,83 @@ def normalize_label(label: str) -> str:
     return re.sub(r"\s+", " ", s)
 
 
+#: Row labels in Indian filings are very often numbered -- "4 Total income
+#: (1+2+3)", "a) Employee benefits expense", "II Other Income", "11 Tax
+#: expense". The serial marker carries no meaning but does defeat every
+#: ^-anchored alias, which silently drops the row (and with it the accounting
+#: identity that depended on it). Stripped only for matching; the raw label is
+#: preserved by the caller.
+_SERIAL_PREFIX_RE = re.compile(
+    r"^\s*(?:\(?\d{1,2}\)?[.)]?|[a-z][.)]|\(?[ivxlcdm]{1,5}\)?[.)])\s+",
+    re.IGNORECASE)
+
+
+def strip_serial_prefix(label: str) -> str:
+    """Drop a leading row-number / bullet marker from a results-table label."""
+    prev = None
+    out = str(label)
+    # Labels such as "5 a) Employee benefits expense" carry two markers.
+    while out != prev:
+        prev = out
+        out = _SERIAL_PREFIX_RE.sub("", out, count=1)
+    return out
+
+
+#: "Profit before <X>" is an intermediate profit SUBTOTAL, never the line <X>
+#: itself. Filings are full of these -- "Profit before exceptional items and
+#: tax", "Profit before contribution to core settlement guarantee fund",
+#: "Profit before share of profit of associates" -- and each one names a line
+#: that also exists in its own right, a few rows further down, with a
+#: completely different value. Letting the subtotal match <X> silently reports
+#: a profit figure as though it were an expense or an appropriation.
+#:
+#: The single exception is plain "profit before tax", which IS a line we model.
+_PROFIT_BEFORE_RE = re.compile(r"^profit\s*/?\s*\(?\s*(?:loss)?\s*\)?\s*before\b",
+                               re.IGNORECASE)
+
+#: Canonical lines that ARE themselves profit measures, so a "profit before ..."
+#: label may legitimately resolve to one of them -- e.g. "Profit before
+#: depreciation and amortization, finance cost, finance income and tax" is the
+#: reported operating-profit (EBITDA) line, and "Profit before tax" is PBT.
+#: A "profit before ..." label resolving to anything OUTSIDE this set is the
+#: subtotal-vs-line collision described above and is rejected.
+_PROFIT_CANONS = frozenset({
+    "Earnings Before Tax",
+    "Operating Profit (reported)",
+    "Profit After Tax",
+    "Net Profit",
+    "Total Comprehensive Income",
+})
+
+
+def _first_alias_match(candidate: str) -> str | None:
+    for canon, pats in ROW_SYNONYMS:
+        for p in pats:
+            if re.search(p, candidate):
+                return canon
+    return None
+
+
 def match_row_label(label: str) -> str | None:
     """Map a results-table row label to a canonical FinancialModel line, or None."""
     n = normalize_label(label)
     if not n:
         return None
-    for canon, pats in ROW_SYNONYMS:
-        for p in pats:
-            if re.search(p, n):
-                return canon
+    # Try the label as printed first, then again with any serial marker
+    # removed, so an ^-anchored alias is not defeated by a row number.
+    for candidate in (n, normalize_label(strip_serial_prefix(n))):
+        if not candidate:
+            continue
+        canon = _first_alias_match(candidate)
+        if canon is None:
+            continue
+        # A "profit before ..." label may only resolve to a profit line. The
+        # test runs on the serial-stripped form, since "6 Profit before ..."
+        # is the same subtotal as "Profit before ...".
+        if (_PROFIT_BEFORE_RE.match(normalize_label(strip_serial_prefix(candidate)))
+                and canon not in _PROFIT_CANONS):
+            continue
+        return canon
     return None
 
 
