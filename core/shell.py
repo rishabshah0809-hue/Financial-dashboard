@@ -1121,13 +1121,39 @@ def dashboard_shell(model, result, note: dict, peers: list[dict], quarterly: boo
     cost_html, _cost_h = S.cost_card(model)
 
     # Annual-only dashboard cards are not meaningful for a two-quarter filing.
-    # Keep the quarterly view focused on current vs previous quarter.
     valuation_card = "" if quarterly else (
         f'<div class="card"><div class="ct-row">{_ct("Valuation")}</div>'
         f'<div class="csub">Fundamental metrics to determine fair value</div>'
         f"{_valuation(model)}</div>"
     )
-    annual_structure_cards = "" if quarterly else (
+    annual_structure_cards = "" if quarterly else S.cost_card(model)[0]
+    quarterly_change_card = (
+        f'<div class="card"><div class="ct-row">{_ct("Quarter-on-quarter change")}</div>'
+        f'<div class="csub">How sales, costs and profit moved between the current and previous quarter, in ₹ crore</div>'
+        f"{S.flows_card(model)}</div>"
+        if quarterly else ""
+    )
+
+    body = "".join([
+        _hero(model, result),
+        f'<div class="kpigrid">{"".join(_kpi_cards(model, result, quarterly=quarterly))}</div>',
+        (f'<div class="verdict" style="--rail:{rail}">'
+         f'<div>{chips}<h2>{_esc(result.headline)} {emoji}</h2>'
+         f"<p>{_esc(summary)}</p></div>{_drivers_html(result)}</div>"),
+        _strengths_risks(note, result),
+        '<div class="grid-auto">'
+        '<div class="card"><div class="ct-row">' + _ct("Revenue Trend")
+        + "</div>"
+        f"{rev_html}</div>",
+        f'<div class="card"><div class="ct-row">{_ct("Valuation")}</div>'
+        f'<div class="csub">Fundamental metrics to determine fair value</div>'
+        f"{_valuation(model)}</div>",
+        '<div class="card"><div class="ct-row"><span class="ct">Key Ratios</span>'
+        '<span class="pilltag" style="cursor:pointer" '
+        'title="Open the full Ratio Analysis table" '
+        "onclick=\"fcGotoRatio('__all__')\">All &#8599;</span></div>"
+        + _key_ratios(model) + "</div>",
+        "</div>",
         annual_structure_cards,
         quarterly_change_card,
     ])
