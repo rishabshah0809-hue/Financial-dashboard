@@ -1126,7 +1126,19 @@ def dashboard_shell(model, result, note: dict, peers: list[dict], quarterly: boo
         f'<div class="csub">Fundamental metrics to determine fair value</div>'
         f"{_valuation(model)}</div>"
     )
-    annual_structure_cards = "" if quarterly else S.cost_card(model)[0]
+    annual_structure_cards = "" if quarterly else (
+        '<div class="grid-300">'
+        '<div class="card"><div class="ct-row">'
+        + _ct("Where each ₹100 of sales goes") + "</div>"
+        '<div class="csub">Latest-year cost structure, ₹ per ₹100 of sales</div>'
+        + cost_html + "</div>"
+        + '<div class="card" style="display:flex;flex-direction:column;align-items:center">'
+        + '<div style="align-self:flex-start">' + _ct("Financial Health")
+        + "</div>" + viz.gauge(float(result.total_score), f"{result.total_score:.0f}%")[0]
+        + '<div style="display:flex;align-items:center;justify-content:center;gap:16px;'
+        + 'flex-wrap:wrap;padding-top:12px">'
+        + _gauge_inline_legend() + "</div></div></div>"
+    )
     quarterly_change_card = (
         f'<div class="card"><div class="ct-row">{_ct("Quarter-on-quarter change")}</div>'
         f'<div class="csub">How sales, costs and profit moved between the current and previous quarter, in ₹ crore</div>'
@@ -1145,9 +1157,7 @@ def dashboard_shell(model, result, note: dict, peers: list[dict], quarterly: boo
         '<div class="card"><div class="ct-row">' + _ct("Revenue Trend")
         + "</div>"
         f"{rev_html}</div>",
-        f'<div class="card"><div class="ct-row">{_ct("Valuation")}</div>'
-        f'<div class="csub">Fundamental metrics to determine fair value</div>'
-        f"{_valuation(model)}</div>",
+        valuation_card,
         '<div class="card"><div class="ct-row"><span class="ct">Key Ratios</span>'
         '<span class="pilltag" style="cursor:pointer" '
         'title="Open the full Ratio Analysis table" '
