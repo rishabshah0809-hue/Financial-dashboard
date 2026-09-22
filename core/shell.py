@@ -1120,38 +1120,16 @@ def dashboard_shell(model, result, note: dict, peers: list[dict], quarterly: boo
     sankey_title, sankey_svg = D.income_sankey(model)
     cost_html, _cost_h = S.cost_card(model)
 
-    body = "".join([
-        _hero(model, result),
-        f'<div class="kpigrid">{"".join(_kpi_cards(model, result, quarterly=quarterly))}</div>',
-        (f'<div class="verdict" style="--rail:{rail}">'
-         f'<div>{chips}<h2>{_esc(result.headline)} {emoji}</h2>'
-         f"<p>{_esc(summary)}</p></div>{_drivers_html(result)}</div>"),
-        _strengths_risks(note, result),
-        '<div class="grid-auto">'
-        '<div class="card"><div class="ct-row">' + _ct("Revenue Trend")
-        + "</div>"
-        f"{rev_html}</div>",
+    # Annual-only dashboard cards are not meaningful for a two-quarter filing.
+    # Keep the quarterly view focused on current vs previous quarter.
+    valuation_card = "" if quarterly else (
         f'<div class="card"><div class="ct-row">{_ct("Valuation")}</div>'
         f'<div class="csub">Fundamental metrics to determine fair value</div>'
-        f"{_valuation(model)}</div>",
-        '<div class="card"><div class="ct-row"><span class="ct">Key Ratios</span>'
-        '<span class="pilltag" style="cursor:pointer" '
-        'title="Open the full Ratio Analysis table" '
-        "onclick=\"fcGotoRatio('__all__')\">All &#8599;</span></div>"
-        + _key_ratios(model) + "</div>",
-        "</div>",
-        '<div class="grid-300">'
-        '<div class="card"><div class="ct-row">'
-        + _ct("Where each ₹100 of sales goes") + "</div>"
-        '<div class="csub">Latest-year cost structure, ₹ per ₹100 of sales</div>'
-        + cost_html + "</div>",
-        '<div class="card" style="display:flex;flex-direction:column;align-items:'
-        'center"><div style="align-self:flex-start">' + _ct("Financial Health")
-        + "</div>" + viz.gauge(float(result.total_score),
-                             f"{result.total_score:.0f}%")[0]
-        + '<div style="display:flex;align-items:center;justify-content:center;gap:16px;'
-          'flex-wrap:wrap;padding-top:12px">'
-        + _gauge_inline_legend() + "</div></div></div>",
+        f"{_valuation(model)}</div>"
+    )
+    annual_structure_cards = "" if quarterly else (
+        annual_structure_cards,
+        quarterly_change_card,
     ])
     if sankey_svg:
         sankey_info = ("Shows how each rupee of sales turns into profit after "
