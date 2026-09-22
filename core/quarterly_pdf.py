@@ -64,6 +64,7 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
+from . import quarterly_ocr as _qocr
 from . import quarterly_semantics as qs
 from .parser import FinancialModel, ParseError
 
@@ -92,11 +93,6 @@ except Exception:                       # noqa: BLE001
 # Neither requires a system binary (tesseract removed). Models are downloaded
 # on first use and cached (~200-300 MB total). Import failures degrade to
 # text-only extraction (no OCR).
-_OCR = None
-_OCR_KIND = None
-_OCR_TRIED = False
-_SURYA = None
-_SURYA_TRIED = False
 
 
 class QuarterlyPDFError(ParseError):
@@ -170,193 +166,61 @@ def _num_dec(text: Any) -> float | None:
 # ==========================================================================
 # OCR (engine-agnostic)
 # ==========================================================================
-def _resolve_ocr():
-    """Pick OCR engines once:
-    PRIMARY:   PaddleOCR PP-StructureV3 (paddleocr >= 2.9) — table/structure aware
-    SECONDARY: Surya (surya-ocr >= 0.4) — validation / cross-check
-
-    Returns (primary_kind, primary_engine, secondary_engine).
-    If primary is unavailable, text-only extraction is used (no OCR).
-    """
-    global _OCR, _OCR_KIND, _OCR_TRIED, _SURYA, _SURYA_TRIED
-    if _OCR_TRIED:
-        return _OCR_KIND, _OCR, _SURYA
-    _OCR_TRIED = True
-
-    # 1) PRIMARY: PaddleOCR with PP-StructureV3
+def _render_region(page, x0: float, x1: float, y0: float, y1: float,
+                   zoom: float):
+    """Rasterise one region of a PDF page into a PIL image for OCR."""
+    if not _HAVE_PYMUPDF:
+        return None
     try:
-        from paddleocr import PaddleOCR
-        # Use PP-StructureV3 for table structure recognition
-        _OCR = PaddleOCR(
-            use_angle_cls=True,
-            lang='en',
-            use_gpu=False,  # CPU for Streamlit Cloud
-            show_log=False,
-            structure_version='PP-StructureV3',  # table structure model
-        )
-        _OCR_KIND = "paddleocr"
-    except Exception:  # noqa: BLE001
-        _OCR, _OCR_KIND = None, None
-
-    # 2) SECONDARY: Surya (lazy init on first use)
-    # Surya is loaded only when needed for validation
-
-    return _OCR_KIND, _OCR, _SURYA
-
-
-def _resolve_surya():
-    """Lazy-load Surya OCR for validation/cross-check."""
-    global _SURYA, _SURYA_TRIED
-    if _SURYA_TRIED:
-        return _SURYA
-    _SURYA_TRIED = True
+        import pymupdf as _pm
+        from PIL import Image
+    except Exception:                                # noqa: BLE001
+        return None
     try:
-        from surya.ocr import run_ocr
-        from surya.model.detection.segformer import load_detector, load_processor as load_det_processor
-        from surya.model.recognition.model import load_model as load_rec_model
-        from surya.model.recognition.processor import load_processor as load_rec_processor
-        _SURYA = {
-            "run_ocr": run_ocr,
-            "detector": load_detector(),
-            "det_processor": load_det_processor(),
-            "rec_model": load_rec_model(),
-            "rec_processor": load_rec_processor(),
-        }
-        return _SURYA
-    except Exception:  # noqa: BLE001
-        _SURYA = None
+        clip = _pm.Rect(x0, y0, x1, y1)
+        pix = page.get_pixmap(matrix=_pm.Matrix(zoom, zoom), clip=clip)
+        return Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
+    except Exception:                                # noqa: BLE001
         return None
 
 
 def ocr_available() -> bool:
-    kind, _, _ = _resolve_ocr()
-    return kind is not None
-
-
-def _ocr_column_paddle(page, x0: float, x1: float, y0: float, y1: float,
-                       zoom: float = 5.0) -> list[tuple[float, str, float]]:
-    """OCR one rasterised column using PaddleOCR, returning
-    [(y_center_in_pdf_points, text, confidence)]."""
-    kind, engine, _ = _resolve_ocr()
-    if engine is None or not _HAVE_PYMUPDF or kind != "paddleocr":
-        return []
-
-    import pymupdf as _pm
-    from PIL import Image
-    clip = _pm.Rect(x0, y0, x1, y1)
-    pix = page.get_pixmap(matrix=_pm.Matrix(zoom, zoom), clip=clip)
-    img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
-
-    # Save to temp file for PaddleOCR (it works with file paths)
-    import tempfile
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-        img.save(tmp.name, 'PNG')
-        tmp_path = tmp.name
-
+    """True when an OCR provider can actually run. Never raises."""
     try:
-        # Use PaddleOCR's structure recognition for tables
-        result = engine.ocr(tmp_path, cls=True)
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
-
-    out: list[tuple[float, str, float]] = []
-    if result and result[0]:
-        for line in result[0]:
-            if line:
-                box, (text, confidence) = line
-                # box is [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
-                # Calculate center y in image coordinates
-                y_center_px = sum(pt[1] for pt in box) / 4.0
-                # Map back to PDF points
-                pdf_y = y0 + y_center_px / zoom
-                out.append((pdf_y, text, confidence))
-    out.sort(key=lambda t: t[0])
-    return out
+        return _qocr.ocr_available()
+    except Exception:                                # noqa: BLE001
+        return False
 
 
-def _ocr_column_surya(page, x0: float, x1: float, y0: float, y1: float,
-                      zoom: float = 5.0) -> list[tuple[float, str, float]]:
-    """OCR one rasterised column using Surya, returning
-    [(y_center_in_pdf_points, text, confidence)]."""
-    surya = _resolve_surya()
-    if surya is None or not _HAVE_PYMUPDF:
-        return []
-
-    import pymupdf as _pm
-    from PIL import Image
-    clip = _pm.Rect(x0, y0, x1, y1)
-    pix = page.get_pixmap(matrix=_pm.Matrix(zoom, zoom), clip=clip)
-    img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
-
-    # Save to temp file for Surya
-    import tempfile
-    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
-        img.save(tmp.name, 'PNG')
-        tmp_path = tmp.name
-
+def ocr_status() -> dict:
+    """Which provider is in use and why, for the data-quality panel."""
     try:
-        result = surya["run_ocr"](
-            images=[Image.open(tmp_path)],
-            det_predictor=surya["detector"],
-            det_processor=surya["det_processor"],
-            rec_predictor=surya["rec_model"],
-            rec_processor=surya["rec_processor"],
-        )
-        surya_result = result[0] if result else None
-    finally:
-        try:
-            os.unlink(tmp_path)
-        except Exception:
-            pass
-
-    out: list[tuple[float, str, float]] = []
-    if surya_result and surya_result.text_lines:
-        for line in surya_result.text_lines:
-            # line.bbox is [x1, y1, x2, y2]
-            # line.text is the recognized text
-            # line.confidence is the confidence
-            y_center_px = (line.bbox[1] + line.bbox[3]) / 2.0
-            pdf_y = y0 + y_center_px / zoom
-            out.append((pdf_y, line.text, line.confidence))
-    out.sort(key=lambda t: t[0])
-    return out
+        return _qocr.provider_status()
+    except Exception as exc:                         # noqa: BLE001
+        return {"provider": "unknown", "available": False, "reason": str(exc)}
 
 
 def _ocr_column(page, x0: float, x1: float, y0: float, y1: float,
-                zoom: float = 5.0) -> list[tuple[float, str]]:
-    """OCR one rasterised column using PaddleOCR (primary) with Surya validation.
+                zoom: float = 5.0) -> list[tuple[float, str, float]]:
+    """OCR one rasterised column via the configured provider.
 
-    Returns [(y_center_in_pdf_points, text)] for the primary OCR result.
-    Surya is used as a cross-check when PaddleOCR confidence is low.
+    Returns [(y_center_in_pdf_points, text, confidence)] -- the shape
+    `_nearest_ocr` consumes. Returns [] when no provider is available, so the
+    caller leaves those cells unavailable instead of guessing.
+
+    This is the ONLY place the PDF parser touches OCR. Which engine runs, and
+    whether it runs in-process or over HTTP, is decided in core.quarterly_ocr.
     """
-    # Primary: PaddleOCR
-    paddle_results = _ocr_column_paddle(page, x0, x1, y0, y1, zoom)
-    if not paddle_results:
+    provider = _qocr.get_provider()
+    if not provider.available():
         return []
-
-    # Secondary validation: Surya for low-confidence PaddleOCR results
-    # Only run Surya on tokens with confidence < 0.85
-    low_conf = [r for r in paddle_results if r[2] < 0.85]
-    if low_conf:
-        surya_results = _ocr_column_surya(page, x0, x1, y0, y1, zoom)
-        # Build a lookup by y-coordinate for Surya results
-        surya_by_y = {round(r[0], 1): (r[1], r[2]) for r in surya_results}
-        # Cross-check: if Surya disagrees significantly on a low-confidence token,
-        # flag it in the provenance (handled upstream)
-        for i, (py, text, conf) in enumerate(paddle_results):
-            ry = round(py, 1)
-            if ry in surya_by_y:
-                surya_text, surya_conf = surya_by_y[ry]
-                # If Surya has high confidence and disagrees, flag
-                if surya_conf > 0.85 and surya_text != text:
-                    # Mark for validation upstream
-                    pass  # Handled in _extract_results_table via provenance
-
-    # Return primary results (text only, confidence kept internally)
-    return [(y, text) for y, text, _ in paddle_results]
+    img = _render_region(page, x0, x1, y0, y1, zoom)
+    if img is None:
+        return []
+    result = provider.ocr_page(img)
+    if result.error:
+        return []
+    return _qocr.tokens_to_pdf_space(result.tokens, origin_y=y0, zoom=zoom)
 
 
 # Row-label -> canonical FinancialModel line now lives in the semantics module.
@@ -1632,6 +1496,9 @@ def load_quarterly_pdf(source, screener_lookup=None):
             "source_unit": raw_unit,
             "unit_multiplier_to_crore": mult,
             "unit_known": unit_info.get("unit_known", False),
+            # Which OCR provider was live for this parse (or why none was), so
+            # the UI can distinguish "no engine" from "engine read nothing".
+            "ocr_status": ocr_status(),
             # One structured object so the data-quality panel can state the
             # filing's own unit, how it was converted, and the decimal
             # convention that was detected, without re-deriving any of it.

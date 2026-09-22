@@ -1614,8 +1614,20 @@ def _quarterly_panels(model, result) -> None:
             (not model.ratios.empty, "Python ratios calculated"),
         ]
         if ocr_col:
-            checks.insert(4, (val.get(ocr_col),
-                              f"OCR of rasterised {ocr_col} column validated"))
+            # Say plainly whether an OCR engine was even running. "No OCR
+            # engine" and "OCR ran and read nothing" are different facts, and
+            # the user needs to know which one produced the blanks they see.
+            ocr = m.get("ocr_status") or {}
+            if ocr.get("available"):
+                checks.insert(4, (val.get(ocr_col),
+                                  f"OCR of rasterised {ocr_col} column "
+                                  f"validated (engine: {ocr.get('provider', '?')})"))
+            else:
+                checks.insert(4, (False,
+                                  f"The {ocr_col} column is a scanned image and "
+                                  "no OCR engine is available, so its figures "
+                                  "are shown as “—”. "
+                                  + str(ocr.get("reason") or "")))
         for ok, text in checks:
             mark = "✓ " if ok else ("• " if ok is None else "⚠ ")
             st.markdown(mark + text)

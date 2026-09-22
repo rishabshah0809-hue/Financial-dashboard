@@ -1,0 +1,56 @@
+# Optional OCR stack for quarterly-results PDFs whose tables are scanned images.
+#
+# NOT installed by default. `requirements.txt` deliberately does not include
+# these, because the footprint measured below is large enough to risk the
+# Streamlit Community Cloud build, and a failed build takes the whole app down
+# — including the annual/Excel workflow, which needs no OCR at all.
+#
+# The application runs identically with or without this file installed:
+# core/quarterly_ocr.py imports every engine lazily and falls back to a null
+# provider, so scanned cells are reported unavailable ("—") rather than guessed.
+#
+# ---------------------------------------------------------------------------
+# HOW TO ENABLE ON STREAMLIT COMMUNITY CLOUD
+# ---------------------------------------------------------------------------
+# Streamlit Cloud installs `requirements.txt` only. To try the local engine
+# there, append the two pinned lines below to requirements.txt and redeploy.
+# The app's Data quality panel reports which OCR provider actually started, so
+# the result is visible without reading build logs.
+#
+# If the build fails or the app is killed for memory, remove them again and use
+# the remote provider instead (see docs/quarterly_ocr_deployment.md):
+#   FUNDACHECK_OCR_PROVIDER = "remote"
+#   FUNDACHECK_OCR_URL      = "https://<your-ocr-service>/ocr"
+#
+# ---------------------------------------------------------------------------
+# MEASURED FOOTPRINT (Python 3.12, the version runtime.txt pins)
+# ---------------------------------------------------------------------------
+#   paddlepaddle 3.3.1 linux wheel .......... 195 MB compressed
+#   venv after paddlepaddle + paddleocr ..... 880 MB
+#   venv after adding paddlex[ocr] .......... 1.1 GB
+#   PP-OCR / PP-Structure model files ....... 295 MB+, downloaded at FIRST RUN
+#                                             to ~/.paddlex, not at build time
+#   -> roughly 1.4 GB on top of streamlit/pandas/plotly.
+#
+# Two consequences worth knowing before enabling:
+#   * models download on first use, so the first scanned filing a user opens
+#     pays a one-off delay (~2 minutes was observed locally) and needs the
+#     container to have outbound network access plus room for the files;
+#   * paddlex pulls its own pandas/numpy. Pin them (as below) so the resolver
+#     cannot upgrade the app onto pandas 3.x, which is a breaking major release
+#     the annual/Excel code has not been tested against.
+
+# --- pins -------------------------------------------------------------------
+paddlepaddle==3.3.1
+paddleocr==3.7.0
+
+# Keep the app's own data stack on the 2.x line regardless of what paddlex
+# would otherwise resolve to.
+pandas>=2.2,<3
+numpy>=1.26,<3
+
+# PP-StructureV3 (table-structure recognition) needs this extra. Without it
+# PaddleOCR still does plain text recognition, which is enough to read a
+# rasterised column positionally; core/quarterly_ocr.py degrades to that
+# automatically. Adds ~200 MB.
+# paddlex[ocr]==3.7.2

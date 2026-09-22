@@ -6,7 +6,7 @@ acceptable; an invented number is not.
 
 Measured against `tests/benchmark/corpus.py` (7 real filings).
 
-## 1. Scanned / image-only filings need an OCR engine that is not deployable
+## 1. Scanned / image-only filings need an OCR engine that does not fit the deploy
 
 **Affects:** BEL, Jash Engineering (whole filing), Anand Rathi (consolidated
 section only), Reliance (current-quarter column only).
@@ -15,17 +15,22 @@ The results table in these filings is a raster image. `pdfplumber` returns
 either nothing or transliterated noise (BEL's text layer yields
 `tfiRd THRSTTRHR` for a Hindi/English page).
 
-`core/quarterly_pdf.py` supports OCR through two lazily-imported engines,
-PaddleOCR PP-StructureV3 (primary) and Surya (secondary cross-check), and only
-invokes them for columns that native extraction could not read. Neither is
-listed in `requirements.txt`:
+OCR now lives behind a provider interface in `core/quarterly_ocr.py` (see
+`docs/quarterly_ocr_deployment.md`), and is invoked only for columns that
+native extraction could not read.
 
-* `paddlepaddle` publishes no wheel for the Python version Streamlit Community
-  Cloud builds on, and is in any case too large for that image's memory limit.
-* `surya-ocr` is Torch-based and multi-GB.
+**Correction to an earlier version of this document:** it stated that
+`runtime.txt` was empty and that PaddlePaddle had no wheel for the deployment's
+Python. Both were wrong. `runtime.txt` pins `python-3.12`, and
+`paddlepaddle-3.3.1-cp312-cp312-manylinux1_x86_64.whl` exists and installs
+cleanly, as does `paddleocr` 3.7.0. The real obstacle is size, not
+availability: about 1.4 GB once the model files are downloaded at first use.
+The measurements are in `docs/quarterly_ocr_deployment.md`.
 
-`packages.txt` and `runtime.txt` are both empty, so there is no system-level
-OCR on the deployed environment either.
+The OCR stack is therefore pinned in `requirements-ocr.txt` and deliberately
+kept out of `requirements.txt`, because a failed Community Cloud build would
+take down the annual/Excel workflow too. `requirements-ocr.txt` documents how
+to enable it, and `RemoteOCRProvider` is the fallback if it does not fit.
 
 **Current behaviour, by case:**
 
@@ -35,10 +40,10 @@ OCR on the deployed environment either.
 | Consolidated is a scan, standalone is text (Anand Rathi) | Falls back to standalone, labels `scope="standalone"`, records `scope_fallback_reason`, and the UI shows a warning. |
 | One column is a scan (Reliance) | That column's cells stay unavailable (`—`). `validation_detail` reports `insufficient_data` and overall confidence is forced to `low`. |
 
-**To enable OCR**, install `paddlepaddle` + `paddleocr` (and optionally
-`surya-ocr`) in an environment that can host them. The code path already
-exists; only the dependency is missing. `q.ocr_available()` reports whether an
-engine was found.
+**To enable OCR**, see `requirements-ocr.txt` and
+`docs/quarterly_ocr_deployment.md`. `q.ocr_available()` reports whether an
+engine started, and `q.ocr_status()` / `meta["ocr_status"]` report which
+provider and, when none, why.
 
 ## 2. Itemised exceptional-item blocks are not summed
 

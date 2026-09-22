@@ -18,13 +18,21 @@ pdfplumber>=0.11
 PyMuPDF>=1.24
 Pillow>=10
 
-# OCR is OPTIONAL and deliberately NOT installed on Streamlit Community Cloud:
-#   * PaddleOCR PP-StructureV3 (primary) — `paddlepaddle` has no wheel for the
-#     Cloud's Python (3.14) and is too heavy for its image/memory limits, so it
-#     is omitted here. Install `paddlepaddle` + `paddleocr` in an environment
-#     that can host them to enable OCR of rasterised / scanned tables.
-#   * Surya (secondary cross-check) — Torch-based, multi-GB; install `surya-ocr`
-#     explicitly where it fits.
-# core/quarterly_pdf.py imports these lazily and degrades gracefully: native-text
-# filings work fully, and rasterised/scanned cells are marked "unavailable"
-# (never fabricated) when no OCR engine is present.
+# OCR is OPTIONAL and deliberately NOT installed here.
+#
+# Scanned/image-only results tables need an OCR engine. PaddlePaddle 3.3.1 and
+# PaddleOCR 3.7.0 DO install cleanly on Python 3.12 (the version runtime.txt
+# pins) -- an earlier note in this file claiming otherwise was wrong. The
+# obstacle is size: roughly 1.4 GB once the model files download on first use.
+#
+# It is kept out of this file because a failed Community Cloud build takes the
+# WHOLE app down, including the annual/Excel workflow, which needs no OCR.
+#
+# To enable it, see requirements-ocr.txt (pins + measured footprint) and
+# docs/quarterly_ocr_deployment.md. If the local engine does not fit, set
+# FUNDACHECK_OCR_PROVIDER=remote and FUNDACHECK_OCR_URL instead -- no parser
+# code changes.
+#
+# core/quarterly_ocr.py imports every engine lazily and falls back to a null
+# provider, so with none installed the app runs normally and rasterised cells
+# are reported unavailable ("--") rather than guessed.
