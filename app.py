@@ -1568,15 +1568,39 @@ def _quarterly_panels(model, result) -> None:
         f"{', '.join(str(p) for p in m.get('source_pages', []))} · ₹ {html.escape(unit)}</span>"
         f"</div>", unsafe_allow_html=True)
 
+    # A standalone fallback is a material fact about the data, so it is stated
+    # outside the expander -- with the reason, since "the filing has no
+    # consolidated section" and "it has one but it is an unreadable scan" mean
+    # different things for how much the reader should trust the comparison.
+    if m.get("source_scope") == "standalone":
+        st.warning(
+            "**Standalone results** — consolidated results were not used for "
+            "this filing. "
+            + (m.get("scope_fallback_reason") or "")
+            + " Standalone figures exclude subsidiaries, so they are not "
+              "comparable with consolidated figures for the same company.")
+
     val = m.get("validated", {})
     ocr_col = next((lbl for lbl, s in m.get("column_source", {}).items()
                     if s == "image"), None)
     with st.expander("Data quality", expanded=(conf == "low")):
+        detail = m.get("validation_detail", {})
+
         def _id_line(period):
             if val.get(period):
                 return True, f"Accounting identities reconcile — {period}"
-            # not a failure — the filing's P&L structure just doesn't expose the
-            # exact lines our cross-check needs (common for banks / exchanges).
+            status = (detail.get(period) or {}).get("status")
+            if status == "contradiction":
+                # Genuinely inconsistent: at least one row was read wrong.
+                return False, (f"Accounting identities do NOT reconcile — {period}. "
+                               "At least one line was read incorrectly; treat "
+                               "these figures with caution and check the filing.")
+            if status == "insufficient_data":
+                # Nothing was verified, because too little could be read.
+                return False, (f"Figures could not be cross-checked — {period} "
+                               "(too little of this column was readable, so no "
+                               "accounting identity could be tested). "
+                               "Unreadable cells are shown as “—”, never estimated.")
             return None, (f"Accounting identities not fully checked — {period} "
                           "(statement structure differs; values still shown as filed)")
         checks = [
