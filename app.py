@@ -1521,6 +1521,24 @@ _CONF_BADGE = {"high": ("#16a34a", "High confidence"),
                "low": ("#dc2626", "Low confidence")}
 
 
+def _quarterly_wording(html: str) -> str:
+    """Swap annual-era phrasing for quarterly wording on the overview HTML.
+
+    Applied ONLY to the quarterly view (the shared dashboard component is worded
+    for annual models), so the annual/Excel path is never touched.
+    """
+    for a, b in (
+        ("Latest-year cost structure", "This quarter's cost structure"),
+        ("The latest year kept that trend", "The latest quarter kept that trend"),
+        ("latest year", "latest quarter"),
+        ("in this workbook", "in this filing"),
+        ("this workbook", "this filing"),
+        ("over the period", "quarter-on-quarter"),
+    ):
+        html = html.replace(a, b)
+    return html
+
+
 def _quarterly_panels(model, result) -> None:
     """Company-agnostic quarterly header + Data quality + Methodology panels.
 
@@ -1671,12 +1689,12 @@ def main() -> None:
         LOGGER.info("derived %d ratios for %s", len(derived), model.company)
 
     # Rebuild the common-size statement (Common Size tab / "₹100 of sales" card)
-    # when the workbook's own sheet reads empty — annual path only; a two-quarter
-    # results table has no balance sheet to express as a common-size statement.
-    if not quarterly:
-        derived_cs = fill_missing_common_size(model)
-        if derived_cs:
-            LOGGER.info("derived %d common-size rows for %s", len(derived_cs), model.company)
+    # from the P&L when the source sheet reads empty. Valid for quarterly too —
+    # it expresses each P&L line as a % of that quarter's sales (no balance sheet
+    # needed), so the "₹100 of sales" card shows the real cost split, not ₹0.
+    derived_cs = fill_missing_common_size(model)
+    if derived_cs:
+        LOGGER.info("derived %d common-size rows for %s", len(derived_cs), model.company)
 
     # A new workbook gets its sector detected once; after that the dropdown is
     # the source of truth, so changing it by hand sticks.
@@ -1723,6 +1741,8 @@ def main() -> None:
         note = _get_note(model, result, sector_key, config)
         peers = st.session_state.setdefault("peers", [])
         html, height = SH.dashboard_shell(model, result, note, peers)
+        if quarterly:
+            html = _quarterly_wording(html)
         _render_shell(html, height)
         # The rule-based note already reads as a complete analysis on its own, so
         # a failed AI call falls back to it silently rather than printing a raw
