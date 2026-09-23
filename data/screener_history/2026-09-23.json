@@ -1,21 +1,28 @@
 {
-  "generated_at": "2026-09-23T14:21:47.684795+00:00",
+  "generated_at": "2026-09-23T14:44:38.455537+00:00",
   "market_snapshot_date": "2026-09-23",
   "source": "Screener.in (public company pages)",
   "source_note": "Screener.in public data — not official exchange data, not guaranteed real-time.",
   "unique_companies": 410,
-  "fetched_ok": 400,
-  "fetch_failed": 10,
+  "fetched_ok": 393,
+  "fetch_failed": 17,
   "failed_symbols": [
-    "JSWCEMENT",
+    "PGEL",
+    "AVL",
+    "LENSKART",
+    "VMART",
+    "LODHA",
+    "STARCEMENT",
     "AARTIIND",
-    "BDL",
+    "BPCL",
+    "RPOWER",
+    "BEL",
     "DATAPATTNS",
     "GRSE",
-    "POWERINDIA",
     "HONAUT",
     "ENRIN",
     "VOLTAMP",
+    "HEMIPROP",
     "INOXGREEN"
   ],
   "sectors": [
@@ -5179,19 +5186,21 @@
       "reference_index": "NIFTY CONSUMER DURABLES",
       "is_financial": false,
       "constituent_count": 13,
-      "included_count": 13,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 12,
+      "stale_count": 1,
+      "stale_symbols": [
+        "PGEL"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 60.61,
-        "pb": 12.65,
-        "roe": 20.25,
-        "roce": 16.9,
+        "pe": 60.45,
+        "pb": 12.99,
+        "roe": 20.84,
+        "roce": 17.16,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 12,
+            "included": 11,
             "excluded": 1,
             "exclusions": {
               "CROMPTON": "net profit <=0 or unavailable"
@@ -5199,21 +5208,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 13,
+            "included": 12,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 13,
+            "included": 12,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 13,
+            "included": 12,
             "excluded": 0
           }
         },
-        "companies_in_pe": 12
+        "companies_in_pe": 11
       },
       "constituents": [
         {
@@ -5454,7 +5463,9 @@
           "dividend_yield": 0.05,
           "net_profit_ttm": 206.0,
           "equity": 3049.0,
-          "rank": 10
+          "rank": 10,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Crompton Greaves Consumer Electricals Ltd",
@@ -5536,19 +5547,23 @@
       "reference_index": "NIFTY CONSUMER SERVICES",
       "is_financial": false,
       "constituent_count": 46,
-      "included_count": 46,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 43,
+      "stale_count": 3,
+      "stale_symbols": [
+        "AVL",
+        "LENSKART",
+        "VMART"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 72.18,
-        "pb": 7.54,
-        "roe": 6.0,
-        "roce": 6.13,
+        "pe": 69.04,
+        "pb": 7.3,
+        "roe": 5.86,
+        "roce": 5.99,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 37,
+            "included": 34,
             "excluded": 9,
             "exclusions": {
               "ABFRL": "net profit <=0 or unavailable",
@@ -5564,21 +5579,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 46,
+            "included": 43,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 46,
+            "included": 43,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 46,
+            "included": 43,
             "excluded": 0
           }
         },
-        "companies_in_pe": 37
+        "companies_in_pe": 34
       },
       "constituents": [
         {
@@ -5675,7 +5690,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 668.0,
           "equity": 8738.0,
-          "rank": 4
+          "rank": 4,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Meesho Ltd",
@@ -6299,7 +6316,9 @@
           "dividend_yield": 0.2,
           "net_profit_ttm": 139.0,
           "equity": 689.0,
-          "rank": 30
+          "rank": 30,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Entero Healthcare Solutions Ltd",
@@ -6515,7 +6534,9 @@
           "dividend_yield": 0.13,
           "net_profit_ttm": 138.0,
           "equity": 951.0,
-          "rank": 39
+          "rank": 39,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Aditya Birla Fashion & Retail Ltd",
@@ -6693,19 +6714,23 @@
       "reference_index": "NIFTY RETAIL",
       "is_financial": false,
       "constituent_count": 26,
-      "included_count": 26,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 23,
+      "stale_count": 3,
+      "stale_symbols": [
+        "AVL",
+        "LENSKART",
+        "VMART"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 97.69,
-        "pb": 8.1,
-        "roe": 2.97,
-        "roce": 3.34,
+        "pe": 93.99,
+        "pb": 7.8,
+        "roe": 2.58,
+        "roce": 2.92,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 20,
+            "included": 17,
             "excluded": 6,
             "exclusions": {
               "ABFRL": "net profit <=0 or unavailable",
@@ -6718,21 +6743,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 26,
+            "included": 23,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 26,
+            "included": 23,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 26,
+            "included": 23,
             "excluded": 0
           }
         },
-        "companies_in_pe": 20
+        "companies_in_pe": 17
       },
       "constituents": [
         {
@@ -6829,7 +6854,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 668.0,
           "equity": 8738.0,
-          "rank": 4
+          "rank": 4,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Meesho Ltd",
@@ -7117,7 +7144,9 @@
           "dividend_yield": 0.2,
           "net_profit_ttm": 139.0,
           "equity": 689.0,
-          "rank": 16
+          "rank": 16,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Entero Healthcare Solutions Ltd",
@@ -7237,7 +7266,9 @@
           "dividend_yield": 0.13,
           "net_profit_ttm": 138.0,
           "equity": 951.0,
-          "rank": 21
+          "rank": 21,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Aditya Birla Fashion & Retail Ltd",
@@ -7367,19 +7398,21 @@
       "reference_index": "NIFTY REALTY",
       "is_financial": false,
       "constituent_count": 10,
-      "included_count": 10,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 9,
+      "stale_count": 1,
+      "stale_symbols": [
+        "LODHA"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 34.36,
-        "pb": 3.94,
-        "roe": 11.14,
-        "roce": 7.28,
+        "pe": 36.3,
+        "pb": 3.75,
+        "roe": 9.96,
+        "roce": 5.62,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 9,
+            "included": 8,
             "excluded": 1,
             "exclusions": {
               "ABREL": "net profit <=0 or unavailable"
@@ -7387,21 +7420,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 10,
+            "included": 9,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 10,
+            "included": 9,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 10,
+            "included": 9,
             "excluded": 0
           }
         },
-        "companies_in_pe": 9
+        "companies_in_pe": 8
       },
       "constituents": [
         {
@@ -7450,7 +7483,9 @@
           "dividend_yield": 0.37,
           "net_profit_ttm": 4129.0,
           "equity": 23286.0,
-          "rank": 2
+          "rank": 2,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Phoenix Mills Ltd",
@@ -8058,14 +8093,14 @@
       "included_count": 15,
       "stale_count": 1,
       "stale_symbols": [
-        "JSWCEMENT"
+        "STARCEMENT"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 26.85,
+        "pe": 26.81,
         "pb": 2.52,
-        "roe": 9.4,
-        "roce": 8.88,
+        "roe": 9.41,
+        "roce": 8.83,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
@@ -8290,7 +8325,7 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=JSWCEMENT",
           "screener_url": "https://www.screener.in/company/JSWCEMENT/",
           "cmp": 118.0,
-          "market_cap": 16108.0,
+          "market_cap": 16119.0,
           "pe": 20.4,
           "pb": 2.46,
           "roe": 14.7,
@@ -8303,12 +8338,10 @@
           "revenue_growth_yoy": 12.38,
           "eps_ttm_growth": -395.54,
           "book_value": 48.0,
-          "dividend_yield": 0.43,
+          "dividend_yield": 0.42,
           "net_profit_ttm": 721.0,
           "equity": 6550.0,
-          "rank": 9,
-          "stale": true,
-          "stale_since": "2026-09-23"
+          "rank": 9
         },
         {
           "name": "Nuvoco Vistas Corporation Ltd",
@@ -8380,7 +8413,9 @@
           "dividend_yield": 1.06,
           "net_profit_ttm": 366.0,
           "equity": 3191.0,
-          "rank": 12
+          "rank": 12,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Birla Corporation Ltd",
@@ -9015,39 +9050,41 @@
       "reference_index": "NIFTY OIL & GAS",
       "is_financial": false,
       "constituent_count": 15,
-      "included_count": 15,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 14,
+      "stale_count": 1,
+      "stale_symbols": [
+        "BPCL"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 12.91,
-        "pb": 1.52,
-        "roe": 11.77,
-        "roce": 10.32,
+        "pe": 13.32,
+        "pb": 1.53,
+        "roe": 11.47,
+        "roce": 10.21,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 15,
+            "included": 14,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           }
         },
-        "companies_in_pe": 15
+        "companies_in_pe": 14
       },
       "constituents": [
         {
@@ -9144,7 +9181,9 @@
           "dividend_yield": 5.54,
           "net_profit_ttm": 17132.0,
           "equity": 100171.0,
-          "rank": 4
+          "rank": 4,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "GAIL (India) Ltd",
@@ -9418,37 +9457,37 @@
       "reference_index": "NIFTY POWER",
       "is_financial": false,
       "constituent_count": 21,
-      "included_count": 21,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 20,
+      "stale_count": 1,
+      "stale_symbols": [
+        "RPOWER"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
         "pe": 21.91,
-        "pb": 2.91,
-        "roe": 13.17,
-        "roce": 7.4,
+        "pb": 2.97,
+        "roe": 13.55,
+        "roce": 7.44,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
             "included": 20,
-            "excluded": 1,
-            "exclusions": {
-              "RPOWER": "net profit <=0 or unavailable"
-            }
+            "excluded": 0,
+            "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 21,
+            "included": 20,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 21,
+            "included": 20,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 21,
+            "included": 20,
             "excluded": 0
           }
         },
@@ -9861,7 +9900,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": -317.0,
           "equity": 16040.0,
-          "rank": 17
+          "rank": 17,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "GMR Power & Urban Infra Ltd",
@@ -9967,47 +10008,46 @@
       "reference_index": "NIFTY CAPITAL GOODS",
       "is_financial": false,
       "constituent_count": 50,
-      "included_count": 43,
-      "stale_count": 7,
+      "included_count": 44,
+      "stale_count": 6,
       "stale_symbols": [
-        "BDL",
+        "BEL",
         "DATAPATTNS",
         "GRSE",
-        "POWERINDIA",
         "HONAUT",
         "ENRIN",
         "VOLTAMP"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 42.83,
-        "pb": 8.8,
-        "roe": 20.55,
-        "roce": 18.95,
+        "pe": 44.13,
+        "pb": 8.86,
+        "roe": 20.08,
+        "roce": 18.19,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 43,
+            "included": 44,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 43,
+            "included": 44,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 43,
+            "included": 44,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 43,
+            "included": 44,
             "excluded": 0
           }
         },
-        "companies_in_pe": 43
+        "companies_in_pe": 44
       },
       "constituents": [
         {
@@ -10056,7 +10096,9 @@
           "dividend_yield": 0.63,
           "net_profit_ttm": 6148.0,
           "equity": 23988.0,
-          "rank": 2
+          "rank": 2,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Tata Motors Ltd",
@@ -10159,10 +10201,10 @@
           "nse_symbol": "POWERINDIA",
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=POWERINDIA",
           "screener_url": "https://www.screener.in/company/POWERINDIA/",
-          "cmp": 31415.0,
-          "market_cap": 140068.0,
-          "pe": 118.0,
-          "pb": 27.06,
+          "cmp": 31150.0,
+          "market_cap": 139042.0,
+          "pe": 117.0,
+          "pb": 26.83,
           "roe": 21.9,
           "roce": 29.4,
           "roa": 9.55,
@@ -10176,9 +10218,7 @@
           "dividend_yield": 0.03,
           "net_profit_ttm": 1150.0,
           "equity": 5176.0,
-          "rank": 7,
-          "stale": true,
-          "stale_since": "2026-09-22"
+          "rank": 7
         },
         {
           "name": "Cummins India Ltd",
@@ -10523,10 +10563,10 @@
           "nse_symbol": "BDL",
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=BDL",
           "screener_url": "https://www.screener.in/company/BDL/",
-          "cmp": 1168.0,
-          "market_cap": 42833.0,
-          "pe": 82.2,
-          "pb": 10.07,
+          "cmp": 1161.0,
+          "market_cap": 42451.0,
+          "pe": 81.5,
+          "pb": 10.01,
           "roe": 10.2,
           "roce": 13.9,
           "roa": 3.64,
@@ -10540,9 +10580,7 @@
           "dividend_yield": 0.42,
           "net_profit_ttm": 521.0,
           "equity": 4241.0,
-          "rank": 22,
-          "stale": true,
-          "stale_since": "2026-09-22"
+          "rank": 22
         },
         {
           "name": "Premier Energies Ltd",
@@ -11829,40 +11867,40 @@
       "reference_index": "NIFTY COMMERCIAL & TRANSPORT SERVICES",
       "is_financial": false,
       "constituent_count": 26,
-      "included_count": 25,
-      "stale_count": 1,
+      "included_count": 24,
+      "stale_count": 2,
       "stale_symbols": [
+        "HEMIPROP",
         "INOXGREEN"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
         "pe": 30.73,
-        "pb": 4.85,
-        "roe": 11.47,
-        "roce": 8.88,
+        "pb": 4.84,
+        "roe": 11.5,
+        "roce": 8.89,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
             "included": 23,
-            "excluded": 2,
+            "excluded": 1,
             "exclusions": {
-              "HEMIPROP": "net profit <=0 or unavailable",
               "INDIGO": "net profit <=0 or unavailable"
             }
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 24,
+            "included": 23,
             "excluded": 1
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 24,
+            "included": 23,
             "excluded": 1
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 25,
+            "included": 24,
             "excluded": 0
           }
         },
@@ -12469,7 +12507,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": -12.0,
           "equity": 434.0,
-          "rank": 25
+          "rank": 25,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "AWFIS Space Solutions Ltd",
@@ -12503,39 +12543,41 @@
       "reference_index": "NIFTY COMMODITIES",
       "is_financial": false,
       "constituent_count": 30,
-      "included_count": 30,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 29,
+      "stale_count": 1,
+      "stale_symbols": [
+        "BPCL"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 15.11,
-        "pb": 2.06,
-        "roe": 13.61,
-        "roce": 10.41,
+        "pe": 15.41,
+        "pb": 2.08,
+        "roe": 13.5,
+        "roce": 10.35,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 30,
+            "included": 29,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 30,
+            "included": 29,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 30,
+            "included": 29,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 30,
+            "included": 29,
             "excluded": 0
           }
         },
-        "companies_in_pe": 30
+        "companies_in_pe": 29
       },
       "constituents": [
         {
@@ -12896,7 +12938,9 @@
           "dividend_yield": 5.54,
           "net_profit_ttm": 17132.0,
           "equity": 100171.0,
-          "rank": 15
+          "rank": 15,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Jindal Steel Ltd",
@@ -13266,19 +13310,21 @@
       "reference_index": "NIFTY INFRASTRUCTURE",
       "is_financial": false,
       "constituent_count": 30,
-      "included_count": 30,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 29,
+      "stale_count": 1,
+      "stale_symbols": [
+        "BPCL"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 20.07,
-        "pb": 2.64,
-        "roe": 12.66,
-        "roce": 10.31,
+        "pe": 20.64,
+        "pb": 2.69,
+        "roe": 12.51,
+        "roce": 10.25,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 29,
+            "included": 28,
             "excluded": 1,
             "exclusions": {
               "INDIGO": "net profit <=0 or unavailable"
@@ -13286,21 +13332,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 30,
+            "included": 29,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 30,
+            "included": 29,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 30,
+            "included": 29,
             "excluded": 0
           }
         },
-        "companies_in_pe": 29
+        "companies_in_pe": 28
       },
       "constituents": [
         {
@@ -13709,7 +13755,9 @@
           "dividend_yield": 5.54,
           "net_profit_ttm": 17132.0,
           "equity": 100171.0,
-          "rank": 17
+          "rank": 17,
+          "stale": true,
+          "stale_since": "2026-09-23"
         },
         {
           "name": "Apollo Hospitals Enterprise Ltd",
