@@ -1,0 +1,261 @@
+FUNDA CHECK SOURCE-AVAILABLE COMMERCIAL LICENSE v1.0
+
+Copyright (c) 2026 Rishab Shah
+All Rights Reserved.
+
+Project: FundaCheck
+Repository: https://github.com/rishabshah0809-hue/Financial-dashboard
+
+
+1. PURPOSE
+
+FundaCheck is made publicly available so that individuals, students, researchers, developers, and other users may inspect, learn from, experiment with, modify, improve, and use the software for personal, educational, research, and other non-commercial purposes.
+
+This License does not grant unrestricted commercial rights.
+
+Commercial use of FundaCheck or software substantially derived from FundaCheck requires prior written permission and a separate commercial license from the copyright holder.
+
+
+2. DEFINITIONS
+
+"Software" means the FundaCheck source code, scripts, configuration, documentation, interface code, algorithms, and other original materials contained in this repository that are owned by the copyright holder.
+
+"Personal Use" means using, running, studying, modifying, testing, or experimenting with the Software for personal purposes without generating revenue or providing a paid service based substantially on the Software.
+
+"Non-Commercial Use" includes:
+
+- Personal projects
+- Educational purposes
+- Academic research
+- Learning and experimentation
+- Portfolio projects that are not monetized
+- Testing and evaluation
+- Bug fixing
+- Security research
+- Private modifications that are not commercially distributed
+
+"Commercial Use" means any use intended to generate revenue, financial benefit, or commercial advantage, including but not limited to:
+
+- Selling the Software or a modified version
+- Selling access to the Software
+- Offering the Software as a paid SaaS or web application
+- Charging users for functionality substantially based on the Software
+- Incorporating the Software into a commercial product
+- Using the Software to provide paid services
+- Licensing or sublicensing the Software
+- Commercially distributing a modified version
+- Using the Software as a substantial component of a revenue-generating product or service
+- White-labeling or rebranding the Software for commercial purposes
+
+"Derivative Work" means a modified, adapted, extended, translated, or substantially transformed version of the Software, including software that incorporates a substantial portion of the Software's original source code or functionality.
+
+
+3. PERSONAL AND NON-COMMERCIAL USE
+
+Subject to the terms of this License, you are granted permission to:
+
+1. Download and run the Software.
+2. Inspect and study the source code.
+3. Modify the Software.
+4. Fix bugs.
+5. Create improvements.
+6. Create private forks.
+7. Create derivative works.
+8. Use the Software for personal, educational, academic, research, and other non-commercial purposes.
+
+No royalty or commercial licensing fee is required for permitted personal or non-commercial use.
+
+
+4. BUG FIXES AND IMPROVEMENTS
+
+You are expressly permitted to:
+
+- Fix bugs
+- Improve performance
+- Improve the user interface
+- Add features
+- Refactor the code
+- Modify existing functionality
+- Experiment with alternative implementations
+
+You may keep such modifications private or share them publicly for non-commercial purposes, provided that you continue to comply with this License.
+
+
+5. COMMERCIAL USE
+
+Commercial Use of FundaCheck or a Derivative Work is not permitted under this License without prior written permission from the copyright holder.
+
+If you wish to use FundaCheck commercially, including as part of a commercial product, paid SaaS, paid service, business, or revenue-generating application, you must contact the copyright holder to discuss and obtain a separate commercial license.
+
+Commercial licensing terms, including any applicable royalty, licensing fee, revenue-sharing arrangement, or other commercial terms, will be mutually discussed and agreed upon separately between the parties.
+
+Contact:
+
+Rishab Shah
+FundaCheck Commercial Licensing
+rishabshah0809@gmail.com
+
+
+6. COMMERCIAL IMPROVEMENTS
+
+If you create a substantially improved, modified, or extended version of FundaCheck and subsequently use that version commercially, the Commercial Use requirements of this License still apply.
+
+Making substantial improvements, adding new features, changing the interface, or modifying the code does not by itself grant commercial rights to the underlying FundaCheck code.
+
+Commercial use of a substantially derived version requires a separate commercial license.
+
+
+7. COMMERCIAL LICENSE
+
+A commercial license may specify terms including, but not limited to:
+
+- Royalty arrangements
+- Licensing fees
+- Revenue-sharing arrangements
+- Duration of the license
+- Permitted products and services
+- Number of users
+- SaaS or API usage
+- Distribution rights
+- White-label rights
+- Attribution requirements
+- Support obligations
+- Reporting requirements
+- Termination conditions
+
+All commercial terms will be agreed upon separately in writing.
+
+
+8. ATTRIBUTION
+
+Any publicly distributed non-commercial Derivative Work must retain reasonable attribution to the original project.
+
+At minimum, attribution should identify:
+
+"FundaCheck — Copyright (c) 2026 Rishab Shah"
+
+and provide a reference to the original repository where reasonably practical.
+
+Attribution does not grant any commercial rights.
+
+
+9. REDISTRIBUTION
+
+You may redistribute the Software or modified versions for non-commercial purposes provided that:
+
+1. This License is included with the distribution.
+2. The original copyright notice is retained.
+3. You clearly indicate if modifications have been made.
+4. You do not represent your version as the official FundaCheck release.
+5. You do not remove or obscure existing copyright notices.
+
+Commercial redistribution requires prior written permission and a separate commercial license.
+
+
+10. NO SUBLICENSING
+
+You may not sublicense, sell, assign, or otherwise transfer commercial rights to the Software to another person or organization without prior written permission from the copyright holder.
+
+
+11. NO TRADEMARK RIGHTS
+
+This License does not grant permission to use the FundaCheck name, logo, branding, domain names, or other trademarks associated with the project for commercial purposes, endorsement, or representation of affiliation.
+
+Modified versions must not represent themselves as the official FundaCheck project.
+
+
+12. THIRD-PARTY SOFTWARE, DATA, APIS AND CONTENT
+
+This License applies only to materials owned by the copyright holder.
+
+FundaCheck may use or interact with third-party:
+
+- APIs
+- Financial data providers
+- Libraries
+- Frameworks
+- Datasets
+- Websites
+- Services
+- Trademarks
+- Fonts
+- Images
+- Documentation
+- Other third-party materials
+
+Such materials are not automatically covered by this License and remain subject to their respective licenses, copyrights, terms of service, and usage restrictions.
+
+Nothing in this License grants permission to use third-party data or services beyond the rights granted by their respective providers.
+
+
+13. NO FINANCIAL ADVICE
+
+FundaCheck is software intended for financial analysis, research, education, and informational purposes.
+
+Nothing in the Software or its documentation constitutes financial, investment, legal, tax, accounting, or other professional advice.
+
+Users are responsible for independently verifying information and making their own decisions.
+
+
+14. DISCLAIMER OF WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS" AND "AS AVAILABLE", WITHOUT WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED.
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER DISCLAIMS ALL WARRANTIES INCLUDING, WITHOUT LIMITATION, WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, RELIABILITY, NON-INFRINGEMENT, AND AVAILABILITY.
+
+THE COPYRIGHT HOLDER DOES NOT WARRANT THAT THE SOFTWARE, FINANCIAL DATA, CALCULATIONS, ANALYSIS, OUTPUTS, OR THIRD-PARTY SERVICES USED BY THE SOFTWARE ARE ACCURATE, COMPLETE, CURRENT, OR ERROR-FREE.
+
+
+15. LIMITATION OF LIABILITY
+
+TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE COPYRIGHT HOLDER SHALL NOT BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, EXEMPLARY, OR OTHER DAMAGES ARISING FROM OR RELATED TO THE USE OF THE SOFTWARE.
+
+THIS INCLUDES, WITHOUT LIMITATION, FINANCIAL LOSSES, INVESTMENT LOSSES, LOSS OF DATA, LOSS OF PROFITS, BUSINESS INTERRUPTION, OR LOSSES ARISING FROM INCORRECT OR OUTDATED FINANCIAL INFORMATION.
+
+
+16. TERMINATION
+
+This License automatically terminates if you materially violate its terms.
+
+Upon termination, you must cease activities that are no longer authorized under this License, including unauthorized Commercial Use.
+
+Termination does not eliminate obligations or liabilities that accrued before termination.
+
+
+17. COPYRIGHT
+
+All rights not expressly granted by this License are reserved by the copyright holder.
+
+The Software is not released into the public domain.
+
+Except for the permissions expressly granted in this License, no rights are granted to reproduce, distribute, modify, sublicense, sell, or commercially exploit the Software.
+
+
+18. FUTURE VERSIONS
+
+The copyright holder may publish future versions of this License.
+
+Each version will identify its version number.
+
+Unless otherwise stated, users who have received the Software under a particular version may continue using that version according to its terms.
+
+
+19. COMMERCIAL LICENSING CONTACT
+
+For commercial licensing inquiries, please contact:
+
+Copyright Holder: Rishab Shah
+Project: FundaCheck
+Repository: https://github.com/rishabshah0809-hue/Financial-dashboard
+
+Email: rishabshah0809@gmail.com
+
+
+20. ACCEPTANCE
+
+By exercising rights granted under this License, you agree to be bound by its terms.
+
+If you do not agree to these terms, you are not granted permission to use, modify, distribute, or otherwise exercise rights in the Software beyond rights that cannot legally be restricted.
+
+
+END OF FUNDA CHECK SOURCE-AVAILABLE COMMERCIAL LICENSE

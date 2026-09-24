@@ -10,7 +10,7 @@ business **STRONG, NEUTRAL, or WEAK**, and why.
 
 ![Python](https://img.shields.io/badge/Python-3.12-1e6b45)
 ![Streamlit](https://img.shields.io/badge/Streamlit-app-37d67a)
-![License](https://img.shields.io/badge/license-MIT-777)
+![License](https://img.shields.io/badge/license-Source--Available-777)
 
 Live app → **https://fundacheck.streamlit.app**
 
@@ -192,4 +192,14 @@ a band or adding a sector is a few lines.
 
 ---
 
-MIT licensed. Built as a portfolio project — issues and forks welcome.
+## License
+
+FundaCheck is **source‑available** under the **FundaCheck Source‑Available Commercial License v1.0**.
+
+You are free to **use, study, modify, and improve** FundaCheck for **personal, educational, research, and other non‑commercial** purposes.
+
+**Commercial use** — commercialization, resale, paid SaaS, or commercial products substantially derived from FundaCheck — **requires a separate commercial license.**
+
+See [`LICENSE`](LICENSE) for the complete terms.
+
+For commercial licensing inquiries: **rishabshah0809@gmail.com**
