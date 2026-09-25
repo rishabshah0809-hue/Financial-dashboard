@@ -1,20 +1,26 @@
 {
-  "generated_at": "2026-09-25T14:49:23.959969+00:00",
+  "generated_at": "2026-09-25T15:03:37.239756+00:00",
   "market_snapshot_date": "2026-09-25",
   "source": "Screener.in (public company pages)",
   "source_note": "Screener.in public data — not official exchange data, not guaranteed real-time.",
   "unique_companies": 410,
-  "fetched_ok": 401,
-  "fetch_failed": 9,
+  "fetched_ok": 395,
+  "fetch_failed": 15,
   "failed_symbols": [
-    "OBEROIRLTY",
+    "AVL",
+    "JUBLFOOD",
+    "VMART",
+    "ACC",
     "ORIENTCEM",
+    "CASTROLIND",
     "BDL",
     "DATAPATTNS",
     "GRSE",
+    "POWERINDIA",
     "HONAUT",
-    "SIEMENS",
-    "WAAREEENER",
+    "ENRIN",
+    "VOLTAMP",
+    "HCC",
     "HEMIPROP"
   ],
   "sectors": [
@@ -5535,19 +5541,23 @@
       "reference_index": "NIFTY CONSUMER SERVICES",
       "is_financial": false,
       "constituent_count": 46,
-      "included_count": 46,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 43,
+      "stale_count": 3,
+      "stale_symbols": [
+        "AVL",
+        "JUBLFOOD",
+        "VMART"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 70.99,
-        "pb": 7.37,
-        "roe": 6.0,
-        "roce": 6.13,
+        "pe": 71.24,
+        "pb": 7.3,
+        "roe": 5.8,
+        "roce": 5.88,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 37,
+            "included": 34,
             "excluded": 9,
             "exclusions": {
               "ABFRL": "net profit <=0 or unavailable",
@@ -5563,21 +5573,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 46,
+            "included": 43,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 46,
+            "included": 43,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 46,
+            "included": 43,
             "excluded": 0
           }
         },
-        "companies_in_pe": 37
+        "companies_in_pe": 34
       },
       "constituents": [
         {
@@ -5914,7 +5924,9 @@
           "dividend_yield": 0.25,
           "net_profit_ttm": 450.0,
           "equity": 2292.0,
-          "rank": 14
+          "rank": 14,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Urban Company Ltd",
@@ -6298,7 +6310,9 @@
           "dividend_yield": 0.2,
           "net_profit_ttm": 139.0,
           "equity": 689.0,
-          "rank": 30
+          "rank": 30,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Entero Healthcare Solutions Ltd",
@@ -6514,7 +6528,9 @@
           "dividend_yield": 0.13,
           "net_profit_ttm": 138.0,
           "equity": 951.0,
-          "rank": 39
+          "rank": 39,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Aditya Birla Fashion & Retail Ltd",
@@ -6692,19 +6708,22 @@
       "reference_index": "NIFTY RETAIL",
       "is_financial": false,
       "constituent_count": 26,
-      "included_count": 26,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 24,
+      "stale_count": 2,
+      "stale_symbols": [
+        "AVL",
+        "VMART"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 95.91,
-        "pb": 7.9,
-        "roe": 2.97,
-        "roce": 3.34,
+        "pe": 96.96,
+        "pb": 7.89,
+        "roe": 2.84,
+        "roce": 3.18,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 20,
+            "included": 18,
             "excluded": 6,
             "exclusions": {
               "ABFRL": "net profit <=0 or unavailable",
@@ -6717,21 +6736,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 26,
+            "included": 24,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 26,
+            "included": 24,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 26,
+            "included": 24,
             "excluded": 0
           }
         },
-        "companies_in_pe": 20
+        "companies_in_pe": 18
       },
       "constituents": [
         {
@@ -7116,7 +7135,9 @@
           "dividend_yield": 0.2,
           "net_profit_ttm": 139.0,
           "equity": 689.0,
-          "rank": 16
+          "rank": 16,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Entero Healthcare Solutions Ltd",
@@ -7236,7 +7257,9 @@
           "dividend_yield": 0.13,
           "net_profit_ttm": 138.0,
           "equity": 951.0,
-          "rank": 21
+          "rank": 21,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Aditya Birla Fashion & Retail Ltd",
@@ -7366,21 +7389,19 @@
       "reference_index": "NIFTY REALTY",
       "is_financial": false,
       "constituent_count": 10,
-      "included_count": 9,
-      "stale_count": 1,
-      "stale_symbols": [
-        "OBEROIRLTY"
-      ],
+      "included_count": 10,
+      "stale_count": 0,
+      "stale_symbols": [],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 35.89,
-        "pb": 3.96,
-        "roe": 10.67,
-        "roce": 6.31,
+        "pe": 34.34,
+        "pb": 3.94,
+        "roe": 11.14,
+        "roce": 7.28,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 8,
+            "included": 9,
             "excluded": 1,
             "exclusions": {
               "ABREL": "net profit <=0 or unavailable"
@@ -7388,21 +7409,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 9,
+            "included": 10,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 9,
+            "included": 10,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 9,
+            "included": 10,
             "excluded": 0
           }
         },
-        "companies_in_pe": 8
+        "companies_in_pe": 9
       },
       "constituents": [
         {
@@ -7483,8 +7504,8 @@
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=OBEROIRLTY",
           "screener_url": "https://www.screener.in/company/OBEROIRLTY/",
           "cmp": 1858.0,
-          "market_cap": 67546.0,
-          "pe": 25.5,
+          "market_cap": 67629.0,
+          "pe": 25.6,
           "pb": 3.77,
           "roe": 14.6,
           "roce": 17.3,
@@ -7496,12 +7517,10 @@
           "revenue_growth_yoy": 13.68,
           "eps_ttm_growth": 12.66,
           "book_value": 493.0,
-          "dividend_yield": 0.44,
+          "dividend_yield": 0.43,
           "net_profit_ttm": 2630.0,
           "equity": 17922.0,
-          "rank": 4,
-          "stale": true,
-          "stale_since": "2026-09-25"
+          "rank": 4
         },
         {
           "name": "Prestige Estates Projects Ltd",
@@ -8058,41 +8077,42 @@
       "reference_index": "NIFTY CEMENT",
       "is_financial": false,
       "constituent_count": 16,
-      "included_count": 15,
-      "stale_count": 1,
+      "included_count": 14,
+      "stale_count": 2,
       "stale_symbols": [
+        "ACC",
         "ORIENTCEM"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 26.62,
-        "pb": 2.51,
-        "roe": 9.42,
-        "roce": 8.85,
+        "pe": 27.49,
+        "pb": 2.59,
+        "roe": 9.43,
+        "roce": 8.91,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 15,
+            "included": 14,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           }
         },
-        "companies_in_pe": 15
+        "companies_in_pe": 14
       },
       "constituents": [
         {
@@ -8261,7 +8281,9 @@
           "dividend_yield": 0.61,
           "net_profit_ttm": 1909.0,
           "equity": 20551.0,
-          "rank": 7
+          "rank": 7,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "The Ramco Cements Ltd",
@@ -9014,39 +9036,41 @@
       "reference_index": "NIFTY OIL & GAS",
       "is_financial": false,
       "constituent_count": 15,
-      "included_count": 15,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 14,
+      "stale_count": 1,
+      "stale_symbols": [
+        "CASTROLIND"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 12.73,
-        "pb": 1.5,
-        "roe": 11.77,
-        "roce": 10.32,
+        "pe": 12.7,
+        "pb": 1.49,
+        "roe": 11.72,
+        "roce": 10.28,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 15,
+            "included": 14,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 15,
+            "included": 14,
             "excluded": 0
           }
         },
-        "companies_in_pe": 15
+        "companies_in_pe": 14
       },
       "constituents": [
         {
@@ -9383,7 +9407,9 @@
           "dividend_yield": 4.34,
           "net_profit_ttm": 1062.0,
           "equity": 1909.0,
-          "rank": 14
+          "rank": 14,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Mahanagar Gas Ltd",
@@ -9966,46 +9992,47 @@
       "reference_index": "NIFTY CAPITAL GOODS",
       "is_financial": false,
       "constituent_count": 50,
-      "included_count": 44,
-      "stale_count": 6,
+      "included_count": 43,
+      "stale_count": 7,
       "stale_symbols": [
         "BDL",
         "DATAPATTNS",
         "GRSE",
+        "POWERINDIA",
         "HONAUT",
-        "SIEMENS",
-        "WAAREEENER"
+        "ENRIN",
+        "VOLTAMP"
       ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 46.19,
-        "pb": 9.35,
-        "roe": 20.25,
-        "roce": 19.06,
+        "pe": 42.43,
+        "pb": 8.72,
+        "roe": 20.55,
+        "roce": 18.95,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 44,
+            "included": 43,
             "excluded": 0,
             "exclusions": {}
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 44,
+            "included": 43,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 44,
+            "included": 43,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 44,
+            "included": 43,
             "excluded": 0
           }
         },
-        "companies_in_pe": 44
+        "companies_in_pe": 43
       },
       "constituents": [
         {
@@ -10174,17 +10201,19 @@
           "dividend_yield": 0.03,
           "net_profit_ttm": 1150.0,
           "equity": 5176.0,
-          "rank": 7
+          "rank": 7,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Siemens Ltd",
           "nse_symbol": "SIEMENS",
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=SIEMENS",
           "screener_url": "https://www.screener.in/company/SIEMENS/",
-          "cmp": 3865.0,
-          "market_cap": 137646.0,
+          "cmp": 3877.0,
+          "market_cap": 137679.0,
           "pe": 91.6,
-          "pb": 9.94,
+          "pb": 9.97,
           "roe": 19.2,
           "roce": 21.4,
           "roa": 15.45,
@@ -10198,9 +10227,7 @@
           "dividend_yield": 0.46,
           "net_profit_ttm": 3277.0,
           "equity": 13840.0,
-          "rank": 8,
-          "stale": true,
-          "stale_since": "2026-09-25"
+          "rank": 8
         },
         {
           "name": "Cummins India Ltd",
@@ -10272,7 +10299,9 @@
           "dividend_yield": 0.12,
           "net_profit_ttm": 1488.0,
           "equity": 4812.0,
-          "rank": 11
+          "rank": 11,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "GE Vernova T&D India Ltd",
@@ -10399,10 +10428,10 @@
           "nse_symbol": "WAAREEENER",
           "nse_url": "https://www.nseindia.com/get-quotes/equity?symbol=WAAREEENER",
           "screener_url": "https://www.screener.in/company/WAAREEENER/",
-          "cmp": 2491.0,
-          "market_cap": 71651.0,
+          "cmp": 2495.0,
+          "market_cap": 71740.0,
           "pe": 17.8,
-          "pb": 4.96,
+          "pb": 4.97,
           "roe": 32.5,
           "roce": 38.4,
           "roa": 13.35,
@@ -10416,9 +10445,7 @@
           "dividend_yield": 0.16,
           "net_profit_ttm": 4003.0,
           "equity": 14438.0,
-          "rank": 17,
-          "stale": true,
-          "stale_since": "2026-09-25"
+          "rank": 17
         },
         {
           "name": "APL Apollo Tubes Ltd",
@@ -11170,7 +11197,9 @@
           "dividend_yield": 0.93,
           "net_profit_ttm": 317.0,
           "equity": 1792.0,
-          "rank": 48
+          "rank": 48,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Finolex Industries Ltd",
@@ -11228,19 +11257,21 @@
       "reference_index": "NIFTY CONSTRUCTION",
       "is_financial": false,
       "constituent_count": 23,
-      "included_count": 23,
-      "stale_count": 0,
-      "stale_symbols": [],
+      "included_count": 22,
+      "stale_count": 1,
+      "stale_symbols": [
+        "HCC"
+      ],
       "fundamental_period": "Mar 2026 (annual) + TTM P&L",
       "metrics": {
-        "pe": 23.41,
+        "pe": 23.36,
         "pb": 3.49,
-        "roe": 14.69,
-        "roce": 12.29,
+        "roe": 14.76,
+        "roce": 12.27,
         "methodology": {
           "pe": {
             "formula": "Σ MarketCap / Σ NetProfit(TTM>0)",
-            "included": 22,
+            "included": 21,
             "excluded": 1,
             "exclusions": {
               "SWSOLAR": "net profit <=0 or unavailable"
@@ -11248,21 +11279,21 @@
           },
           "pb": {
             "formula": "Σ MarketCap / Σ Equity (Equity = Equity Capital + Reserves)",
-            "included": 23,
+            "included": 22,
             "excluded": 0
           },
           "roe": {
             "formula": "Σ NetProfit(TTM) / Σ Equity",
-            "included": 23,
+            "included": 22,
             "excluded": 0
           },
           "roce": {
             "formula": "Σ EBIT / Σ (Equity + Borrowings); EBIT = OperatingProfit(TTM) − Depreciation(TTM)",
-            "included": 23,
+            "included": 22,
             "excluded": 0
           }
         },
-        "companies_in_pe": 22
+        "companies_in_pe": 21
       },
       "constituents": [
         {
@@ -11671,7 +11702,9 @@
           "dividend_yield": 0.0,
           "net_profit_ttm": 166.0,
           "equity": 2127.0,
-          "rank": 17
+          "rank": 17,
+          "stale": true,
+          "stale_since": "2026-09-25"
         },
         {
           "name": "Sterling & Wilson Renewable Energy Ltd",
