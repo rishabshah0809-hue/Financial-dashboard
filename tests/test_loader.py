@@ -80,9 +80,14 @@ class TestLoaderHtml(unittest.TestCase):
         self.assertNotRegex(self.html, r"\d+%\s*(complete|done)")
         self.assertNotIn("progress", self.html.split("<script>")[0].lower())
 
-    def test_reduced_motion_keeps_the_scene_but_stops_it_moving(self):
-        self.assertIn("prefers-reduced-motion", self.html)
-        self.assertIn("paint(FROZEN, 0)", self.html)
+    def test_it_always_animates(self):
+        """The OS reduce-motion switch (on by default on many Windows PCs)
+        froze him into still frames; he must keep moving regardless."""
+        self.assertNotIn("prefers-reduced-motion", self.html)
+        self.assertIn("requestAnimationFrame(frame)", self.html)
+
+    def test_his_eyes_glide_rather_than_jump(self):
+        self.assertIn("moveEyes(a, dt)", self.html)
 
     def test_the_placeholder_holds_the_first_caption_before_script_runs(self):
         first = L.PHASES["note"][0][0]

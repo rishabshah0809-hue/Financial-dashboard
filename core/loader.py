@@ -28,6 +28,10 @@ sandboxed iframe, so it keeps moving while Python blocks:
      and his hands rise into frame on a spring as one step hands to the next,
   4. the caption fades in letter by letter, then drifts out for the next step.
 
+It always animates, even when the OS asks for reduced motion: Windows sets
+that by default on many machines, and freezing him turned the character into
+three still pictures.
+
 Nothing here reports progress it does not know: the step pills say WHICH step
 the analyst is on, never a percentage, because the app cannot know how long a
 model call will take.
@@ -146,23 +150,16 @@ html,body{margin:0;padding:0;background:transparent;overflow:hidden;
   transition:width .6s cubic-bezier(.65,0,.35,1),background-color .6s ease}
 .fcl-steps i.done{background:#A9D3BB}
 .fcl-steps i.on{width:22px;background:#2F9E63}
-/* Honour a reader who has asked the OS for less motion: the loader still shows
-   and still says what it is doing, it just stops moving. */
-@media (prefers-reduced-motion:reduce){
-  .fcl-msg,.fcl-steps i{transition:none}
-  .fcl-msg .c{animation:none;opacity:1}
-  .fcl-dots i{animation:none}
-  .fcl{animation:fclFade .3s ease .25s both}
-}
-@keyframes fclFade{from{opacity:0}to{opacity:1}}
 """
 
 # All motion on ONE rAF loop, time-based (never frame-counted), so it runs at
 # the same speed on a 60Hz laptop and a 120Hz phone.
 _JS = """
 (function(){
-  var PHASES = __PHASES__, REDUCED = !!(window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  /* Always animated, by the owner's choice. Windows turns the OS "reduce
+     motion" setting on by default on many machines, and honouring it froze
+     him into three still pictures — the opposite of the point. */
+  var PHASES = __PHASES__;
 
   var cv    = document.querySelector('.fcl-scene');
   var src   = document.querySelector('.fcl-src');
@@ -171,7 +168,6 @@ _JS = """
   if (!cv || !msg) { return; }
   var ctx = cv.getContext('2d');
   var DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-  var FROZEN = 1500;         /* the readable pose a reduced-motion reader sees */
 
   var S = 184, CX = S / 2, CY = S / 2;
   var R = 86;                /* the thin ring */
@@ -230,7 +226,6 @@ _JS = """
       hf = document.createElement('canvas'); hf.width = hf.height = NPX;
       hfc = hf.getContext('2d');
     } catch (e) { head = body = null; }
-    if (REDUCED) { paint(FROZEN, 0); }
   }
 
   function rect(c, x, y, w, h, col){ c.fillStyle = col; c.fillRect(x, y, w, h); }
@@ -245,17 +240,27 @@ _JS = """
     { x0: 476, x1: 532, low: 492, glare: [476, 345, 25, 14], eye: 504 }
   ];
   var LENSES = [[320, 328, 98, 76], [459, 328, 102, 76]];   /* glint areas */
-  function drawEyes(c, f){
+  /* Where each eye shape sits: [top, bottom] of the eye block. */
+  var EYE = { open: [331, 359], up: [331, 345], down: [345, 374], closed: [349, 358] };
+  /* The eye GLIDES to where he is looking — its position and its top and
+     bottom edges all ease — so he looks around rather than jumping between
+     stills. A blink closes faster than a glance. */
+  var eye = { x: 0, top: 331, bot: 359 };
+  function moveEyes(a, dt){
+    var g = EYE[a.eye] || EYE.open;
+    var k = dt ? 1 - Math.exp(-dt / (a.eye === 'closed' ? 22 : 75)) : 1;
+    eye.x += (a.ex * 14 - eye.x) * k;
+    eye.top += (g[0] - eye.top) * k;
+    eye.bot += (g[1] - eye.bot) * k;
+  }
+  function drawEyes(c){
     for (var i = 0; i < LENS.length; i++) {
-      var L = LENS[i], x = L.eye + f.ex * 14;
+      var L = LENS[i];
       rect(c, L.x0, 331, L.x1 - L.x0, 14, GRAY);
       rect(c, L.x0, 345, L.x1 - L.x0, 14, SKIN);
       rect(c, L.low, 359, L.x1 - L.low, 15, SKIN);
       rect(c, L.glare[0], L.glare[1], L.glare[2], L.glare[3], WHITE);
-      if (f.eye === 'closed')    { rect(c, x, 349, 28, 9, INK); }
-      else if (f.eye === 'up')   { rect(c, x, 331, 28, 14, INK); }
-      else if (f.eye === 'down') { rect(c, x, 345, 28, 29, INK); }
-      else                       { rect(c, x, 331, 28, 28, INK); }
+      rect(c, L.eye + eye.x, eye.top, 28, Math.max(6, eye.bot - eye.top), INK);
     }
   }
   /* His mouth: the original flat line, or a smile, a grin, an "oh!", a
@@ -448,16 +453,16 @@ _JS = """
     ctx.fillStyle = bg; ctx.fillRect(0, 0, S, S);
 
     if (body && head) {
-      var tm = REDUCED ? FROZEN : t - modeStart;
+      var tm = t - modeStart;
       var a = act(mode, tm);
-      if (!REDUCED && blinking(t) && a.eye !== 'down') { a.eye = 'closed'; }
+      if (blinking(t) && a.eye !== 'down') { a.eye = 'closed'; }
 
       /* this frame's head: the portrait, then his eyes and mouth on top */
       hfc.setTransform(1, 0, 0, 1, 0, 0);
       hfc.clearRect(0, 0, NPX, NPX);
       hfc.drawImage(head, 0, 0);
       hfc.setTransform(NPX / IW, 0, 0, NPX / IW, 0, 0);
-      drawEyes(hfc, a); drawMouth(hfc, a.mouth);
+      moveEyes(a, dt); drawEyes(hfc); drawMouth(hfc, a.mouth);
       if (PRESENT.write.p > 0.01) {
         hfc.globalCompositeOperation = 'source-atop';
         screenGlow(hfc, mode === 'write' ? a : { glow: 0.5 }, PRESENT.write.p);
@@ -477,7 +482,7 @@ _JS = """
 
       /* a glint crossing his glasses every 4.6s */
       var gp = ((t + 900) % 4600) / 700;
-      if (gp < 1 && !REDUCED) {
+      if (gp < 1) {
         var sm = gp * gp * (3 - 2 * gp), gx = 250 + sm * 360;
         ctx.save();
         ctx.translate(hox, hoy);
@@ -553,7 +558,7 @@ _JS = """
   var phase = 0;
   function show(i){
     var step = PHASES[i % PHASES.length], text = step[0];
-    if (step[1] !== mode) { mode = step[1]; modeStart = now; }
+    if (step[1] !== mode) { mode = step[1]; modeStart = now; nextBlink = now; }
     msg.textContent = '';
     /* letters animate one by one, but each WORD stays whole when it wraps */
     var words = text.split(' '), n = 0;
@@ -606,20 +611,13 @@ _JS = """
     else { src.onload = build; }
   }
 
-  if (REDUCED) {
-    /* Frozen scene, captions swapped whole and slowly: less movement, never
-       less information — he still holds up the glass, the pencil, his chin. */
-    show(0); paint(FROZEN, 0);
-    setInterval(function(){ phase++; show(phase); paint(FROZEN, 0); }, 3000);
-  } else {
-    cycle();
-    raf = requestAnimationFrame(frame);
-    /* Stop burning frames if the tab is hidden, pick up where it left off. */
-    document.addEventListener('visibilitychange', function(){
-      if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = null; } }
-      else if (!raf) { start = 0; raf = requestAnimationFrame(frame); }
-    });
-  }
+  cycle();
+  raf = requestAnimationFrame(frame);
+  /* Stop burning frames if the tab is hidden, pick up where it left off. */
+  document.addEventListener('visibilitychange', function(){
+    if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = null; } }
+    else if (!raf) { start = 0; raf = requestAnimationFrame(frame); }
+  });
 })();
 """
 
@@ -698,12 +696,6 @@ _WELCOME_CSS = """
 @media (max-width:640px){
   .wc-cards{grid-template-columns:1fr}
   .wc h1{font-size:22px}
-}
-@media (prefers-reduced-motion:reduce){
-  .wc{animation:none}
-  .wc-card{transition:none}
-  .wc-card.on{transform:none}
-  .wc-card.on::after{animation:none;width:100%}
 }
 """
 
