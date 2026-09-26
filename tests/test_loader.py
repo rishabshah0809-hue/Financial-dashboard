@@ -89,6 +89,12 @@ class TestLoaderHtml(unittest.TestCase):
     def test_his_eyes_glide_rather_than_jump(self):
         self.assertIn("moveEyes(a, dt)", self.html)
 
+    def test_he_moves_like_one_bouncy_body(self):
+        """Squash & stretch hop between steps, head on a spring behind him."""
+        for part in ("function hop(t)", "startHop(now, 1)", "ctx.scale(sx, sy)",
+                     "c.rotate(tilt)"):
+            self.assertIn(part, self.html, part)
+
     def test_the_placeholder_holds_the_first_caption_before_script_runs(self):
         first = L.PHASES["note"][0][0]
         self.assertIn(f'<div class="fcl-msg">{first}</div>', self.html)

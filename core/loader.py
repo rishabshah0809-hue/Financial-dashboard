@@ -15,8 +15,11 @@ no card around it — the circle is the frame.
 The motion, in layers, all on ONE requestAnimationFrame loop inside one
 sandboxed iframe, so it keeps moving while Python blocks:
   1. a comet arc orbits the thin ring, easing in speed and length,
-  2. the analyst is alive: he breathes, his head follows a beat behind his
-     shoulders, he blinks now and then, and a glint crosses his glasses,
+  2. the analyst is alive, with squash and stretch: he breathes, bounces as
+     he types, HOPS into each new step (crouch, stretch, squash on landing,
+     wobble) and does small joy hops; his head sits on a spring, lagging and
+     overshooting behind his body and tilting as he works; he blinks, his eyes
+     glide, and a glint crosses his glasses,
   3. he acts out the step HIMSELF, drawn on his own pixel grid — no icons:
        search  holds a big magnifying glass up and sweeps it across his
                glasses (the lens really magnifies him), eyes following it,
@@ -304,7 +307,7 @@ _JS = """
   /* SEARCH — he holds a magnifying glass up to his glasses and sweeps it
      across, and the lens really magnifies whatever is behind it. */
   var LR = 4.9;                      /* lens radius, in his pixels */
-  function drawSearch(c, lx, ly, hox, hoy){
+  function drawSearch(c, lx, ly, drawHead){
     /* the handle runs down and out of frame — his hand is just below */
     for (var k = 0; k < 13; k++) {
       var hx0 = lx + (LR * 0.72 + k * 0.72) * C, hy0 = ly + (LR * 0.72 + k * 0.72) * C;
@@ -316,7 +319,7 @@ _JS = """
     rect(c, lx - 7 * C, ly - 7 * C, 14 * C, 14 * C, '#FFFFFF');
     c.translate(lx, ly); c.scale(1.5, 1.5); c.translate(-lx, -ly);
     c.drawImage(body, 0, 0, IW, IW);
-    c.drawImage(hf, hox, hoy, IW, IW);
+    drawHead(c);
     c.restore();
     c.fillStyle = 'rgba(190,225,205,.18)';
     c.beginPath(); c.arc(lx, ly, LR * C, 0, Math.PI * 2); c.fill();
@@ -368,7 +371,8 @@ _JS = """
      hands are. Faces switch in whole pixels, like the art; the head and
      hands glide. */
   function act(mode, tm){
-    var a = { ex: 0, eye: 'open', mouth: 'flat', hx: 0, hy: 0, tap: 0 };
+    var a = { ex: 0, eye: 'open', mouth: 'flat', hx: 0, hy: 0, tap: 0,
+              tilt: 0, lean: 0, beat: 0 };
     if (mode === 'search') {
       var per = 3800, ph = (tm % per) / per;
       var s = 0.5 - 0.5 * Math.cos(ph * Math.PI * 2);
@@ -376,6 +380,8 @@ _JS = """
       a.ex = a.lx < 395 ? -1 : (a.lx > 475 ? 1 : 0);
       if (s > 0.93) { a.mouth = Math.floor(tm / per) % 2 ? 'smile' : 'o'; }
       a.hx = (s - 0.5) * 1.8; a.hy = 0.4;
+      a.tilt = (s - 0.5) * 0.10;          /* head follows the glass */
+      a.lean = (s - 0.5) * 0.05;          /* and his whole body leans in */
     } else if (mode === 'write') {
       var pw = tm % 5200;
       a.glow = 0.5 + 0.5 * Math.sin(tm * 0.02);
@@ -385,8 +391,11 @@ _JS = """
         a.ex = line < 0.34 ? -1 : (line < 0.67 ? 0 : 1);
         a.mouth = (pw % 1900) < 360 ? 'small' : 'flat';
         a.hy = 1.3 + Math.pow(Math.max(0, Math.sin(tm * 0.028)), 6) * 0.6;
+        /* a bounce on every burst of keystrokes */
+        a.beat = Math.pow(Math.max(0, Math.sin(tm * 0.018)), 8);
+        a.tilt = -0.025 + a.ex * 0.02;
       } else {                     /* a paragraph done: he looks up, pleased */
-        a.mouth = 'smile'; a.hy = -0.3;
+        a.mouth = 'smile'; a.hy = -0.3; a.tilt = 0.04;
       }
       a.hx = a.ex * 0.6;
     } else {                       /* think: up-right, up-left... then "aha!" */
@@ -399,6 +408,9 @@ _JS = """
       /* scratch in short bursts while he is puzzling it out */
       a.tap = (a.mouth === 'hmm' && (tm % 900) < 500) ? Math.round(Math.sin(tm * 0.05)) * 6 : 0;
       a.hx = a.ex * 1.1; a.hy = a.eye === 'up' ? -1.6 : -0.6;
+      /* puzzling: head cocked, drifting; the "aha" snaps it upright */
+      a.tilt = a.mouth === 'hmm' ? 0.07 + Math.sin(tm * 0.0021) * 0.03 : -0.02;
+      a.lean = a.mouth === 'hmm' ? 0.015 : 0;
     }
     return a;
   }
@@ -424,6 +436,47 @@ _JS = """
       s.v += (170 * (goal - s.p) - 17 * s.v) * h;
       s.p += s.v * h;
     }
+  }
+
+  /* ---- the hop ----------------------------------------------------------
+     Classic squash and stretch: crouch (anticipation), stretch as he leaves
+     the ground, squash on landing, then a small wobble to rest. He hops
+     between steps, and a smaller "joy" hop on an aha, a find or a finished
+     paragraph. Returns his lift (CSS px), x/y scale and vertical speed. */
+  var hopAt = -1e9, hopAmp = 1;
+  function hop(t){
+    var d = t - hopAt, A = hopAmp, sm, p;
+    if (d < 0 || d > 780) { return { y: 0, sx: 1, sy: 1, vy: 0 }; }
+    if (d < 140) {                                        /* crouch */
+      sm = Math.sin(d / 140 * Math.PI / 2);
+      return { y: 2 * A * sm, sx: 1 + 0.06 * A * sm, sy: 1 - 0.08 * A * sm, vy: 0 };
+    }
+    if (d < 440) {                                        /* in the air */
+      p = (d - 140) / 300;
+      var st = Math.abs(Math.cos(p * Math.PI));
+      return { y: -13 * A * Math.sin(p * Math.PI),
+               sx: 1 - 0.045 * A * st, sy: 1 + 0.07 * A * st,
+               vy: -13 * A * Math.cos(p * Math.PI) * Math.PI / 0.3 };
+    }
+    if (d < 580) {                                        /* land: squash */
+      sm = Math.sin((d - 440) / 140 * Math.PI);
+      return { y: 1.5 * A * sm, sx: 1 + 0.07 * A * sm, sy: 1 - 0.09 * A * sm, vy: 0 };
+    }
+    p = (d - 580) / 200;                                  /* wobble to rest */
+    var w = Math.sin(p * Math.PI * 2) * (1 - p);
+    return { y: 0, sx: 1 - 0.02 * A * w, sy: 1 + 0.028 * A * w, vy: 0 };
+  }
+  function startHop(t, amp){
+    if (t - hopAt < 700) { return; }                      /* never mid-hop */
+    hopAt = t; hopAmp = amp;
+  }
+  /* His head is on a spring behind his body: it lags on the way up, dips as
+     he lands, and overshoots a touch — follow-through, so it never moves as
+     one stiff block with the shoulders. */
+  var lagY = 0, lagV = 0, tilt = 0, tiltV = 0, lean = 0, prevMouth = 'flat';
+  function spring(x, v, goal, k, c, h){
+    v += (k * (goal - x) - c * v) * h;
+    return [x + v * h, v];
   }
 
   /* ====================================================================
@@ -473,19 +526,44 @@ _JS = """
       hx += (a.hx - hx) * ease; hy += (a.hy - hy) * ease;
       springs(dt);
 
+      /* little joy hops: the aha, a find under the glass, a paragraph done */
+      if (a.mouth !== prevMouth) {
+        if (a.mouth === 'grin') { startHop(t, 0.55); }
+        else if (a.mouth === 'o' && mode === 'search') { startHop(t, 0.35); }
+        else if (a.mouth === 'smile' && mode === 'write') { startHop(t, 0.45); }
+        prevMouth = a.mouth;
+      }
+      var J = hop(t), h = Math.min(0.05, (dt || 16) / 1000);
+      var r = spring(lagY, lagV, -J.vy * 0.018, 260, 17, h); lagY = r[0]; lagV = r[1];
+      r = spring(tilt, tiltV, a.tilt, 90, 11, h); tilt = r[0]; tiltV = r[1];
+      lean += (a.lean - lean) * (1 - Math.exp(-(dt || 16) / 300));
+
+      /* squash & stretch from his feet: breathing, typing bounces, the hop */
+      var sy = J.sy * (1 + 0.012 * breath - 0.03 * a.beat);
+      var sx = J.sx * (1 - 0.008 * breath + 0.02 * a.beat);
       ctx.save();
-      ctx.translate(CX - DW / 2, CY - RD + 2 - breath * 0.9);
+      ctx.translate(CX, CY + RD);
+      ctx.rotate(lean);
+      ctx.scale(sx, sy);
+      ctx.translate(-CX, -(CY + RD));
+      ctx.translate(CX - DW / 2, CY - RD + 2 - breath * 0.9 + J.y);
       ctx.scale(K, K);
-      var hox = hx / K, hoy = (hy - lag * 0.7) / K;
+      var hox = hx / K, hoy = (hy - lag * 0.7 + lagY) / K;
+      /* head space: offset by the spring, turned about his neck */
+      var NX = 368, NY = 470;
+      function toHead(c){
+        c.translate(NX + hox, NY + hoy); c.rotate(tilt); c.translate(-NX, -NY);
+      }
+      function drawHead(c){ c.save(); toHead(c); c.drawImage(hf, 0, 0, IW, IW); c.restore(); }
       ctx.drawImage(body, 0, 0, IW, IW);
-      ctx.drawImage(hf, hox, hoy, IW, IW);
+      drawHead(ctx);
 
       /* a glint crossing his glasses every 4.6s */
       var gp = ((t + 900) % 4600) / 700;
       if (gp < 1) {
         var sm = gp * gp * (3 - 2 * gp), gx = 250 + sm * 360;
         ctx.save();
-        ctx.translate(hox, hoy);
+        toHead(ctx);
         ctx.beginPath();
         for (var l = 0; l < LENSES.length; l++) {
           var L = LENSES[l]; ctx.rect(L[0], L[1], L[2], L[3]);
@@ -506,13 +584,13 @@ _JS = """
         drawWrite(ctx, aw, (1 - pw) * 320);
       }
       if (pt > 0.01) {
-        ctx.save(); ctx.translate(hox, hoy + (1 - pt) * 340);
+        ctx.save(); toHead(ctx); ctx.translate(0, (1 - pt) * 340);
         drawThink(ctx, mode === 'think' ? a.tap : 0);
         ctx.restore();
       }
       if (ps > 0.01) {
         var as = mode === 'search' ? a : act('search', 0);
-        drawSearch(ctx, as.lx, as.ly + (1 - ps) * 420, hox, hoy);
+        drawSearch(ctx, as.lx, as.ly + (1 - ps) * 420, drawHead);
       }
       ctx.restore();
     } else {
@@ -558,7 +636,10 @@ _JS = """
   var phase = 0;
   function show(i){
     var step = PHASES[i % PHASES.length], text = step[0];
-    if (step[1] !== mode) { mode = step[1]; modeStart = now; nextBlink = now; }
+    if (step[1] !== mode) {
+      mode = step[1]; modeStart = now; nextBlink = now;
+      hopAt = -1e9; startHop(now, 1);   /* he hops into the new job */
+    }
     msg.textContent = '';
     /* letters animate one by one, but each WORD stays whole when it wraps */
     var words = text.split(' '), n = 0;
