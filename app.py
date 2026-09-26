@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import base64
 import html
+import io
 import json
 import logging
 import os
@@ -1542,7 +1543,11 @@ def qa_tab(model, result, config: LLMConfig) -> None:
 def _load(file_bytes: bytes | None, path: str | None, filename: str | None = None):
     if path:
         return load_model(path, filename=filename or path)
-    return load_model(pd.io.common.BytesIO(file_bytes), filename=filename)
+    # Plain io.BytesIO — pandas.io.common is a PRIVATE module and re-exporting
+    # BytesIO from it is not part of the public API, so it disappears on a
+    # pandas upgrade (the deploy resolved pandas 3.x). The stdlib version is the
+    # same object and cannot break.
+    return load_model(io.BytesIO(file_bytes), filename=filename)
 
 
 @st.cache_data(ttl=60 * 60 * 24, show_spinner=False)

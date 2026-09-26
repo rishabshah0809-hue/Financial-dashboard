@@ -1,0 +1,39 @@
+# Render Blueprint for FundaCheck.
+#
+# FundaCheck is a STREAMLIT app, not a WSGI app. Render's default Python start
+# command is `gunicorn app:app`, which fails twice over: gunicorn is not a
+# dependency (so "command not found", exit 127), and Streamlit does not expose a
+# WSGI callable for gunicorn to serve even if it were installed. The start
+# command below is the only supported way to run it.
+#
+# NOTE: a service that already exists keeps the Start Command saved in its
+# dashboard — a Blueprint does not overwrite it. For an existing service, set
+# the same command under Settings -> Build & Deploy -> Start Command.
+services:
+  - type: web
+    name: fundacheck
+    runtime: python
+    plan: free
+    # Streamlit must bind to the port Render provides and to 0.0.0.0, or the
+    # health check never sees it. Headless stops it trying to open a browser,
+    # and CORS/XSRF are disabled because Render terminates TLS in front of us.
+    buildCommand: pip install -r requirements.txt
+    startCommand: >-
+      streamlit run streamlit_app.py
+      --server.port $PORT
+      --server.address 0.0.0.0
+      --server.headless true
+      --server.enableCORS false
+      --server.enableXsrfProtection false
+      --browser.gatherUsageStats false
+    autoDeploy: true
+    envVars:
+      # Pin the interpreter FundaCheck is developed and tested on. Left to
+      # itself Render picks the newest (3.14), which pulls pandas 3.x / numpy
+      # 2.5 — untested here, and the reason the requirements floors are loose.
+      - key: PYTHON_VERSION
+        value: "3.12.10"
+      # Streamlit writes its config/cache under $HOME; Render's disk is
+      # ephemeral but writable, so this just keeps it out of the app directory.
+      - key: STREAMLIT_SERVER_HEADLESS
+        value: "true"
