@@ -8,18 +8,24 @@ writing a note, the interpretation being built, a Screener fetch. It replaces
 Streamlit's generic spinner so the wait looks like the analyst thinking rather
 than the app hanging.
 
-Design: pixel art, to match the analyst's own avatar (images/analyst_pfp.png —
-a monochrome pixel portrait). Everything moves on a single requestAnimationFrame
-loop inside one sandboxed iframe, so it keeps animating while Python blocks.
+Layout: centred. The analyst's own pixel portrait (images/analyst_pfp.png) sits
+inside a thin circle; the title and the step caption sit underneath it. There is
+no card around it — the circle is the frame.
 
-The motion, in layers:
-  1. the avatar idles with a 1-pixel bob and a glint that sweeps the glasses,
-  2. a pixel thought-bubble fills and empties above it,
-  3. a 14-bar pixel chart "computes" underneath, with a scan line sweeping it,
-  4. the caption types itself out, blinks a block cursor, and cycles phases.
+The motion, in layers, all on ONE requestAnimationFrame loop inside one
+sandboxed iframe, so it keeps moving while Python blocks:
+  1. a comet arc orbits the thin ring, easing in speed and length,
+  2. the analyst is alive: he breathes, his head follows a beat behind his
+     shoulders, he blinks now and then, and a glint crosses his glasses,
+  3. his head acts out the step — scans side to side while he looks figures
+     up, lifts while he thinks, nods down while he writes,
+  4. a small pixel badge on the ring shows the same action (magnifier,
+     thought dots, pencil) and pops in when the step changes,
+  5. the caption fades in letter by letter, then drifts out for the next step.
 
-Nothing here reports progress it does not know: the bar is a marching pattern,
-never a percentage, because the app cannot know how long a model call will take.
+Nothing here reports progress it does not know: the step pills say WHICH step
+the analyst is on, never a percentage, because the app cannot know how long a
+model call will take.
 """
 
 from __future__ import annotations
@@ -31,12 +37,12 @@ from pathlib import Path
 
 _PFP_PATH = Path(__file__).resolve().parents[1] / "images" / "analyst_pfp.png"
 
-# Each phase is (caption, what the analyst is DOING). The prop drawn beside the
-# avatar follows the second value, so the reader sees him look something up,
-# think it over, then write it down — the actual shape of the job.
-#   "search" — a pixel magnifying glass sweeps across him
-#   "think"  — a pixel thought bubble fills above him
-#   "write"  — a pixel pencil rules lines on a small page beside him
+# Each phase is (caption, what the analyst is DOING). His head movement and the
+# badge on the ring both follow the second value, so the reader sees him look
+# something up, think it over, then write it down — the actual shape of the job.
+#   "search" — he scans side to side; the badge is a pixel magnifying glass
+#   "think"  — he looks up and holds; the badge is three thought dots
+#   "write"  — he nods down at the page; the badge is a pixel pencil
 SEARCH, THINK, WRITE = "search", "think", "write"
 
 PHASES: dict[str, tuple[tuple[str, str], ...]] = {
@@ -84,305 +90,369 @@ def _pfp_uri() -> str:
 
 _CSS = """
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:transparent;
+html,body{margin:0;padding:0;background:transparent;overflow:hidden;
   font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-.fcl{display:flex;align-items:center;gap:20px;background:#fff;
-  border:1px solid #E6EBE7;border-radius:18px;padding:16px 20px;
-  box-shadow:0 1px 2px rgba(21,32,26,.04),0 10px 30px -16px rgba(21,32,26,.20)}
-/* ---- the scene: the analyst on the left, room for his prop on the right ----
-   It is one box rather than a bare avatar, so a magnifying glass or a pencil
-   has somewhere to live without spilling over the caption or the card edge. */
-.fcl-av{position:relative;width:110px;height:84px;flex:none}
-.fcl-glow{position:absolute;left:-6px;top:4px;width:76px;height:76px;
-  border-radius:50%;
-  background:radial-gradient(circle,rgba(47,158,99,.30) 0%,rgba(47,158,99,.09) 48%,transparent 72%);
-  filter:blur(7px);z-index:1}
-.fcl-face{position:absolute;z-index:2;left:0;top:10px;width:64px;height:64px;
-  object-fit:contain;image-rendering:pixelated;border-radius:50%;background:#fff;
-  display:block}
-/* the glint that sweeps the glasses — a hard-edged pixel band, no soft blur */
-.fcl-glint{position:absolute;z-index:3;top:38px;left:0;width:13px;height:8px;
-  background:rgba(255,255,255,.85);mix-blend-mode:screen;pointer-events:none;
-  border-radius:1px;opacity:0}
-/* The prop layer covers the whole scene, so a sweep can pass right over him. */
-.fcl-prop{position:absolute;z-index:4;inset:0;width:110px;height:84px;
-  image-rendering:pixelated;pointer-events:none}
-/* ---- body column ---- */
-.fcl-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
-.fcl-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
-.fcl-title{font-size:14px;font-weight:800;color:#15201A;letter-spacing:-.2px}
-.fcl-tag{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:8.5px;
-  font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1E6B43;
-  background:#EEF4F0;border:1px solid #CFE2D7;border-radius:20px;padding:3px 8px}
-.fcl-msg{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;
-  color:#3F4744;min-height:18px;letter-spacing:.2px;font-weight:600}
-.fcl-cur{display:inline-block;width:7px;height:12px;background:#2F9E63;
-  vertical-align:-2px;margin-left:2px;animation:fclBlink 1s steps(1,end) infinite}
-@keyframes fclBlink{0%,50%{opacity:1}50.01%,100%{opacity:0}}
-/* The chart is texture, not the subject — it sits quiet behind the caption. */
-.fcl-bars{display:block;image-rendering:pixelated;width:100%;height:24px;opacity:.9}
-/* A MARCHING pattern, never a percentage — the app cannot know how long a
-   model call will take, so it must not imply it does. */
-.fcl-prog{height:4px;background:#EEF1EF;overflow:hidden;image-rendering:pixelated;
-  opacity:.75}
-.fcl-prog i{display:block;height:100%;width:200%;
-  background:repeating-linear-gradient(90deg,#2F9E63 0 8px,transparent 8px 20px);
-  animation:fclMarch 1.1s linear infinite}
-@keyframes fclMarch{from{transform:translateX(0)}to{transform:translateX(-20px)}}
-@media (max-width:520px){
-  .fcl{gap:14px;padding:13px 15px}
-  .fcl-av{width:56px;height:56px}
-}
+.fcl{display:flex;flex-direction:column;align-items:center;text-align:center;
+  padding:6px 16px 10px}
+/* ---- the stage: one canvas holds the ring, the comet and the analyst ---- */
+.fcl-stage{position:relative;width:184px;height:184px;flex:none}
+.fcl-scene{display:block;width:184px;height:184px}
+.fcl-src{display:none}
+/* The action badge rides the ring at the lower right, like a status dot on an
+   avatar. It pops (a small overshoot) whenever the step changes. */
+.fcl-badge{position:absolute;left:131px;top:131px;width:34px;height:34px;
+  border-radius:50%;background:#fff;border:1px solid #E1E8E3;
+  box-shadow:0 6px 16px -6px rgba(21,32,26,.28);display:grid;place-items:center}
+.fcl-badge.pop{animation:fclPop .52s cubic-bezier(.34,1.56,.64,1)}
+@keyframes fclPop{from{transform:scale(.55);opacity:0}to{transform:scale(1);opacity:1}}
+.fcl-prop{width:26px;height:26px;display:block;image-rendering:pixelated}
+/* ---- the words, under the circle ---- */
+.fcl-title{margin-top:14px;font-size:15px;font-weight:800;color:#15201A;
+  letter-spacing:-.2px;line-height:20px}
+.fcl-msg{margin-top:5px;min-height:18px;line-height:18px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;
+  font-weight:600;color:#56605B;letter-spacing:.2px;
+  transition:opacity .3s ease,filter .3s ease,transform .3s ease}
+.fcl-msg.out{opacity:0;filter:blur(3px);transform:translateY(-5px)}
+/* each letter arrives on its own: rises, sharpens, fades in */
+.fcl-msg .c{display:inline-block;white-space:pre;opacity:0;
+  animation:fclIn .55s cubic-bezier(.2,.7,.2,1) forwards}
+@keyframes fclIn{from{opacity:0;transform:translateY(6px);filter:blur(5px)}
+  to{opacity:1;transform:none;filter:blur(0)}}
+.fcl-dots{display:inline-block;margin-left:2px}
+.fcl-dots i{display:inline-block;width:3px;height:3px;margin-left:3px;
+  border-radius:50%;background:#2F9E63;vertical-align:middle;
+  animation:fclDot 1.2s ease-in-out infinite}
+.fcl-dots i:nth-child(2){animation-delay:.16s}
+.fcl-dots i:nth-child(3){animation-delay:.32s}
+@keyframes fclDot{0%,100%{opacity:.25;transform:translateY(0)}
+  40%{opacity:1;transform:translateY(-2px)}}
+/* WHICH step he is on — never how far through the wait (the app cannot know). */
+.fcl-steps{display:flex;gap:6px;margin-top:13px}
+.fcl-steps i{display:block;height:4px;width:6px;border-radius:4px;background:#DDE5E0;
+  transition:width .6s cubic-bezier(.65,0,.35,1),background-color .6s ease}
+.fcl-steps i.done{background:#A9D3BB}
+.fcl-steps i.on{width:22px;background:#2F9E63}
 /* Honour a reader who has asked the OS for less motion: the loader still shows
    and still says what it is doing, it just stops moving. */
 @media (prefers-reduced-motion:reduce){
-  .fcl-glint,.fcl-dot{display:none}
-  .fcl-cur,.fcl-prog i{animation:none}
+  .fcl-msg,.fcl-steps i{transition:none}
+  .fcl-msg .c{animation:none;opacity:1}
+  .fcl-dots i,.fcl-badge.pop{animation:none}
 }
 """
 
-# All motion on ONE rAF loop. Sizes are read from the canvas's own box so the
-# bars stay crisp on any device pixel ratio, and everything is integer-snapped
-# so the pixel look never turns blurry.
+# All motion on ONE rAF loop, time-based (never frame-counted), so it runs at
+# the same speed on a 60Hz laptop and a 120Hz phone.
 _JS = """
 (function(){
   var PHASES = __PHASES__, REDUCED = !!(window.matchMedia &&
       window.matchMedia('(prefers-reduced-motion: reduce)').matches);
 
-  var face  = document.querySelector('.fcl-face');
-  var glint = document.querySelector('.fcl-glint');
-  var msg   = document.querySelector('.fcl-msg');
-  var cv    = document.querySelector('.fcl-bars');
+  var cv    = document.querySelector('.fcl-scene');
+  var src   = document.querySelector('.fcl-src');
   var pv    = document.querySelector('.fcl-prop');
+  var badge = document.querySelector('.fcl-badge');
+  var msg   = document.querySelector('.fcl-msg');
+  var steps = document.querySelectorAll('.fcl-steps i');
   if (!cv || !msg) { return; }
-  var ctx = cv.getContext('2d');
-  var pctx = pv ? pv.getContext('2d') : null;
-
-  /* ====================================================================
-     PROPS — what the analyst is doing, drawn as pixel blocks beside him.
-     Everything snaps to a 2px grid so it matches the avatar's own pixel
-     size; nothing is ever drawn on a half pixel.
-     ==================================================================== */
-  var G = 2;                                   /* one sprite pixel */
-  function blk(c, x, y, w, h, col){            /* grid-snapped block */
-    c.fillStyle = col;
-    c.fillRect(Math.round(x / G) * G, Math.round(y / G) * G,
-               Math.max(G, Math.round(w / G) * G),
-               Math.max(G, Math.round(h / G) * G));
-  }
-
-  var INK = '#15201A', LINE = '#3F4744', GREEN = '#2F9E63', PAPER = '#FFFFFF';
-
-  /* A magnifying glass sweeping across him, left to right. The ring is drawn
-     block by block around a circle so it stays hard-edged. */
-  function drawSearch(c, t, W, H){
-    var span = (t % 2600) / 2600;                    /* one pass per 2.6s */
-    var ease = 0.5 - 0.5 * Math.cos(span * Math.PI * 2);
-    var cx = 18 + ease * (W - 40);
-    var cy = H * 0.46 + Math.round(Math.sin(t * 0.004) * 2);
-    var r = 12;
-    /* handle first, so the ring sits on top of it */
-    for (var k = 0; k < 9; k++) {
-      blk(c, cx + r * 0.72 + k * 1.9, cy + r * 0.72 + k * 1.9, 4, 4, LINE);
-    }
-    /* lens fill — barely there, just enough to read as glass */
-    c.fillStyle = 'rgba(47,158,99,.14)';
-    c.beginPath(); c.arc(cx, cy, r - 1, 0, Math.PI * 2); c.fill();
-    /* the ring */
-    for (var a = 0; a < 44; a++) {
-      var ang = a / 44 * Math.PI * 2;
-      blk(c, cx + Math.cos(ang) * r - 1.5, cy + Math.sin(ang) * r - 1.5,
-          3, 3, INK);
-    }
-    /* a glint block on the upper-left of the lens */
-    blk(c, cx - r * 0.5, cy - r * 0.55, 4, 4, PAPER);
-  }
-
-  /* A thought bubble above his head: two trailing dots, then a cloud whose
-     three pixels fill one at a time and clear — the classic "thinking" tell. */
-  function drawThink(c, t, W, H){
-    var bob = Math.round(Math.sin(t * 0.003) * 2);
-    var bx = 78, by = 24 + bob;                      /* clear of his head */
-    blk(c, 56, 52 + bob, 4, 4, '#CBD8CF');           /* trailing bubbles */
-    blk(c, 62, 43 + bob, 6, 6, '#BBCCC1');
-    /* the cloud: a rounded pixel blob */
-    var w = 40, h = 22;
-    blk(c, bx - w / 2, by - h / 2 + 4, w, h - 8, PAPER);
-    blk(c, bx - w / 2 + 4, by - h / 2, w - 8, h, PAPER);
-    for (var e = 0; e < 2; e++) {               /* a 1px ink outline */
-      blk(c, bx - w / 2 + 4, by - h / 2 + e * (h - 2), w - 8, 2, '#D6DED9');
-    }
-    /* three dots, filling in sequence */
-    var lit = Math.floor((t % 2000) / 500);
-    for (var i = 0; i < 3; i++) {
-      blk(c, bx - 13 + i * 10, by - 2, 6, 6, (lit > i) ? GREEN : '#DDE4DF');
-    }
-  }
-
-  /* A pencil ruling lines on a small page: the page fills line by line, the
-     pencil tracks the line it is drawing, then the page clears and repeats. */
-  function drawWrite(c, t, W, H){
-    var px = 62, py = 20;                        /* page top-left */
-    var pw = 36, ph = 46;
-    /* A faintly tinted page with a full pixel border, so it reads as paper on
-       a white card rather than two rules floating in space. */
-    blk(c, px, py, pw, ph, '#FAFBFA');
-    blk(c, px, py, pw, 2, '#D6DED9');
-    blk(c, px, py + ph - 2, pw, 2, '#D6DED9');
-    blk(c, px, py, 2, ph, '#D6DED9');
-    blk(c, px + pw - 2, py, 2, ph, '#D6DED9');
-
-    var cycle = (t % 3000) / 3000;
-    var LINES = 4, filled = cycle * LINES;
-    for (var i = 0; i < LINES; i++) {
-      var frac = Math.max(0, Math.min(1, filled - i));
-      if (frac <= 0) { break; }
-      blk(c, px + 5, py + 9 + i * 9, (pw - 12) * frac, 3, LINE);
-    }
-    /* the pencil, tipped at the line being written */
-    var li = Math.min(LINES - 1, Math.floor(filled));
-    var tipX = px + 5 + (pw - 12) * Math.max(0, Math.min(1, filled - li));
-    var tipY = py + 9 + li * 9;
-    blk(c, tipX, tipY - 1, 4, 4, '#C9803A');            /* tip */
-    for (var s = 1; s < 9; s++) {                        /* shaft */
-      blk(c, tipX + s * 2.6, tipY - 2 - s * 2.6, 5, 5, s > 6 ? GREEN : '#D9A441');
-    }
-  }
-
-  var PROPS = { search: drawSearch, think: drawThink, write: drawWrite };
-
-  /* A reader who asked the OS for less motion still SEES what the analyst is
-     doing — the scene is simply frozen at a readable pose instead of moving.
-     Reduced motion means less movement, never less information. */
-  var FROZEN = 1500;
-
-  function drawProp(t, mode){
-    if (!pctx) { return; }
-    var W = pv.clientWidth || 108, H = pv.clientHeight || 108;
-    pctx.clearRect(0, 0, W, H);
-    (PROPS[mode] || drawThink)(pctx, REDUCED ? FROZEN : t, W, H);
-  }
-
-  /* ---- pixel bar chart -------------------------------------------------
-     14 bars with their own drift, so it reads as figures being worked out
-     rather than a bar that fills to 100%. It is deliberately NOT a progress
-     meter: the app cannot know how long a model call takes. */
-  var N = 16, PX = 2;                       // PX = size of one "pixel" block
-  var bars = [];
-  for (var i = 0; i < N; i++) {
-    bars.push({ v: 0.18 + Math.random() * 0.34,
-                t: Math.random() * Math.PI * 2,
-                s: 0.7 + Math.random() * 0.9 });
-  }
+  var ctx = cv.getContext('2d'), pctx = pv ? pv.getContext('2d') : null;
   var DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-  function fit(el, c, dw, dh){
-    var w = el.clientWidth || dw, h = el.clientHeight || dh;
+  var FROZEN = 1500;         /* the readable pose a reduced-motion reader sees */
+
+  function fit(el, c, w, h){
     el.width = Math.round(w * DPR); el.height = Math.round(h * DPR);
     c.setTransform(DPR, 0, 0, DPR, 0, 0);
-    c.imageSmoothingEnabled = false;
   }
-  function sizeCanvas(){
-    fit(cv, ctx, 300, 24);
-    if (pctx) { fit(pv, pctx, 108, 108); }
-  }
-  sizeCanvas();
-  window.addEventListener('resize', sizeCanvas);
+  var S = 184, CX = S / 2, CY = S / 2;
+  var R = 86;                /* the thin ring */
+  var RD = 78;               /* the disc he sits in, inset from the ring */
+  fit(cv, ctx, S, S);
+  if (pctx) { fit(pv, pctx, 26, 26); pctx.imageSmoothingEnabled = false; }
 
-  function drawBars(t, scan){
-    var w = cv.clientWidth || 300, h = cv.clientHeight || 34;
-    ctx.clearRect(0, 0, w, h);
-    var gap = 5, bw = Math.max(PX * 2, Math.floor((w - gap * (N - 1)) / N));
-    var total = bw * N + gap * (N - 1);
-    var x0 = Math.floor((w - total) / 2);
-    for (var i = 0; i < N; i++) {
-      var b = bars[i];
-      var v = b.v + Math.sin(t * 0.0016 * b.s + b.t) * 0.22;
-      v = Math.max(0.10, Math.min(0.95, v));
-      /* snap the height to whole blocks so the bars stay pixel-art */
-      var blocks = Math.max(1, Math.round((v * h) / PX));
-      var bh = blocks * PX;
-      var x = x0 + i * (bw + gap);
-      /* the scan line lights only the bar it is passing over */
-      var lit = Math.abs(x + bw / 2 - scan) < bw;
-      ctx.fillStyle = lit ? '#2F9E63' : '#D8E0DA';
-      ctx.fillRect(x, Math.round(h - bh), bw, bh);
-      if (lit) {                              /* a brighter cap block */
-        ctx.fillStyle = '#177245';
-        ctx.fillRect(x, Math.round(h - bh), bw, PX);
+  /* ====================================================================
+     THE ANALYST — split into head and body so the head can move on its own.
+     All coordinates below are in the portrait's own 736px space.
+     ==================================================================== */
+  var IW = 736, DW = 172;               /* drawn width of the portrait */
+  var K = DW / IW;
+  var CUT = 468, FEATHER = 14;          /* the neck, where head meets body */
+  var EYES = [[357, 344, 28, 16], [504, 344, 30, 16]];  /* lower eye rows */
+  var LENSES = [[320, 328, 98, 76], [459, 328, 102, 76]];
+  var SKIN = '#D9D9D9';
+  var head = null, body = null;
+
+  /* Downscale once, in halving steps, to the exact device size: the portrait
+     stays crisp, and every frame after is a cheap 1:1 draw that can move by a
+     fraction of a pixel — which is what makes the motion read as smooth. */
+  function layer(mask){
+    var n = Math.round(DW * DPR);
+    var a = document.createElement('canvas'); a.width = a.height = IW;
+    var ac = a.getContext('2d');
+    ac.drawImage(src, 0, 0, IW, IW);
+    ac.globalCompositeOperation = 'destination-in';
+    ac.fillStyle = mask(ac); ac.fillRect(0, 0, IW, IW);
+    var cur = a, size = IW;
+    while (size / 2 > n) {
+      var h = document.createElement('canvas');
+      h.width = h.height = Math.round(size / 2);
+      var hc = h.getContext('2d'); hc.imageSmoothingQuality = 'high';
+      hc.drawImage(cur, 0, 0, h.width, h.height);
+      cur = h; size = h.width;
+    }
+    var o = document.createElement('canvas'); o.width = o.height = n;
+    var oc = o.getContext('2d'); oc.imageSmoothingQuality = 'high';
+    oc.drawImage(cur, 0, 0, n, n);
+    return o;
+  }
+  function build(){
+    try {
+      /* head: solid down to the neck, then fading out over the body */
+      head = layer(function(c){
+        var g = c.createLinearGradient(0, CUT - FEATHER, 0, CUT + FEATHER);
+        g.addColorStop(0, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)'); return g; });
+      /* body: nothing above the neck, so a moving head never shows a ghost */
+      body = layer(function(c){
+        var g = c.createLinearGradient(0, CUT - FEATHER - 1, 0, CUT - FEATHER);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000'); return g; });
+    } catch (e) { head = body = null; }
+    if (REDUCED) { paint(FROZEN, 0); }
+  }
+
+  /* ---- his head, per action: where it wants to be at time t ------------ */
+  function headTarget(mode, t){
+    if (mode === 'search') {             /* scanning the figures, side to side */
+      return [Math.sin(t * 0.0017) * 2.4, 0.3 + Math.abs(Math.cos(t * 0.0017)) * -0.6];
+    }
+    if (mode === 'write') {              /* small nods down at the page */
+      var nod = Math.pow(Math.max(0, Math.sin(t * 0.0085)), 2);
+      return [-0.7, 1.3 + nod * 1.1];
+    }
+    return [1.1 + Math.sin(t * 0.0011) * 0.5, -1.7];   /* think: looking up */
+  }
+  var hx = 0, hy = 0;                    /* eased head offset, in CSS px */
+
+  /* ---- blinking: at random, sometimes twice -------------------------------- */
+  var nextBlink = 1800, blinkAt = -1e9;
+  function blinkAmount(t){
+    if (t > nextBlink) {
+      blinkAt = t;
+      nextBlink = t + (Math.random() < 0.22 ? 260 : 2600 + Math.random() * 2800);
+    }
+    var d = t - blinkAt;
+    return d < 150 ? Math.sin(d / 150 * Math.PI) : 0;
+  }
+
+  /* ====================================================================
+     A FRAME
+     ==================================================================== */
+  var mode = PHASES[0][1];
+  function paint(t, dt){
+    ctx.clearRect(0, 0, S, S);
+    var breath = Math.sin(t / 3600 * Math.PI * 2);        /* one breath, 3.6s */
+    var lag    = Math.sin(t / 3600 * Math.PI * 2 - 0.6);  /* head follows */
+
+    /* the soft halo breathes with him */
+    var halo = ctx.createRadialGradient(CX, CY, RD - 6, CX, CY, R + 8);
+    halo.addColorStop(0, 'rgba(47,158,99,0)');
+    halo.addColorStop(0.55, 'rgba(47,158,99,' + (0.07 + 0.04 * breath).toFixed(3) + ')');
+    halo.addColorStop(1, 'rgba(47,158,99,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(CX, CY, R + 8, 0, Math.PI * 2); ctx.fill();
+
+    /* the disc, and him inside it */
+    ctx.save();
+    ctx.beginPath(); ctx.arc(CX, CY, RD, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, S, S);
+    var bg = ctx.createLinearGradient(0, CY - RD, 0, CY + RD);
+    bg.addColorStop(0, 'rgba(238,244,240,0)'); bg.addColorStop(1, 'rgba(226,238,230,.9)');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, S, S);
+
+    var ix = CX - DW / 2, iy = CY - RD + 2;
+    var bodyY = -breath * 0.9;
+    if (body && head) {
+      var tg = headTarget(mode, t);
+      var ease = dt ? 1 - Math.exp(-dt / 200) : 1;  /* glide between actions */
+      hx += (tg[0] - hx) * ease; hy += (tg[1] - hy) * ease;
+      var HX = ix + hx, HY = iy + bodyY + hy - lag * 0.7;
+      ctx.drawImage(body, ix, iy + bodyY, DW, DW);
+      ctx.drawImage(head, HX, HY, DW, DW);
+
+      /* head-space drawing: blink and glint move with him */
+      ctx.save();
+      ctx.translate(HX, HY); ctx.scale(K, K);
+      var b = REDUCED ? 0 : blinkAmount(t);
+      if (b > 0.2) {
+        ctx.fillStyle = SKIN;
+        for (var e = 0; e < EYES.length; e++) {
+          var E = EYES[e], cover = b > 0.6 ? E[3] : E[3] / 2;
+          ctx.fillRect(E[0], E[1] + E[3] - cover, E[2], cover);
+        }
       }
-    }
-  }
-
-  /* ---- typewriter caption ----------------------------------------------
-     The caption and the PROP move together: phase 0 is looked up, phase 1 is
-     thought about, phase 2 is written down. */
-  var phase = 0, typed = 0, holdUntil = 0, state = 'type';
-  function currentMode(){ return PHASES[phase % PHASES.length][1]; }
-  function caption(t){
-    var full = PHASES[phase % PHASES.length][0];
-    if (state === 'type') {
-      if (typed < full.length) { typed++; }
-      else { state = 'hold'; holdUntil = t + 1600; }
-    } else if (state === 'hold') {
-      if (t > holdUntil) { state = 'erase'; }
+      var gp = ((t + 900) % 4600) / 700;           /* a glint every 4.6s */
+      if (gp < 1 && !REDUCED) {
+        var s = gp * gp * (3 - 2 * gp);
+        var gx = 250 + s * 360;
+        ctx.beginPath();
+        for (var l = 0; l < LENSES.length; l++) {
+          var L = LENSES[l]; ctx.rect(L[0], L[1], L[2], L[3]);
+        }
+        ctx.clip();
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * Math.sin(s * Math.PI)).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(gx, 320); ctx.lineTo(gx + 26, 320);
+        ctx.lineTo(gx - 14, 410); ctx.lineTo(gx - 40, 410); ctx.closePath();
+        ctx.fill();
+      }
+      ctx.restore();
     } else {
-      if (typed > 2) { typed -= 3; }
-      else { typed = 0; state = 'type'; phase++; }
+      ctx.fillStyle = '#E9ECE8';
+      ctx.beginPath(); ctx.arc(CX, CY + 10, RD * 0.55, 0, Math.PI * 2); ctx.fill();
     }
-    msg.firstChild.nodeValue =
-        full.slice(0, typed) + (typed === full.length ? '\\u2026' : '');
+    ctx.restore();
+
+    /* a hairline on the disc edge, so white on white still reads as a disc */
+    ctx.strokeStyle = 'rgba(21,32,26,.07)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(CX, CY, RD, 0, Math.PI * 2); ctx.stroke();
+
+    /* ---- the thin ring and its comet ---------------------------------- */
+    ctx.strokeStyle = '#DCE4DE'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.stroke();
+
+    var A = -Math.PI / 2 + t * 0.0021 + Math.sin(t * 0.0012) * 0.45;  /* head */
+    var LEN = Math.PI * (0.32 + 0.38 * (0.5 - 0.5 * Math.cos(t * 0.0013)));
+    var N = 36;
+    ctx.lineCap = 'butt';
+    for (var i = 0; i < N; i++) {
+      var f = (i + 1) / N;
+      ctx.strokeStyle = 'rgba(47,158,99,' + Math.pow(f, 1.7).toFixed(3) + ')';
+      ctx.lineWidth = 1 + 1.4 * f;
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, A - LEN * (1 - i / N), A - LEN * (1 - f) + 0.004);
+      ctx.stroke();
+    }
+    var dx = CX + Math.cos(A) * R, dy = CY + Math.sin(A) * R;
+    ctx.save();
+    ctx.shadowColor = 'rgba(47,158,99,.75)'; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#2F9E63';
+    ctx.beginPath(); ctx.arc(dx, dy, 2.6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(dx, dy, 1, 0, Math.PI * 2); ctx.fill();
+
+    drawProp(t);
   }
 
-  /* ---- idle bob + glasses glint ---------------------------------------- */
-  function idle(t){
-    if (REDUCED) { return; }
-    /* a 1-pixel bob: snapped, never a smooth float, so it reads as pixel art */
-    var bob = Math.round(Math.sin(t * 0.0022) * 1.5);
-    if (face) { face.style.transform = 'translateY(' + bob + 'px)'; }
-
-    /* the glint sweeps the lenses every ~3.6s, hard-edged and stepped */
-    var g = (t % 3600) / 3600;
-    if (glint) {
-      if (g < 0.34) {
-        var step = Math.round(g / 0.34 * 12) / 12;      /* 12 discrete stops */
-        glint.style.opacity = '1';
-        glint.style.transform = 'translateX(' + Math.round(step * 74) + 'px)';
-      } else { glint.style.opacity = '0'; }
+  /* ====================================================================
+     THE BADGE — tiny pixel props, snapped to a 2px grid like the portrait.
+     ==================================================================== */
+  var G = 2, INK = '#15201A', LINE = '#3F4744', GREEN = '#2F9E63';
+  function blk(c, x, y, w, h, col){
+    c.fillStyle = col;
+    c.fillRect(Math.round(x / G) * G, Math.round(y / G) * G,
+               Math.max(G, Math.round(w / G) * G), Math.max(G, Math.round(h / G) * G));
+  }
+  /* a magnifying glass circling slowly, as if hunting across a page */
+  function drawSearch(c, t){
+    var cx = 11 + Math.cos(t * 0.004) * 2, cy = 11 + Math.sin(t * 0.004) * 2, r = 6;
+    for (var k = 0; k < 4; k++) { blk(c, cx + 4 + k * 2, cy + 4 + k * 2, 3, 3, LINE); }
+    c.fillStyle = 'rgba(47,158,99,.18)';
+    c.beginPath(); c.arc(cx, cy, r - 1, 0, Math.PI * 2); c.fill();
+    for (var a = 0; a < 20; a++) {
+      var ang = a / 20 * Math.PI * 2;
+      blk(c, cx + Math.cos(ang) * r - 1, cy + Math.sin(ang) * r - 1, 2, 2, INK);
+    }
+    blk(c, cx - 3, cy - 3, 2, 2, '#FFFFFF');
+  }
+  /* three thought dots, lighting up in turn and hopping as they do */
+  function drawThink(c, t){
+    var lit = Math.floor((t % 1800) / 450);
+    for (var i = 0; i < 3; i++) {
+      var on = lit === i;
+      blk(c, 5 + i * 6, on ? 10 : 12, 4, 4, on ? GREEN : (lit > i ? '#8FC7A6' : '#D3DDD6'));
     }
   }
+  /* a pencil ruling a line, then lifting and starting again */
+  function drawWrite(c, t){
+    var p = (t % 1600) / 1600, run = Math.min(1, p / 0.8);
+    blk(c, 4, 20, 16 * run, 2, LINE);
+    var tx = 4 + 16 * run, ty = 18 - (p > 0.8 ? (p - 0.8) * 20 : 0);
+    blk(c, tx, ty, 2, 2, '#C9803A');
+    for (var s = 1; s < 6; s++) {
+      blk(c, tx + s * 2, ty - s * 2, 3, 3, s > 4 ? GREEN : '#D9A441');
+    }
+  }
+  var PROPS = { search: drawSearch, think: drawThink, write: drawWrite };
+  function drawProp(t){
+    if (!pctx) { return; }
+    pctx.clearRect(0, 0, 26, 26);
+    (PROPS[mode] || drawThink)(pctx, REDUCED ? FROZEN : t);
+  }
 
-  var start = 0, raf = null;
+  /* ====================================================================
+     THE WORDS — each step's caption fades in letter by letter, holds, then
+     drifts out; the badge, the pills and his head change with it.
+     ==================================================================== */
+  var phase = 0;
+  function show(i){
+    var step = PHASES[i % PHASES.length], text = step[0];
+    mode = step[1];
+    msg.textContent = '';
+    for (var k = 0; k < text.length; k++) {
+      var sp = document.createElement('span');
+      sp.className = 'c'; sp.textContent = text[k];
+      sp.style.animationDelay = (k * 20) + 'ms';
+      msg.appendChild(sp);
+    }
+    var dots = document.createElement('span');
+    dots.className = 'fcl-dots';
+    dots.innerHTML = '<i></i><i></i><i></i>';
+    msg.appendChild(dots);
+    msg.classList.remove('out');
+    for (var s = 0; s < steps.length; s++) {
+      var at = i % PHASES.length;
+      steps[s].className = s === at ? 'on' : (s < at ? 'done' : '');
+    }
+    if (badge) { badge.classList.remove('pop'); void badge.offsetWidth; badge.classList.add('pop'); }
+    return text.length * 20 + 550 + 2400;          /* reveal, then hold */
+  }
+  function cycle(){
+    var hold = show(phase);
+    setTimeout(function(){
+      msg.classList.add('out');
+      setTimeout(function(){ phase++; cycle(); }, 320);
+    }, hold);
+  }
+
+  var start = 0, last = 0, raf = null;
   function frame(now){
-    if (!start) { start = now; }
-    var t = REDUCED ? FROZEN : (now - start);
-    var w = cv.clientWidth || 300;
-    var scan = REDUCED ? w * 0.42 : ((t * 0.10) % (w + 60) - 30);
-    drawBars(t, scan);
-    drawProp(t, currentMode());
-    idle(t);
-    /* Frozen scene: paint it once and stop burning frames. */
-    raf = REDUCED ? null : requestAnimationFrame(frame);
+    if (!start) { start = now - last; }
+    var t = now - start, dt = Math.min(64, t - last); last = t;
+    paint(t, dt);
+    raf = requestAnimationFrame(frame);
   }
-  raf = requestAnimationFrame(frame);
+
+  /* Split the portrait once it has decoded (it is a data URI, so usually at
+     once). Kicked off last, so everything build() may call already exists. */
+  if (src && src.getAttribute('src')) {
+    if (src.complete && src.naturalWidth) { build(); }
+    else { src.onload = build; }
+  }
 
   if (REDUCED) {
-    /* Show each caption whole and swap it slowly — a text change is not the
-       kind of movement the reduced-motion setting is asking us to stop. */
-    msg.firstChild.nodeValue = PHASES[0][0];
-    setInterval(function(){
-      phase++;
-      msg.firstChild.nodeValue = PHASES[phase % PHASES.length][0];
-      if (raf === null) { start = 0; raf = requestAnimationFrame(frame); }
-    }, 2500);
+    /* Frozen scene, captions swapped whole and slowly: less movement, never
+       less information. */
+    show(0); paint(FROZEN, 0);
+    setInterval(function(){ phase++; show(phase); paint(FROZEN, 0); }, 3000);
   } else {
-    setInterval(function(){ caption(performance.now()); }, 34);
+    cycle();
+    raf = requestAnimationFrame(frame);
+    /* Stop burning frames if the tab is hidden, pick up where it left off. */
+    document.addEventListener('visibilitychange', function(){
+      if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = null; } }
+      else if (!raf) { start = 0; raf = requestAnimationFrame(frame); }
+    });
   }
-
-  /* Stop burning frames if the tab is hidden, restart when it comes back. */
-  document.addEventListener('visibilitychange', function(){
-    if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = null; } }
-    else if (!raf) { start = 0; raf = requestAnimationFrame(frame); }
-  });
 })();
 """
 
@@ -401,35 +471,32 @@ def _normalise(phases) -> list[list[str]]:
 
 def loader_html(title: str = "Thinking", phases=(),
                 tag: str = "Analyst at work") -> str:
-    """A complete, self-contained HTML document for the loading screen."""
+    """A complete, self-contained HTML document for the loading screen.
+
+    `tag` is kept for callers that pass it; it is now the accessible label
+    rather than a visible chip."""
     steps = _normalise(phases)
     uri = _pfp_uri()
-    face = (f'<img class="fcl-face" alt="" src="{uri}">' if uri
-            else '<div class="fcl-face" style="background:#E9ECE8"></div>')
-    script = _JS.replace("__PHASES__", json.dumps(steps))
+    # json.dumps does not escape "</", which would close the <script> early.
+    script = _JS.replace("__PHASES__", json.dumps(steps).replace("</", "<\\/"))
+    pills = "".join('<i class="on"></i>' if i == 0 else "<i></i>"
+                    for i in range(len(steps)))
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <style>{_CSS}</style></head><body>
-<div class="fcl" role="status" aria-live="polite">
-  <div class="fcl-av">
-    <div class="fcl-glow"></div>
-    {face}
-    <div class="fcl-glint"></div>
-    <canvas class="fcl-prop"></canvas>
+<div class="fcl" role="status" aria-live="polite" aria-label="{html.escape(str(tag))}">
+  <div class="fcl-stage">
+    <img class="fcl-src" alt="" src="{uri}">
+    <canvas class="fcl-scene"></canvas>
+    <div class="fcl-badge"><canvas class="fcl-prop"></canvas></div>
   </div>
-  <div class="fcl-body">
-    <div class="fcl-top">
-      <span class="fcl-title">{html.escape(str(title))}</span>
-      <span class="fcl-tag">{html.escape(str(tag))}</span>
-    </div>
-    <div class="fcl-msg">{html.escape(steps[0][0])}<span class="fcl-cur"></span></div>
-    <canvas class="fcl-bars"></canvas>
-    <div class="fcl-prog"><i></i></div>
-  </div>
+  <div class="fcl-title">{html.escape(str(title))}</div>
+  <div class="fcl-msg">{html.escape(steps[0][0])}</div>
+  <div class="fcl-steps">{pills}</div>
 </div>
 <script>{script}</script>
 </body></html>"""
 
 
-# The height the iframe needs, in CSS pixels. Fixed, because the component is a
-# single card and Streamlit reserves this much room while it is on screen.
-LOADER_HEIGHT = 132
+# The height the iframe needs, in CSS pixels. Fixed, because Streamlit reserves
+# this much room while the loader is on screen.
+LOADER_HEIGHT = 292
