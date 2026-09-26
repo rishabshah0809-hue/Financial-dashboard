@@ -23,7 +23,7 @@ sandboxed iframe, so it keeps moving while Python blocks:
   3. he acts out the step HIMSELF, drawn on his own pixel grid — no icons:
        search  holds a big magnifying glass up and sweeps it across his
                glasses (the lens really magnifies him), eyes following it,
-       think   scratches his head, eyes up and away, "hmm",
+       think   chin resting on his own fist, eyes up and away, "hmm",
                "hmm" ... then an "oh!" and a grin,
        write   types on a laptop (seen from behind the lid, the screen
                lighting his face), eyes running along the lines, then
@@ -53,7 +53,7 @@ _PFP_PATH = Path(__file__).resolve().parents[1] / "images" / "analyst_pfp.png"
 # out himself, so the reader sees him look something up, think it over, then
 # write it down — the actual shape of the job.
 #   "search" — he peers through a magnifying glass, sweeping it side to side
-#   "think"  — scratches his head, eyes up, "hmm", then "aha"
+#   "think"  — chin on his own fist, eyes up, "hmm", then "aha"
 #   "write"  — he types on a laptop, eyes running along the lines
 SEARCH, THINK, WRITE = "search", "think", "write"
 
@@ -297,13 +297,18 @@ _JS = """
       }
     }
   }
-  var SCRATCH = [                   /* an open hand, fingers in his hair,
-                                        forearm angled away from his face */
-    '.#.#.#.#....', '#s#s#s#s#...', '#s#s#s#s#...', '#s#s#s#s#...',
-    '#sssssss#...', '#sssssss##..', '#sSssssss#..', '#sssssss#...',
-    '.#sssss#....', '..######....', '...######...', '....######..',
-    '.....######.', '......######', '.......#####', '........####'];
-
+  /* His own fist, chin resting on it: curled fingers towards us, with the
+     same dark outline ('x') and grey shading ('S') as the rest of him. */
+  var FIST = [                      /* four curled fingers, knuckles up */
+    '.##.##.##.##.',
+    '#ss#ss#ss#sS#',
+    '#ss#ss#ss#sS#',
+    '#sssssssssSS#',
+    '#sssssssssSS#',
+    '.#ssssssssS#.',
+    '..#sssssSS#..',
+    '...#sssSS#...'];
+  var FIST_X = 340, FIST_Y = 488;         /* chin-wide, just under it */
   /* SEARCH — he holds a magnifying glass up to his glasses and sweeps it
      across, and the lens really magnifies whatever is behind it. */
   var LR = 4.9;                      /* lens radius, in his pixels */
@@ -335,9 +340,29 @@ _JS = """
     rect(c, lx - 2.5 * C, ly - 3.5 * C, 2 * C, C, 'rgba(255,255,255,.7)');
   }
 
-  /* THINK — scratching the side of his head; skin on black hair reads
-     clearly, and nothing goes near his face. */
-  function drawThink(c, tap){ sprite(c, SCRATCH, 492, 212 + tap); }
+  /* THINK — chin resting on his OWN fist. The hoodie sleeve runs from the
+     fist straight down out of frame into his body, so it is plainly his arm;
+     nothing goes near his nose or eyes. */
+  function drawThink(c, tap){
+    var fx = FIST_X, fy = FIST_Y + tap;
+    var wx = fx + 6.5 * C, wy = fy + 8 * C;             /* wrist */
+    var ex = wx + 1.5 * C, ey = wy + 16 * C;            /* elbow, out of frame */
+    var dx = ex - wx, dy = ey - wy, L2 = dx * dx + dy * dy;
+    /* the forearm, cell by cell so it stays pixel art: sleeve, a lighter rim
+       so it reads against the black hoodie, and a grey cuff at the wrist */
+    for (var gy = Math.floor((wy - 3 * C) / C); gy * C < ey + 3 * C; gy++) {
+      for (var gx = Math.floor((wx - 4 * C) / C); gx * C < ex + 4 * C; gx++) {
+        var cx = gx * C + C / 2, cy = gy * C + C / 2;
+        var u = Math.max(0, Math.min(1, ((cx - wx) * dx + (cy - wy) * dy) / L2));
+        var d = Math.hypot(cx - (wx + u * dx), cy - (wy + u * dy));
+        var along = u * Math.sqrt(L2), col = null;
+        if (d < 2.7 * C) { col = along < 1.1 * C ? '#555555' : INK; }
+        else if (d < 3.4 * C) { col = '#4A4A4A'; }
+        if (col) { rect(c, gx * C, gy * C, C + 0.6, C + 0.6, col); }
+      }
+    }
+    sprite(c, FIST, fx, fy);
+  }
 
   /* WRITE — typing the report on a laptop, seen from behind the lid: the
      screen lights his face, his eyes run along the lines as he types. */
@@ -406,7 +431,7 @@ _JS = """
       else if (pt < 3650) { a.mouth = 'o'; }
       else                { a.mouth = 'grin'; }
       /* scratch in short bursts while he is puzzling it out */
-      a.tap = (a.mouth === 'hmm' && (tm % 900) < 500) ? Math.round(Math.sin(tm * 0.05)) * 6 : 0;
+      a.tap = Math.sin(tm * 0.003) * 3;     /* the fist rises and falls with his chin */
       a.hx = a.ex * 1.1; a.hy = a.eye === 'up' ? -1.6 : -0.6;
       /* puzzling: head cocked, drifting; the "aha" snaps it upright */
       a.tilt = a.mouth === 'hmm' ? 0.07 + Math.sin(tm * 0.0021) * 0.03 : -0.02;

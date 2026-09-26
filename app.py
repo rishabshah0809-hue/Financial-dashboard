@@ -105,7 +105,7 @@ def _thinking(title: str, kind: str = ""):
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-09-26 r22 (analyst hops, squash & stretch, head tilt)"
+BUILD_TAG = "2026-09-26 r23 (thinking: chin on his own fist)"
 
 # (key, label, material-icon) — outline Material Symbols matching the reference
 # sidebar mockup. Passed to st.button(icon=":material/<name>:") so the glyph reads
