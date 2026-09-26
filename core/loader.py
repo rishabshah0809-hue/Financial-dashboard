@@ -8,18 +8,36 @@ writing a note, the interpretation being built, a Screener fetch. It replaces
 Streamlit's generic spinner so the wait looks like the analyst thinking rather
 than the app hanging.
 
-Design: pixel art, to match the analyst's own avatar (images/analyst_pfp.png —
-a monochrome pixel portrait). Everything moves on a single requestAnimationFrame
-loop inside one sandboxed iframe, so it keeps animating while Python blocks.
+Layout: centred. The analyst's own pixel portrait (images/analyst_pfp.png) sits
+inside a thin circle; the title and the step caption sit underneath it. There is
+no card around it — the circle is the frame.
 
-The motion, in layers:
-  1. the avatar idles with a 1-pixel bob and a glint that sweeps the glasses,
-  2. a pixel thought-bubble fills and empties above it,
-  3. a 14-bar pixel chart "computes" underneath, with a scan line sweeping it,
-  4. the caption types itself out, blinks a block cursor, and cycles phases.
+The motion, in layers, all on ONE requestAnimationFrame loop inside one
+sandboxed iframe, so it keeps moving while Python blocks:
+  1. a comet arc orbits the thin ring, easing in speed and length,
+  2. the analyst is alive, with squash and stretch: he breathes, bounces as
+     he types, HOPS into each new step (crouch, stretch, squash on landing,
+     wobble) and does small joy hops; his head sits on a spring, lagging and
+     overshooting behind his body and tilting as he works; he blinks, his eyes
+     glide, and a glint crosses his glasses,
+  3. he acts out the step HIMSELF, drawn on his own pixel grid — no icons:
+       search  holds a big magnifying glass up and sweeps it across his
+               glasses (the lens really magnifies him), eyes following it,
+       think   chin resting on his own fist, eyes up and away, "hmm",
+               "hmm" ... then an "oh!" and a grin,
+       write   types on a laptop (seen from behind the lid, the screen
+               lighting his face), eyes running along the lines, then
+               looks up, pleased,
+     and his hands rise into frame on a spring as one step hands to the next,
+  4. the caption fades in letter by letter, then drifts out for the next step.
 
-Nothing here reports progress it does not know: the bar is a marching pattern,
-never a percentage, because the app cannot know how long a model call will take.
+It always animates, even when the OS asks for reduced motion: Windows sets
+that by default on many machines, and freezing him turned the character into
+three still pictures.
+
+Nothing here reports progress it does not know: the step pills say WHICH step
+the analyst is on, never a percentage, because the app cannot know how long a
+model call will take.
 """
 
 from __future__ import annotations
@@ -31,12 +49,12 @@ from pathlib import Path
 
 _PFP_PATH = Path(__file__).resolve().parents[1] / "images" / "analyst_pfp.png"
 
-# Each phase is (caption, what the analyst is DOING). The prop drawn beside the
-# avatar follows the second value, so the reader sees him look something up,
-# think it over, then write it down — the actual shape of the job.
-#   "search" — a pixel magnifying glass sweeps across him
-#   "think"  — a pixel thought bubble fills above him
-#   "write"  — a pixel pencil rules lines on a small page beside him
+# Each phase is (caption, what the analyst is DOING). He acts the second value
+# out himself, so the reader sees him look something up, think it over, then
+# write it down — the actual shape of the job.
+#   "search" — he peers through a magnifying glass, sweeping it side to side
+#   "think"  — chin on his own fist, eyes up, "hmm", then "aha"
+#   "write"  — he types on a laptop, eyes running along the lines
 SEARCH, THINK, WRITE = "search", "think", "write"
 
 PHASES: dict[str, tuple[tuple[str, str], ...]] = {
@@ -65,7 +83,20 @@ PHASES: dict[str, tuple[tuple[str, str], ...]] = {
         ("Filtering to what matters", THINK),
         ("Summarising the headlines", WRITE),
     ),
+    "sector": (
+        ("Finding the company's peers", SEARCH),
+        ("Reading where the sector's cycle stands", THINK),
+        ("Laying out the sector lens", WRITE),
+    ),
 }
+
+# The welcome screen: before any upload he demonstrates the three things he
+# will do, and the matching step card lights up as he does each one.
+WELCOME_PHASES: tuple[tuple[str, str], ...] = (
+    ("I read your statements", SEARCH),
+    ("I weigh them against the sector", THINK),
+    ("I write you the verdict", WRITE),
+)
 
 DEFAULT_PHASES: tuple[tuple[str, str], ...] = (
     ("Working on it", THINK),
@@ -84,301 +115,611 @@ def _pfp_uri() -> str:
 
 _CSS = """
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:transparent;
+html,body{margin:0;padding:0;background:transparent;overflow:hidden;
   font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
-.fcl{display:flex;align-items:center;gap:20px;background:#fff;
-  border:1px solid #E6EBE7;border-radius:18px;padding:16px 20px;
-  box-shadow:0 1px 2px rgba(21,32,26,.04),0 10px 30px -16px rgba(21,32,26,.20)}
-/* ---- the scene: the analyst on the left, room for his prop on the right ----
-   It is one box rather than a bare avatar, so a magnifying glass or a pencil
-   has somewhere to live without spilling over the caption or the card edge. */
-.fcl-av{position:relative;width:110px;height:84px;flex:none}
-.fcl-glow{position:absolute;left:-6px;top:4px;width:76px;height:76px;
-  border-radius:50%;
-  background:radial-gradient(circle,rgba(47,158,99,.30) 0%,rgba(47,158,99,.09) 48%,transparent 72%);
-  filter:blur(7px);z-index:1}
-.fcl-face{position:absolute;z-index:2;left:0;top:10px;width:64px;height:64px;
-  object-fit:contain;image-rendering:pixelated;border-radius:50%;background:#fff;
-  display:block}
-/* the glint that sweeps the glasses — a hard-edged pixel band, no soft blur */
-.fcl-glint{position:absolute;z-index:3;top:38px;left:0;width:13px;height:8px;
-  background:rgba(255,255,255,.85);mix-blend-mode:screen;pointer-events:none;
-  border-radius:1px;opacity:0}
-/* The prop layer covers the whole scene, so a sweep can pass right over him. */
-.fcl-prop{position:absolute;z-index:4;inset:0;width:110px;height:84px;
-  image-rendering:pixelated;pointer-events:none}
-/* ---- body column ---- */
-.fcl-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px}
-.fcl-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
-.fcl-title{font-size:14px;font-weight:800;color:#15201A;letter-spacing:-.2px}
-.fcl-tag{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:8.5px;
-  font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#1E6B43;
-  background:#EEF4F0;border:1px solid #CFE2D7;border-radius:20px;padding:3px 8px}
-.fcl-msg{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;
-  color:#3F4744;min-height:18px;letter-spacing:.2px;font-weight:600}
-.fcl-cur{display:inline-block;width:7px;height:12px;background:#2F9E63;
-  vertical-align:-2px;margin-left:2px;animation:fclBlink 1s steps(1,end) infinite}
-@keyframes fclBlink{0%,50%{opacity:1}50.01%,100%{opacity:0}}
-/* The chart is texture, not the subject — it sits quiet behind the caption. */
-.fcl-bars{display:block;image-rendering:pixelated;width:100%;height:24px;opacity:.9}
-/* A MARCHING pattern, never a percentage — the app cannot know how long a
-   model call will take, so it must not imply it does. */
-.fcl-prog{height:4px;background:#EEF1EF;overflow:hidden;image-rendering:pixelated;
-  opacity:.75}
-.fcl-prog i{display:block;height:100%;width:200%;
-  background:repeating-linear-gradient(90deg,#2F9E63 0 8px,transparent 8px 20px);
-  animation:fclMarch 1.1s linear infinite}
-@keyframes fclMarch{from{transform:translateX(0)}to{transform:translateX(-20px)}}
-@media (max-width:520px){
-  .fcl{gap:14px;padding:13px 15px}
-  .fcl-av{width:56px;height:56px}
-}
-/* Honour a reader who has asked the OS for less motion: the loader still shows
-   and still says what it is doing, it just stops moving. */
-@media (prefers-reduced-motion:reduce){
-  .fcl-glint,.fcl-dot{display:none}
-  .fcl-cur,.fcl-prog i{animation:none}
-}
+.fcl{display:flex;flex-direction:column;align-items:center;text-align:center;
+  padding:6px 16px 10px;animation:fclAppear .45s cubic-bezier(.2,.7,.2,1) .25s both}
+/* Held back a beat: a job that finishes at once (cached) never flashes it. */
+@keyframes fclAppear{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* ---- the stage: one canvas holds the ring, the comet and the analyst ---- */
+.fcl-stage{position:relative;width:184px;height:184px;flex:none}
+.fcl-scene{display:block;width:184px;height:184px}
+.fcl-src{display:none}
+/* ---- the words, under the circle ---- */
+.fcl-title{margin-top:14px;font-size:15px;font-weight:800;color:#15201A;
+  letter-spacing:-.2px;line-height:20px}
+.fcl-msg{margin-top:5px;min-height:18px;line-height:18px;
+  font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;
+  font-weight:600;color:#56605B;letter-spacing:.2px;
+  transition:opacity .3s ease,filter .3s ease,transform .3s ease}
+.fcl-msg.out{opacity:0;filter:blur(3px);transform:translateY(-5px)}
+/* each letter arrives on its own: rises, sharpens, fades in */
+.fcl-msg .w{display:inline-block;white-space:nowrap}
+.fcl-msg .c{display:inline-block;white-space:pre;opacity:0;
+  animation:fclIn .55s cubic-bezier(.2,.7,.2,1) forwards}
+@keyframes fclIn{from{opacity:0;transform:translateY(6px);filter:blur(5px)}
+  to{opacity:1;transform:none;filter:blur(0)}}
+.fcl-dots{display:inline-block;margin-left:2px}
+.fcl-dots i{display:inline-block;width:3px;height:3px;margin-left:3px;
+  border-radius:50%;background:#2F9E63;vertical-align:middle;
+  animation:fclDot 1.2s ease-in-out infinite}
+.fcl-dots i:nth-child(2){animation-delay:.16s}
+.fcl-dots i:nth-child(3){animation-delay:.32s}
+@keyframes fclDot{0%,100%{opacity:.25;transform:translateY(0)}
+  40%{opacity:1;transform:translateY(-2px)}}
+/* WHICH step he is on — never how far through the wait (the app cannot know). */
+.fcl-steps{display:flex;gap:6px;margin-top:13px}
+.fcl-steps i{display:block;height:4px;width:6px;border-radius:4px;background:#DDE5E0;
+  transition:width .6s cubic-bezier(.65,0,.35,1),background-color .6s ease}
+.fcl-steps i.done{background:#A9D3BB}
+.fcl-steps i.on{width:22px;background:#2F9E63}
 """
 
-# All motion on ONE rAF loop. Sizes are read from the canvas's own box so the
-# bars stay crisp on any device pixel ratio, and everything is integer-snapped
-# so the pixel look never turns blurry.
+# All motion on ONE rAF loop, time-based (never frame-counted), so it runs at
+# the same speed on a 60Hz laptop and a 120Hz phone.
 _JS = """
 (function(){
-  var PHASES = __PHASES__, REDUCED = !!(window.matchMedia &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  /* Always animated, by the owner's choice. Windows turns the OS "reduce
+     motion" setting on by default on many machines, and honouring it froze
+     him into three still pictures — the opposite of the point. */
+  var PHASES = __PHASES__;
 
-  var face  = document.querySelector('.fcl-face');
-  var glint = document.querySelector('.fcl-glint');
+  var cv    = document.querySelector('.fcl-scene');
+  var src   = document.querySelector('.fcl-src');
   var msg   = document.querySelector('.fcl-msg');
-  var cv    = document.querySelector('.fcl-bars');
-  var pv    = document.querySelector('.fcl-prop');
+  var steps = document.querySelectorAll('[data-step]');
   if (!cv || !msg) { return; }
   var ctx = cv.getContext('2d');
-  var pctx = pv ? pv.getContext('2d') : null;
+  var DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+
+  var S = 184, CX = S / 2, CY = S / 2;
+  var R = 86;                /* the thin ring */
+  var RD = 78;               /* the disc he sits in, inset from the ring */
+  cv.width = cv.height = Math.round(S * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 
   /* ====================================================================
-     PROPS — what the analyst is doing, drawn as pixel blocks beside him.
-     Everything snaps to a 2px grid so it matches the avatar's own pixel
-     size; nothing is ever drawn on a half pixel.
+     THE ANALYST — split into head and body so the head can move on its own.
+     Every coordinate below is in the portrait's own 736px space, where one
+     of his pixels (C) is ~14.7 units wide. Hands, props and new faces are
+     drawn on that same grid, so they look like part of the original art.
      ==================================================================== */
-  var G = 2;                                   /* one sprite pixel */
-  function blk(c, x, y, w, h, col){            /* grid-snapped block */
-    c.fillStyle = col;
-    c.fillRect(Math.round(x / G) * G, Math.round(y / G) * G,
-               Math.max(G, Math.round(w / G) * G),
-               Math.max(G, Math.round(h / G) * G));
+  var IW = 736, DW = 172, K = DW / IW, C = 14.72;
+  var CUT = 468, FEATHER = 14;          /* the neck, where head meets body */
+  var INK = '#141414', DARK = '#2E2E2E', MID = '#707070', GRAY = '#B8B8B8',
+      SKIN = '#D9D9D9', SHADE = '#B2B2B2', WHITE = '#EDEDED',
+      PAPER = '#FBFBF8', GREEN = '#2F9E63';
+  var head = null, body = null, hf = null, hfc = null, NPX = 0;
+
+  /* Downscale once, in halving steps, to the exact device size: the portrait
+     stays crisp, and every frame after is a cheap draw that can move by a
+     fraction of a pixel — which is what makes the motion read as smooth. */
+  function layer(mask){
+    var a = document.createElement('canvas'); a.width = a.height = IW;
+    var ac = a.getContext('2d');
+    ac.drawImage(src, 0, 0, IW, IW);
+    ac.globalCompositeOperation = 'destination-in';
+    ac.fillStyle = mask(ac); ac.fillRect(0, 0, IW, IW);
+    var cur = a, size = IW;
+    while (size / 2 > NPX) {
+      var h = document.createElement('canvas');
+      h.width = h.height = Math.round(size / 2);
+      var hc = h.getContext('2d'); hc.imageSmoothingQuality = 'high';
+      hc.drawImage(cur, 0, 0, h.width, h.height);
+      cur = h; size = h.width;
+    }
+    var o = document.createElement('canvas'); o.width = o.height = NPX;
+    var oc = o.getContext('2d'); oc.imageSmoothingQuality = 'high';
+    oc.drawImage(cur, 0, 0, NPX, NPX);
+    return o;
+  }
+  function build(){
+    NPX = Math.round(DW * DPR);
+    try {
+      /* head: solid down to the neck, then fading out over the body */
+      head = layer(function(c){
+        var g = c.createLinearGradient(0, CUT - FEATHER, 0, CUT + FEATHER);
+        g.addColorStop(0, '#000'); g.addColorStop(1, 'rgba(0,0,0,0)'); return g; });
+      /* body: nothing above the neck, so a moving head never shows a ghost */
+      body = layer(function(c){
+        /* starts well under the head, so a head that lifts never opens a gap */
+        var g = c.createLinearGradient(0, CUT - FEATHER - 24, 0, CUT - FEATHER - 23);
+        g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, '#000'); return g; });
+      /* the head as it looks THIS frame — with his current eyes and mouth */
+      hf = document.createElement('canvas'); hf.width = hf.height = NPX;
+      hfc = hf.getContext('2d');
+    } catch (e) { head = body = null; }
   }
 
-  var INK = '#15201A', LINE = '#3F4744', GREEN = '#2F9E63', PAPER = '#FFFFFF';
+  function rect(c, x, y, w, h, col){ c.fillStyle = col; c.fillRect(x, y, w, h); }
 
-  /* A magnifying glass sweeping across him, left to right. The ring is drawn
-     block by block around a circle so it stays hard-edged. */
-  function drawSearch(c, t, W, H){
-    var span = (t % 2600) / 2600;                    /* one pass per 2.6s */
-    var ease = 0.5 - 0.5 * Math.cos(span * Math.PI * 2);
-    var cx = 18 + ease * (W - 40);
-    var cy = H * 0.46 + Math.round(Math.sin(t * 0.004) * 2);
-    var r = 12;
-    /* handle first, so the ring sits on top of it */
-    for (var k = 0; k < 9; k++) {
-      blk(c, cx + r * 0.72 + k * 1.9, cy + r * 0.72 + k * 1.9, 4, 4, LINE);
-    }
-    /* lens fill — barely there, just enough to read as glass */
-    c.fillStyle = 'rgba(47,158,99,.14)';
-    c.beginPath(); c.arc(cx, cy, r - 1, 0, Math.PI * 2); c.fill();
-    /* the ring */
-    for (var a = 0; a < 44; a++) {
-      var ang = a / 44 * Math.PI * 2;
-      blk(c, cx + Math.cos(ang) * r - 1.5, cy + Math.sin(ang) * r - 1.5,
-          3, 3, INK);
-    }
-    /* a glint block on the upper-left of the lens */
-    blk(c, cx - r * 0.5, cy - r * 0.55, 4, 4, PAPER);
+  /* ---- his face ---------------------------------------------------------
+     His eyes are 2x2 pixel blocks behind the glasses, hanging from his hair.
+     Each lens is repainted (shadow row, skin, the white glare) and the eye is
+     put back where he is looking: one pixel left or right, down at a page,
+     up under his fringe, or shut. */
+  var LENS = [
+    { x0: 328, x1: 416, low: 328, glare: [332, 345, 21, 14], eye: 356 },
+    { x0: 476, x1: 532, low: 492, glare: [476, 345, 25, 14], eye: 504 }
+  ];
+  var LENSES = [[320, 328, 98, 76], [459, 328, 102, 76]];   /* glint areas */
+  /* Where each eye shape sits: [top, bottom] of the eye block. */
+  var EYE = { open: [331, 359], up: [331, 345], down: [345, 374], closed: [349, 358] };
+  /* The eye GLIDES to where he is looking — its position and its top and
+     bottom edges all ease — so he looks around rather than jumping between
+     stills. A blink closes faster than a glance. */
+  var eye = { x: 0, top: 331, bot: 359 };
+  function moveEyes(a, dt){
+    var g = EYE[a.eye] || EYE.open;
+    var k = dt ? 1 - Math.exp(-dt / (a.eye === 'closed' ? 22 : 75)) : 1;
+    eye.x += (a.ex * 14 - eye.x) * k;
+    eye.top += (g[0] - eye.top) * k;
+    eye.bot += (g[1] - eye.bot) * k;
   }
-
-  /* A thought bubble above his head: two trailing dots, then a cloud whose
-     three pixels fill one at a time and clear — the classic "thinking" tell. */
-  function drawThink(c, t, W, H){
-    var bob = Math.round(Math.sin(t * 0.003) * 2);
-    var bx = 78, by = 24 + bob;                      /* clear of his head */
-    blk(c, 56, 52 + bob, 4, 4, '#CBD8CF');           /* trailing bubbles */
-    blk(c, 62, 43 + bob, 6, 6, '#BBCCC1');
-    /* the cloud: a rounded pixel blob */
-    var w = 40, h = 22;
-    blk(c, bx - w / 2, by - h / 2 + 4, w, h - 8, PAPER);
-    blk(c, bx - w / 2 + 4, by - h / 2, w - 8, h, PAPER);
-    for (var e = 0; e < 2; e++) {               /* a 1px ink outline */
-      blk(c, bx - w / 2 + 4, by - h / 2 + e * (h - 2), w - 8, 2, '#D6DED9');
-    }
-    /* three dots, filling in sequence */
-    var lit = Math.floor((t % 2000) / 500);
-    for (var i = 0; i < 3; i++) {
-      blk(c, bx - 13 + i * 10, by - 2, 6, 6, (lit > i) ? GREEN : '#DDE4DF');
-    }
-  }
-
-  /* A pencil ruling lines on a small page: the page fills line by line, the
-     pencil tracks the line it is drawing, then the page clears and repeats. */
-  function drawWrite(c, t, W, H){
-    var px = 62, py = 20;                        /* page top-left */
-    var pw = 36, ph = 46;
-    /* A faintly tinted page with a full pixel border, so it reads as paper on
-       a white card rather than two rules floating in space. */
-    blk(c, px, py, pw, ph, '#FAFBFA');
-    blk(c, px, py, pw, 2, '#D6DED9');
-    blk(c, px, py + ph - 2, pw, 2, '#D6DED9');
-    blk(c, px, py, 2, ph, '#D6DED9');
-    blk(c, px + pw - 2, py, 2, ph, '#D6DED9');
-
-    var cycle = (t % 3000) / 3000;
-    var LINES = 4, filled = cycle * LINES;
-    for (var i = 0; i < LINES; i++) {
-      var frac = Math.max(0, Math.min(1, filled - i));
-      if (frac <= 0) { break; }
-      blk(c, px + 5, py + 9 + i * 9, (pw - 12) * frac, 3, LINE);
-    }
-    /* the pencil, tipped at the line being written */
-    var li = Math.min(LINES - 1, Math.floor(filled));
-    var tipX = px + 5 + (pw - 12) * Math.max(0, Math.min(1, filled - li));
-    var tipY = py + 9 + li * 9;
-    blk(c, tipX, tipY - 1, 4, 4, '#C9803A');            /* tip */
-    for (var s = 1; s < 9; s++) {                        /* shaft */
-      blk(c, tipX + s * 2.6, tipY - 2 - s * 2.6, 5, 5, s > 6 ? GREEN : '#D9A441');
+  function drawEyes(c){
+    for (var i = 0; i < LENS.length; i++) {
+      var L = LENS[i];
+      rect(c, L.x0, 331, L.x1 - L.x0, 14, GRAY);
+      rect(c, L.x0, 345, L.x1 - L.x0, 14, SKIN);
+      rect(c, L.low, 359, L.x1 - L.low, 15, SKIN);
+      rect(c, L.glare[0], L.glare[1], L.glare[2], L.glare[3], WHITE);
+      rect(c, L.eye + eye.x, eye.top, 28, Math.max(6, eye.bot - eye.top), INK);
     }
   }
-
-  var PROPS = { search: drawSearch, think: drawThink, write: drawWrite };
-
-  /* A reader who asked the OS for less motion still SEES what the analyst is
-     doing — the scene is simply frozen at a readable pose instead of moving.
-     Reduced motion means less movement, never less information. */
-  var FROZEN = 1500;
-
-  function drawProp(t, mode){
-    if (!pctx) { return; }
-    var W = pv.clientWidth || 108, H = pv.clientHeight || 108;
-    pctx.clearRect(0, 0, W, H);
-    (PROPS[mode] || drawThink)(pctx, REDUCED ? FROZEN : t, W, H);
+  /* His mouth: the original flat line, or a smile, a grin, an "oh!", a
+     sideways "hmm", or a small pursed line while he concentrates. */
+  function drawMouth(c, m){
+    if (m === 'flat') { return; }
+    rect(c, 404, 440, 76, 36, SKIN);
+    if (m === 'smile') {
+      rect(c, 409, 443, 14, 8, INK); rect(c, 453, 443, 14, 8, INK);
+      rect(c, 420, 451, 36, 8, INK);
+    } else if (m === 'grin') {
+      rect(c, 407, 440, 14, 8, INK); rect(c, 455, 440, 14, 8, INK);
+      rect(c, 418, 447, 40, 15, INK); rect(c, 425, 450, 26, 6, '#8C8C8C');
+    } else if (m === 'o') {
+      rect(c, 426, 441, 26, 25, INK); rect(c, 433, 448, 12, 12, '#5C5C5C');
+    } else if (m === 'hmm') {
+      rect(c, 434, 450, 28, 9, INK); rect(c, 461, 445, 9, 6, INK);
+    } else {                                           /* 'small' */
+      rect(c, 429, 448, 20, 9, INK);
+    }
   }
 
-  /* ---- pixel bar chart -------------------------------------------------
-     14 bars with their own drift, so it reads as figures being worked out
-     rather than a bar that fills to 100%. It is deliberately NOT a progress
-     meter: the app cannot know how long a model call takes. */
-  var N = 16, PX = 2;                       // PX = size of one "pixel" block
-  var bars = [];
-  for (var i = 0; i < N; i++) {
-    bars.push({ v: 0.18 + Math.random() * 0.34,
-                t: Math.random() * Math.PI * 2,
-                s: 0.7 + Math.random() * 0.9 });
-  }
-  var DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
-  function fit(el, c, dw, dh){
-    var w = el.clientWidth || dw, h = el.clientHeight || dh;
-    el.width = Math.round(w * DPR); el.height = Math.round(h * DPR);
-    c.setTransform(DPR, 0, 0, DPR, 0, 0);
-    c.imageSmoothingEnabled = false;
-  }
-  function sizeCanvas(){
-    fit(cv, ctx, 300, 24);
-    if (pctx) { fit(pv, pctx, 108, 108); }
-  }
-  sizeCanvas();
-  window.addEventListener('resize', sizeCanvas);
-
-  function drawBars(t, scan){
-    var w = cv.clientWidth || 300, h = cv.clientHeight || 34;
-    ctx.clearRect(0, 0, w, h);
-    var gap = 5, bw = Math.max(PX * 2, Math.floor((w - gap * (N - 1)) / N));
-    var total = bw * N + gap * (N - 1);
-    var x0 = Math.floor((w - total) / 2);
-    for (var i = 0; i < N; i++) {
-      var b = bars[i];
-      var v = b.v + Math.sin(t * 0.0016 * b.s + b.t) * 0.22;
-      v = Math.max(0.10, Math.min(0.95, v));
-      /* snap the height to whole blocks so the bars stay pixel-art */
-      var blocks = Math.max(1, Math.round((v * h) / PX));
-      var bh = blocks * PX;
-      var x = x0 + i * (bw + gap);
-      /* the scan line lights only the bar it is passing over */
-      var lit = Math.abs(x + bw / 2 - scan) < bw;
-      ctx.fillStyle = lit ? '#2F9E63' : '#D8E0DA';
-      ctx.fillRect(x, Math.round(h - bh), bw, bh);
-      if (lit) {                              /* a brighter cap block */
-        ctx.fillStyle = '#177245';
-        ctx.fillRect(x, Math.round(h - bh), bw, PX);
+  /* ---- his hands and what they hold, drawn on his own pixel grid -------- */
+  var PAL = { '#': INK, 'x': DARK, 'm': MID, 's': SKIN, 'S': SHADE,
+              'w': WHITE, 'p': PAPER, 'g': GREEN };
+  function sprite(c, rows, x, y){
+    for (var r = 0; r < rows.length; r++) {
+      for (var i = 0; i < rows[r].length; i++) {
+        var k = rows[r].charAt(i);
+        if (k !== '.') { rect(c, x + i * C, y + r * C, C + 0.6, C + 0.6, PAL[k]); }
       }
     }
   }
+  /* His own fist, chin resting on it: curled fingers towards us, with the
+     same dark outline ('x') and grey shading ('S') as the rest of him. */
+  var FIST = [                      /* four curled fingers, knuckles up */
+    '.##.##.##.##.',
+    '#ss#ss#ss#sS#',
+    '#ss#ss#ss#sS#',
+    '#sssssssssSS#',
+    '#sssssssssSS#',
+    '.#ssssssssS#.',
+    '..#sssssSS#..',
+    '...#sssSS#...'];
+  var FIST_X = 340, FIST_Y = 488;         /* chin-wide, just under it */
+  /* SEARCH — he holds a magnifying glass up to his glasses and sweeps it
+     across, and the lens really magnifies whatever is behind it. */
+  var LR = 4.9;                      /* lens radius, in his pixels */
+  function drawSearch(c, lx, ly, drawHead){
+    /* the handle runs down and out of frame — his hand is just below */
+    for (var k = 0; k < 13; k++) {
+      var hx0 = lx + (LR * 0.72 + k * 0.72) * C, hy0 = ly + (LR * 0.72 + k * 0.72) * C;
+      rect(c, hx0 - C, hy0 - C, 2 * C, 2 * C, k < 2 ? MID : INK);
+      if (k >= 2) { rect(c, hx0 - C * 0.3, hy0 - C, C * 0.6, C * 0.6, '#4A4A4A'); }
+    }
+    c.save();
+    c.beginPath(); c.arc(lx, ly, LR * C, 0, Math.PI * 2); c.clip();
+    rect(c, lx - 7 * C, ly - 7 * C, 14 * C, 14 * C, '#FFFFFF');
+    c.translate(lx, ly); c.scale(1.5, 1.5); c.translate(-lx, -ly);
+    c.drawImage(body, 0, 0, IW, IW);
+    drawHead(c);
+    c.restore();
+    c.fillStyle = 'rgba(190,225,205,.18)';
+    c.beginPath(); c.arc(lx, ly, LR * C, 0, Math.PI * 2); c.fill();
+    for (var j = -7; j <= 7; j++) {                                  /* rim */
+      for (var i = -7; i <= 7; i++) {
+        var d = Math.sqrt(i * i + j * j);
+        if (d > LR - 0.05 && d <= LR + 1.05) {
+          rect(c, lx + i * C - C / 2, ly + j * C - C / 2, C + 0.6, C + 0.6, INK);
+        }
+      }
+    }
+    rect(c, lx - 3.5 * C, ly - 2 * C, C, 2 * C, 'rgba(255,255,255,.7)');  /* shine */
+    rect(c, lx - 2.5 * C, ly - 3.5 * C, 2 * C, C, 'rgba(255,255,255,.7)');
+  }
 
-  /* ---- typewriter caption ----------------------------------------------
-     The caption and the PROP move together: phase 0 is looked up, phase 1 is
-     thought about, phase 2 is written down. */
-  var phase = 0, typed = 0, holdUntil = 0, state = 'type';
-  function currentMode(){ return PHASES[phase % PHASES.length][1]; }
-  function caption(t){
-    var full = PHASES[phase % PHASES.length][0];
-    if (state === 'type') {
-      if (typed < full.length) { typed++; }
-      else { state = 'hold'; holdUntil = t + 1600; }
-    } else if (state === 'hold') {
-      if (t > holdUntil) { state = 'erase'; }
+  /* THINK — chin resting on his OWN fist. The hoodie sleeve runs from the
+     fist straight down out of frame into his body, so it is plainly his arm;
+     nothing goes near his nose or eyes. */
+  function drawThink(c, tap){
+    var fx = FIST_X, fy = FIST_Y + tap;
+    var wx = fx + 6.5 * C, wy = fy + 8 * C;             /* wrist */
+    var ex = wx + 1.5 * C, ey = wy + 16 * C;            /* elbow, out of frame */
+    var dx = ex - wx, dy = ey - wy, L2 = dx * dx + dy * dy;
+    /* the forearm, cell by cell so it stays pixel art: sleeve, a lighter rim
+       so it reads against the black hoodie, and a grey cuff at the wrist */
+    for (var gy = Math.floor((wy - 3 * C) / C); gy * C < ey + 3 * C; gy++) {
+      for (var gx = Math.floor((wx - 4 * C) / C); gx * C < ex + 4 * C; gx++) {
+        var cx = gx * C + C / 2, cy = gy * C + C / 2;
+        var u = Math.max(0, Math.min(1, ((cx - wx) * dx + (cy - wy) * dy) / L2));
+        var d = Math.hypot(cx - (wx + u * dx), cy - (wy + u * dy));
+        var along = u * Math.sqrt(L2), col = null;
+        if (d < 2.7 * C) { col = along < 1.1 * C ? '#555555' : INK; }
+        else if (d < 3.4 * C) { col = '#4A4A4A'; }
+        if (col) { rect(c, gx * C, gy * C, C + 0.6, C + 0.6, col); }
+      }
+    }
+    sprite(c, FIST, fx, fy);
+  }
+
+  /* WRITE — typing the report on a laptop, seen from behind the lid: the
+     screen lights his face, his eyes run along the lines as he types. */
+  var LX0 = 214, LY0 = 534, LW = 21;   /* the lid; LW in his pixels */
+  function drawWrite(c, a, dy){
+    var x = LX0, y = LY0 + dy, w = LW * C;
+    rect(c, x + C, y, w - 2 * C, C, INK);                   /* rounded outline */
+    rect(c, x, y + C, w, 12 * C, INK);
+    rect(c, x + C, y + C, w - 2 * C, 12 * C, GRAY);
+    rect(c, x + C, y + C, w - 2 * C, C, '#CBCBCB');           /* top-edge light */
+    rect(c, x + C, y + 2 * C, C, 11 * C, '#A6A6A6');          /* side shade */
+    var lx = x + w / 2 - C, ly = y + 4 * C;                   /* the logo */
+    c.save();
+    c.shadowColor = 'rgba(47,158,99,' + (0.5 + 0.3 * a.glow).toFixed(2) + ')';
+    c.shadowBlur = 14;
+    rect(c, lx, ly, 2 * C, 2 * C, GREEN);
+    c.restore();
+    rect(c, lx, ly, C, C, '#5FC08A');
+  }
+  /* the screen's light on his face, flickering a touch as the text moves */
+  function screenGlow(c, a, p){
+    var g = c.createLinearGradient(0, 520, 0, 300);
+    var k = (0.16 + 0.05 * (a.glow || 0)) * p;
+    g.addColorStop(0, 'rgba(120,200,160,' + k.toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(120,200,160,0)');
+    c.fillStyle = g; c.fillRect(0, 300, IW, 240);
+  }
+
+  /* ---- what he is doing at time tm into a step --------------------------
+     Returns his face (eyes + mouth), where his head leans, and where his
+     hands are. Faces switch in whole pixels, like the art; the head and
+     hands glide. */
+  function act(mode, tm){
+    var a = { ex: 0, eye: 'open', mouth: 'flat', hx: 0, hy: 0, tap: 0,
+              tilt: 0, lean: 0, beat: 0 };
+    if (mode === 'search') {
+      var per = 3800, ph = (tm % per) / per;
+      var s = 0.5 - 0.5 * Math.cos(ph * Math.PI * 2);
+      a.lx = 360 + s * 150; a.ly = 362 + Math.sin(tm * 0.004) * 5;
+      a.ex = a.lx < 395 ? -1 : (a.lx > 475 ? 1 : 0);
+      if (s > 0.93) { a.mouth = Math.floor(tm / per) % 2 ? 'smile' : 'o'; }
+      a.hx = (s - 0.5) * 1.8; a.hy = 0.4;
+      a.tilt = (s - 0.5) * 0.10;          /* head follows the glass */
+      a.lean = (s - 0.5) * 0.05;          /* and his whole body leans in */
+    } else if (mode === 'write') {
+      var pw = tm % 5200;
+      a.glow = 0.5 + 0.5 * Math.sin(tm * 0.02);
+      if (pw < 4300) {             /* typing: eyes run along each line */
+        var line = (pw % 1430) / 1430;
+        a.eye = 'down';
+        a.ex = line < 0.34 ? -1 : (line < 0.67 ? 0 : 1);
+        a.mouth = (pw % 1900) < 360 ? 'small' : 'flat';
+        a.hy = 1.3 + Math.pow(Math.max(0, Math.sin(tm * 0.028)), 6) * 0.6;
+        /* a bounce on every burst of keystrokes */
+        a.beat = Math.pow(Math.max(0, Math.sin(tm * 0.018)), 8);
+        a.tilt = -0.025 + a.ex * 0.02;
+      } else {                     /* a paragraph done: he looks up, pleased */
+        a.mouth = 'smile'; a.hy = -0.3; a.tilt = 0.04;
+      }
+      a.hx = a.ex * 0.6;
+    } else {                       /* think: up-right, up-left... then "aha!" */
+      var pt = tm % 4600;
+      if (pt < 1700)      { a.ex = -1; a.eye = 'up'; a.mouth = 'hmm'; }
+      else if (pt < 1850) { a.ex = 0;  a.eye = 'closed'; a.mouth = 'hmm'; }
+      else if (pt < 3400) { a.ex = 0;  a.eye = 'up'; a.mouth = 'hmm'; }
+      else if (pt < 3650) { a.mouth = 'o'; }
+      else                { a.mouth = 'grin'; }
+      /* scratch in short bursts while he is puzzling it out */
+      a.tap = Math.sin(tm * 0.003) * 3;     /* the fist rises and falls with his chin */
+      a.hx = a.ex * 1.1; a.hy = a.eye === 'up' ? -1.6 : -0.6;
+      /* puzzling: head cocked, drifting; the "aha" snaps it upright */
+      a.tilt = a.mouth === 'hmm' ? 0.07 + Math.sin(tm * 0.0021) * 0.03 : -0.02;
+      a.lean = a.mouth === 'hmm' ? 0.015 : 0;
+    }
+    return a;
+  }
+
+  /* ---- blinking: at random, sometimes twice -------------------------------- */
+  var nextBlink = 2400, blinkAt = -1e9;
+  function blinking(t){
+    if (t > nextBlink) {
+      blinkAt = t;
+      nextBlink = t + (Math.random() < 0.22 ? 260 : 2600 + Math.random() * 2800);
+    }
+    return t - blinkAt < 130;
+  }
+
+  /* Hands and props rise into frame and drop away on a spring (a little
+     overshoot), so one action hands over to the next instead of cutting. */
+  var PRESENT = { search: { p: 0, v: 0 }, think: { p: 0, v: 0 }, write: { p: 0, v: 0 } };
+  function springs(dt){
+    for (var k in PRESENT) {
+      var s = PRESENT[k], goal = k === mode ? 1 : 0;
+      if (!dt) { s.p = goal; s.v = 0; continue; }
+      var h = dt / 1000;
+      s.v += (170 * (goal - s.p) - 17 * s.v) * h;
+      s.p += s.v * h;
+    }
+  }
+
+  /* ---- the hop ----------------------------------------------------------
+     Classic squash and stretch: crouch (anticipation), stretch as he leaves
+     the ground, squash on landing, then a small wobble to rest. He hops
+     between steps, and a smaller "joy" hop on an aha, a find or a finished
+     paragraph. Returns his lift (CSS px), x/y scale and vertical speed. */
+  var hopAt = -1e9, hopAmp = 1;
+  function hop(t){
+    var d = t - hopAt, A = hopAmp, sm, p;
+    if (d < 0 || d > 780) { return { y: 0, sx: 1, sy: 1, vy: 0 }; }
+    if (d < 140) {                                        /* crouch */
+      sm = Math.sin(d / 140 * Math.PI / 2);
+      return { y: 2 * A * sm, sx: 1 + 0.06 * A * sm, sy: 1 - 0.08 * A * sm, vy: 0 };
+    }
+    if (d < 440) {                                        /* in the air */
+      p = (d - 140) / 300;
+      var st = Math.abs(Math.cos(p * Math.PI));
+      return { y: -13 * A * Math.sin(p * Math.PI),
+               sx: 1 - 0.045 * A * st, sy: 1 + 0.07 * A * st,
+               vy: -13 * A * Math.cos(p * Math.PI) * Math.PI / 0.3 };
+    }
+    if (d < 580) {                                        /* land: squash */
+      sm = Math.sin((d - 440) / 140 * Math.PI);
+      return { y: 1.5 * A * sm, sx: 1 + 0.07 * A * sm, sy: 1 - 0.09 * A * sm, vy: 0 };
+    }
+    p = (d - 580) / 200;                                  /* wobble to rest */
+    var w = Math.sin(p * Math.PI * 2) * (1 - p);
+    return { y: 0, sx: 1 - 0.02 * A * w, sy: 1 + 0.028 * A * w, vy: 0 };
+  }
+  function startHop(t, amp){
+    if (t - hopAt < 700) { return; }                      /* never mid-hop */
+    hopAt = t; hopAmp = amp;
+  }
+  /* His head is on a spring behind his body: it lags on the way up, dips as
+     he lands, and overshoots a touch — follow-through, so it never moves as
+     one stiff block with the shoulders. */
+  var lagY = 0, lagV = 0, tilt = 0, tiltV = 0, lean = 0, prevMouth = 'flat';
+  function spring(x, v, goal, k, c, h){
+    v += (k * (goal - x) - c * v) * h;
+    return [x + v * h, v];
+  }
+
+  /* ====================================================================
+     A FRAME
+     ==================================================================== */
+  var mode = PHASES[0][1], modeStart = 0, now = 0, hx = 0, hy = 0;
+  function paint(t, dt){
+    now = t;
+    ctx.clearRect(0, 0, S, S);
+    var breath = Math.sin(t / 3600 * Math.PI * 2);        /* one breath, 3.6s */
+    var lag    = Math.sin(t / 3600 * Math.PI * 2 - 0.6);  /* head follows */
+
+    /* the soft halo breathes with him */
+    var halo = ctx.createRadialGradient(CX, CY, RD - 6, CX, CY, R + 8);
+    halo.addColorStop(0, 'rgba(47,158,99,0)');
+    halo.addColorStop(0.55, 'rgba(47,158,99,' + (0.07 + 0.04 * breath).toFixed(3) + ')');
+    halo.addColorStop(1, 'rgba(47,158,99,0)');
+    ctx.fillStyle = halo;
+    ctx.beginPath(); ctx.arc(CX, CY, R + 8, 0, Math.PI * 2); ctx.fill();
+
+    /* the disc, and him inside it */
+    ctx.save();
+    ctx.beginPath(); ctx.arc(CX, CY, RD, 0, Math.PI * 2); ctx.clip();
+    ctx.fillStyle = '#FFFFFF'; ctx.fillRect(0, 0, S, S);
+    var bg = ctx.createLinearGradient(0, CY - RD, 0, CY + RD);
+    bg.addColorStop(0, 'rgba(238,244,240,0)'); bg.addColorStop(1, 'rgba(226,238,230,.9)');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, S, S);
+
+    if (body && head) {
+      var tm = t - modeStart;
+      var a = act(mode, tm);
+      if (blinking(t) && a.eye !== 'down') { a.eye = 'closed'; }
+
+      /* this frame's head: the portrait, then his eyes and mouth on top */
+      hfc.setTransform(1, 0, 0, 1, 0, 0);
+      hfc.clearRect(0, 0, NPX, NPX);
+      hfc.drawImage(head, 0, 0);
+      hfc.setTransform(NPX / IW, 0, 0, NPX / IW, 0, 0);
+      moveEyes(a, dt); drawEyes(hfc); drawMouth(hfc, a.mouth);
+      if (PRESENT.write.p > 0.01) {
+        hfc.globalCompositeOperation = 'source-atop';
+        screenGlow(hfc, mode === 'write' ? a : { glow: 0.5 }, PRESENT.write.p);
+        hfc.globalCompositeOperation = 'source-over';
+      }
+
+      var ease = dt ? 1 - Math.exp(-dt / 220) : 1;   /* glide between poses */
+      hx += (a.hx - hx) * ease; hy += (a.hy - hy) * ease;
+      springs(dt);
+
+      /* little joy hops: the aha, a find under the glass, a paragraph done */
+      if (a.mouth !== prevMouth) {
+        if (a.mouth === 'grin') { startHop(t, 0.55); }
+        else if (a.mouth === 'o' && mode === 'search') { startHop(t, 0.35); }
+        else if (a.mouth === 'smile' && mode === 'write') { startHop(t, 0.45); }
+        prevMouth = a.mouth;
+      }
+      var J = hop(t), h = Math.min(0.05, (dt || 16) / 1000);
+      var r = spring(lagY, lagV, -J.vy * 0.018, 260, 17, h); lagY = r[0]; lagV = r[1];
+      r = spring(tilt, tiltV, a.tilt, 90, 11, h); tilt = r[0]; tiltV = r[1];
+      lean += (a.lean - lean) * (1 - Math.exp(-(dt || 16) / 300));
+
+      /* squash & stretch from his feet: breathing, typing bounces, the hop */
+      var sy = J.sy * (1 + 0.012 * breath - 0.03 * a.beat);
+      var sx = J.sx * (1 - 0.008 * breath + 0.02 * a.beat);
+      ctx.save();
+      ctx.translate(CX, CY + RD);
+      ctx.rotate(lean);
+      ctx.scale(sx, sy);
+      ctx.translate(-CX, -(CY + RD));
+      ctx.translate(CX - DW / 2, CY - RD + 2 - breath * 0.9 + J.y);
+      ctx.scale(K, K);
+      var hox = hx / K, hoy = (hy - lag * 0.7 + lagY) / K;
+      /* head space: offset by the spring, turned about his neck */
+      var NX = 368, NY = 470;
+      function toHead(c){
+        c.translate(NX + hox, NY + hoy); c.rotate(tilt); c.translate(-NX, -NY);
+      }
+      function drawHead(c){ c.save(); toHead(c); c.drawImage(hf, 0, 0, IW, IW); c.restore(); }
+      ctx.drawImage(body, 0, 0, IW, IW);
+      drawHead(ctx);
+
+      /* a glint crossing his glasses every 4.6s */
+      var gp = ((t + 900) % 4600) / 700;
+      if (gp < 1) {
+        var sm = gp * gp * (3 - 2 * gp), gx = 250 + sm * 360;
+        ctx.save();
+        toHead(ctx);
+        ctx.beginPath();
+        for (var l = 0; l < LENSES.length; l++) {
+          var L = LENSES[l]; ctx.rect(L[0], L[1], L[2], L[3]);
+        }
+        ctx.clip();
+        ctx.fillStyle = 'rgba(255,255,255,' + (0.55 * Math.sin(sm * Math.PI)).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.moveTo(gx, 320); ctx.lineTo(gx + 26, 320);
+        ctx.lineTo(gx - 14, 410); ctx.lineTo(gx - 40, 410); ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      /* his hands, each sliding up from below while it is his current job */
+      var pw = PRESENT.write.p, pt = PRESENT.think.p, ps = PRESENT.search.p;
+      if (pw > 0.01) {
+        var aw = mode === 'write' ? a : act('write', 0);
+        drawWrite(ctx, aw, (1 - pw) * 320);
+      }
+      if (pt > 0.01) {
+        ctx.save(); toHead(ctx); ctx.translate(0, (1 - pt) * 340);
+        drawThink(ctx, mode === 'think' ? a.tap : 0);
+        ctx.restore();
+      }
+      if (ps > 0.01) {
+        var as = mode === 'search' ? a : act('search', 0);
+        drawSearch(ctx, as.lx, as.ly + (1 - ps) * 420, drawHead);
+      }
+      ctx.restore();
     } else {
-      if (typed > 2) { typed -= 3; }
-      else { typed = 0; state = 'type'; phase++; }
+      ctx.fillStyle = '#E9ECE8';
+      ctx.beginPath(); ctx.arc(CX, CY + 10, RD * 0.55, 0, Math.PI * 2); ctx.fill();
     }
-    msg.firstChild.nodeValue =
-        full.slice(0, typed) + (typed === full.length ? '\\u2026' : '');
-  }
+    ctx.restore();
 
-  /* ---- idle bob + glasses glint ---------------------------------------- */
-  function idle(t){
-    if (REDUCED) { return; }
-    /* a 1-pixel bob: snapped, never a smooth float, so it reads as pixel art */
-    var bob = Math.round(Math.sin(t * 0.0022) * 1.5);
-    if (face) { face.style.transform = 'translateY(' + bob + 'px)'; }
+    /* a hairline on the disc edge, so white on white still reads as a disc */
+    ctx.strokeStyle = 'rgba(21,32,26,.07)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(CX, CY, RD, 0, Math.PI * 2); ctx.stroke();
 
-    /* the glint sweeps the lenses every ~3.6s, hard-edged and stepped */
-    var g = (t % 3600) / 3600;
-    if (glint) {
-      if (g < 0.34) {
-        var step = Math.round(g / 0.34 * 12) / 12;      /* 12 discrete stops */
-        glint.style.opacity = '1';
-        glint.style.transform = 'translateX(' + Math.round(step * 74) + 'px)';
-      } else { glint.style.opacity = '0'; }
+    /* ---- the thin ring and its comet ---------------------------------- */
+    ctx.strokeStyle = '#DCE4DE'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(CX, CY, R, 0, Math.PI * 2); ctx.stroke();
+
+    var A = -Math.PI / 2 + t * 0.0021 + Math.sin(t * 0.0012) * 0.45;  /* head */
+    var LEN = Math.PI * (0.32 + 0.38 * (0.5 - 0.5 * Math.cos(t * 0.0013)));
+    var N = 36;
+    ctx.lineCap = 'butt';
+    for (var i = 0; i < N; i++) {
+      var f = (i + 1) / N;
+      ctx.strokeStyle = 'rgba(47,158,99,' + Math.pow(f, 1.7).toFixed(3) + ')';
+      ctx.lineWidth = 1 + 1.4 * f;
+      ctx.beginPath();
+      ctx.arc(CX, CY, R, A - LEN * (1 - i / N), A - LEN * (1 - f) + 0.004);
+      ctx.stroke();
     }
+    var dx = CX + Math.cos(A) * R, dy = CY + Math.sin(A) * R;
+    ctx.save();
+    ctx.shadowColor = 'rgba(47,158,99,.75)'; ctx.shadowBlur = 10;
+    ctx.fillStyle = '#2F9E63';
+    ctx.beginPath(); ctx.arc(dx, dy, 2.6, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#FFFFFF';
+    ctx.beginPath(); ctx.arc(dx, dy, 1, 0, Math.PI * 2); ctx.fill();
   }
 
-  var start = 0, raf = null;
-  function frame(now){
-    if (!start) { start = now; }
-    var t = REDUCED ? FROZEN : (now - start);
-    var w = cv.clientWidth || 300;
-    var scan = REDUCED ? w * 0.42 : ((t * 0.10) % (w + 60) - 30);
-    drawBars(t, scan);
-    drawProp(t, currentMode());
-    idle(t);
-    /* Frozen scene: paint it once and stop burning frames. */
-    raf = REDUCED ? null : requestAnimationFrame(frame);
+  /* ====================================================================
+     THE WORDS — each step's caption fades in letter by letter, holds, then
+     drifts out; the pills and what he is doing change with it.
+     ==================================================================== */
+  var phase = 0;
+  function show(i){
+    var step = PHASES[i % PHASES.length], text = step[0];
+    if (step[1] !== mode) {
+      mode = step[1]; modeStart = now; nextBlink = now;
+      hopAt = -1e9; startHop(now, 1);   /* he hops into the new job */
+    }
+    msg.textContent = '';
+    /* letters animate one by one, but each WORD stays whole when it wraps */
+    var words = text.split(' '), n = 0;
+    for (var w = 0; w < words.length; w++) {
+      if (w) { msg.appendChild(document.createTextNode(' ')); n++; }
+      var word = document.createElement('span');
+      word.className = 'w';
+      for (var k = 0; k < words[w].length; k++, n++) {
+        var sp = document.createElement('span');
+        sp.className = 'c'; sp.textContent = words[w].charAt(k);
+        sp.style.animationDelay = (n * 20) + 'ms';
+        word.appendChild(sp);
+      }
+      msg.appendChild(word);
+    }
+    var dots = document.createElement('span');
+    dots.className = 'fcl-dots';
+    dots.innerHTML = '<i></i><i></i><i></i>';
+    msg.appendChild(dots);
+    msg.classList.remove('out');
+    var at = i % PHASES.length;
+    for (var s = 0; s < steps.length; s++) {
+      var n = +steps[s].getAttribute('data-step');
+      steps[s].classList.toggle('on', n === at);
+      steps[s].classList.toggle('done', n < at);
+    }
+    /* long enough to see him act the step out, not just read the words */
+    return Math.max(text.length * 20 + 550 + 2400, 4600);
   }
+  function cycle(){
+    var hold = show(phase);
+    setTimeout(function(){
+      msg.classList.add('out');
+      setTimeout(function(){ phase++; cycle(); }, 320);
+    }, hold);
+  }
+
+  var start = 0, last = 0, raf = null;
+  function frame(stamp){
+    if (!start) { start = stamp - last; }
+    var t = stamp - start, dt = Math.min(64, t - last); last = t;
+    paint(t, dt);
+    raf = requestAnimationFrame(frame);
+  }
+
+  /* Split the portrait once it has decoded (it is a data URI, so usually at
+     once). Kicked off last, so everything build() may call already exists. */
+  if (src && src.getAttribute('src')) {
+    if (src.complete && src.naturalWidth) { build(); }
+    else { src.onload = build; }
+  }
+
+  cycle();
   raf = requestAnimationFrame(frame);
-
-  if (REDUCED) {
-    /* Show each caption whole and swap it slowly — a text change is not the
-       kind of movement the reduced-motion setting is asking us to stop. */
-    msg.firstChild.nodeValue = PHASES[0][0];
-    setInterval(function(){
-      phase++;
-      msg.firstChild.nodeValue = PHASES[phase % PHASES.length][0];
-      if (raf === null) { start = 0; raf = requestAnimationFrame(frame); }
-    }, 2500);
-  } else {
-    setInterval(function(){ caption(performance.now()); }, 34);
-  }
-
-  /* Stop burning frames if the tab is hidden, restart when it comes back. */
+  /* Stop burning frames if the tab is hidden, pick up where it left off. */
   document.addEventListener('visibilitychange', function(){
     if (document.hidden) { if (raf) { cancelAnimationFrame(raf); raf = null; } }
     else if (!raf) { start = 0; raf = requestAnimationFrame(frame); }
@@ -401,35 +742,117 @@ def _normalise(phases) -> list[list[str]]:
 
 def loader_html(title: str = "Thinking", phases=(),
                 tag: str = "Analyst at work") -> str:
-    """A complete, self-contained HTML document for the loading screen."""
+    """A complete, self-contained HTML document for the loading screen.
+
+    `tag` is kept for callers that pass it; it is now the accessible label
+    rather than a visible chip."""
     steps = _normalise(phases)
     uri = _pfp_uri()
-    face = (f'<img class="fcl-face" alt="" src="{uri}">' if uri
-            else '<div class="fcl-face" style="background:#E9ECE8"></div>')
-    script = _JS.replace("__PHASES__", json.dumps(steps))
+    # json.dumps does not escape "</", which would close the <script> early.
+    script = _JS.replace("__PHASES__", json.dumps(steps).replace("</", "<\\/"))
+    pills = "".join(f'<i data-step="{i}"' + (' class="on"' if i == 0 else "") + "></i>"
+                    for i in range(len(steps)))
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <style>{_CSS}</style></head><body>
-<div class="fcl" role="status" aria-live="polite">
-  <div class="fcl-av">
-    <div class="fcl-glow"></div>
-    {face}
-    <div class="fcl-glint"></div>
-    <canvas class="fcl-prop"></canvas>
+<div class="fcl" role="status" aria-live="polite" aria-label="{html.escape(str(tag))}">
+  <div class="fcl-stage">
+    <img class="fcl-src" alt="" src="{uri}">
+    <canvas class="fcl-scene"></canvas>
   </div>
-  <div class="fcl-body">
-    <div class="fcl-top">
-      <span class="fcl-title">{html.escape(str(title))}</span>
-      <span class="fcl-tag">{html.escape(str(tag))}</span>
-    </div>
-    <div class="fcl-msg">{html.escape(steps[0][0])}<span class="fcl-cur"></span></div>
-    <canvas class="fcl-bars"></canvas>
-    <div class="fcl-prog"><i></i></div>
-  </div>
+  <div class="fcl-title">{html.escape(str(title))}</div>
+  <div class="fcl-msg">{html.escape(steps[0][0])}</div>
+  <div class="fcl-steps">{pills}</div>
 </div>
 <script>{script}</script>
 </body></html>"""
 
 
-# The height the iframe needs, in CSS pixels. Fixed, because the component is a
-# single card and Streamlit reserves this much room while it is on screen.
-LOADER_HEIGHT = 132
+_WELCOME_CSS = """
+.wc{max-width:860px;margin:0 auto;padding:8px 16px 18px;text-align:center;
+  animation:fclAppear .6s cubic-bezier(.2,.7,.2,1) both}
+.wc .fcl{padding:0;animation:none}
+.wc-kicker{margin-top:12px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:10.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+  color:#2F9E63}
+.wc h1{margin:8px 0 0;font-size:26px;line-height:1.2;font-weight:800;
+  letter-spacing:-.6px;color:#15201A}
+.wc-lede{margin:10px auto 0;max-width:520px;font-size:14px;line-height:1.6;color:#6B736F}
+.wc-lede b{color:#3F4744;font-weight:700}
+.wc .fcl-msg{margin-top:12px;color:#2F6B4A}
+.wc-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px;
+  text-align:left}
+.wc-card{position:relative;background:#FFFFFF;border:1px solid #E3E9E5;border-radius:16px;
+  padding:16px 16px 15px;overflow:hidden;
+  transition:border-color .5s ease,box-shadow .5s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
+.wc-card .n{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;
+  letter-spacing:1px;color:#A3ABA6;transition:color .5s ease}
+.wc-card .t{margin-top:6px;font-size:15px;font-weight:800;color:#15201A;letter-spacing:-.2px}
+.wc-card .d{margin-top:4px;font-size:12.5px;line-height:1.5;color:#7A827E}
+/* the card for what he is doing right now */
+.wc-card.on{border-color:#A9D3BB;transform:translateY(-2px);
+  box-shadow:0 12px 26px -16px rgba(21,80,50,.45)}
+.wc-card.on .n{color:#2F9E63}
+.wc-card::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:0;
+  background:#2F9E63;border-radius:0 3px 3px 0}
+.wc-card.on::after{animation:wcFill 4.2s linear forwards}
+@keyframes wcFill{to{width:100%}}
+.wc-note{display:inline-flex;align-items:center;gap:8px;margin-top:18px;
+  font-size:12px;color:#8B918E}
+.wc-note svg{flex:none}
+@media (max-width:640px){
+  .wc-cards{grid-template-columns:1fr}
+  .wc h1{font-size:22px}
+}
+"""
+
+_WELCOME_CARDS = (
+    ("01", "Upload the workbook",
+     "A Screener.in-style .xlsx with a <b>HistoricalFS</b> sheet &mdash; a "
+     "<b>Ratio Analysis</b> sheet helps."),
+    ("02", "Pick the sector",
+     "It sets the benchmarks every ratio is scored against."),
+    ("03", "Read the verdict",
+     "Scores, a plain-English analyst note and the sector lens."),
+)
+
+
+def welcome_html() -> str:
+    """The first screen, before any upload: the analyst in his ring acting out
+    the three things he will do, with the matching step card lit as he does it."""
+    steps = _normalise(WELCOME_PHASES)
+    uri = _pfp_uri()
+    script = _JS.replace("__PHASES__", json.dumps(steps).replace("</", "<\\/"))
+    cards = "".join(
+        f'<div class="wc-card{" on" if i == 0 else ""}" data-step="{i}">'
+        f'<div class="n">{n}</div><div class="t">{t}</div><div class="d">{d}</div></div>'
+        for i, (n, t, d) in enumerate(_WELCOME_CARDS))
+    lock = ('<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">'
+            '<rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" '
+            'stroke="#8B918E" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" '
+            'fill="none" stroke="#8B918E" stroke-width="1.5"/></svg>')
+    return f"""<!doctype html><html><head><meta charset="utf-8">
+<style>{_CSS}{_WELCOME_CSS}</style></head><body>
+<div class="wc" id="shell">
+  <div class="fcl" role="status" aria-live="polite" aria-label="Your analyst">
+    <div class="fcl-stage">
+      <img class="fcl-src" alt="" src="{uri}">
+      <canvas class="fcl-scene"></canvas>
+    </div>
+  </div>
+  <div class="wc-kicker">Your analyst is ready</div>
+  <h1>Drop a 3-statement model into the sidebar</h1>
+  <p class="wc-lede">He reads it, scores it against its sector and writes up
+    the verdict &mdash; in plain words.</p>
+  <div class="fcl-msg">{html.escape(steps[0][0])}</div>
+  <div class="wc-cards">{cards}</div>
+  <div class="wc-note">{lock}Your file is read in memory for this session only.</div>
+</div>
+<script>{script}</script>
+</body></html>"""
+
+
+WELCOME_HEIGHT = 560
+
+# The height the iframe needs, in CSS pixels. Fixed, because Streamlit reserves
+# this much room while the loader is on screen.
+LOADER_HEIGHT = 292
