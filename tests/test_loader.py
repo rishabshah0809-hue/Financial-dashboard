@@ -54,8 +54,13 @@ class TestLoaderHtml(unittest.TestCase):
                         self.html.index('class="fcl-msg"'))
 
     def test_the_analyst_himself_is_animated(self):
-        for part in ("blinkAmount", "headTarget", "LENSES", "breath"):
+        for part in ("blinking", "drawEyes", "drawMouth", "LENSES", "breath"):
             self.assertIn(part, self.html, part)
+
+    def test_he_acts_it_out_himself_not_with_an_icon(self):
+        self.assertNotIn("fcl-badge", self.html)
+        for face in ("'smile'", "'grin'", "'hmm'", "'o'", "'up'", "'down'"):
+            self.assertIn(face, self.html, face)
 
     def test_all_three_props_ship_with_the_page(self):
         for fn in ("drawSearch", "drawThink", "drawWrite"):
