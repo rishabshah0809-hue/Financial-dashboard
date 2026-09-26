@@ -76,7 +76,20 @@ PHASES: dict[str, tuple[tuple[str, str], ...]] = {
         ("Filtering to what matters", THINK),
         ("Summarising the headlines", WRITE),
     ),
+    "sector": (
+        ("Finding the company's peers", SEARCH),
+        ("Reading where the sector's cycle stands", THINK),
+        ("Laying out the sector lens", WRITE),
+    ),
 }
+
+# The welcome screen: before any upload he demonstrates the three things he
+# will do, and the matching step card lights up as he does each one.
+WELCOME_PHASES: tuple[tuple[str, str], ...] = (
+    ("I read your statements", SEARCH),
+    ("I weigh them against the sector", THINK),
+    ("I write you the verdict", WRITE),
+)
 
 DEFAULT_PHASES: tuple[tuple[str, str], ...] = (
     ("Working on it", THINK),
@@ -98,7 +111,9 @@ _CSS = """
 html,body{margin:0;padding:0;background:transparent;overflow:hidden;
   font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
 .fcl{display:flex;flex-direction:column;align-items:center;text-align:center;
-  padding:6px 16px 10px}
+  padding:6px 16px 10px;animation:fclAppear .45s cubic-bezier(.2,.7,.2,1) .25s both}
+/* Held back a beat: a job that finishes at once (cached) never flashes it. */
+@keyframes fclAppear{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 /* ---- the stage: one canvas holds the ring, the comet and the analyst ---- */
 .fcl-stage{position:relative;width:184px;height:184px;flex:none}
 .fcl-scene{display:block;width:184px;height:184px}
@@ -137,7 +152,9 @@ html,body{margin:0;padding:0;background:transparent;overflow:hidden;
   .fcl-msg,.fcl-steps i{transition:none}
   .fcl-msg .c{animation:none;opacity:1}
   .fcl-dots i{animation:none}
+  .fcl{animation:fclFade .3s ease .25s both}
 }
+@keyframes fclFade{from{opacity:0}to{opacity:1}}
 """
 
 # All motion on ONE rAF loop, time-based (never frame-counted), so it runs at
@@ -150,7 +167,7 @@ _JS = """
   var cv    = document.querySelector('.fcl-scene');
   var src   = document.querySelector('.fcl-src');
   var msg   = document.querySelector('.fcl-msg');
-  var steps = document.querySelectorAll('.fcl-steps i');
+  var steps = document.querySelectorAll('[data-step]');
   if (!cv || !msg) { return; }
   var ctx = cv.getContext('2d');
   var DPR = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
@@ -557,9 +574,11 @@ _JS = """
     dots.innerHTML = '<i></i><i></i><i></i>';
     msg.appendChild(dots);
     msg.classList.remove('out');
+    var at = i % PHASES.length;
     for (var s = 0; s < steps.length; s++) {
-      var at = i % PHASES.length;
-      steps[s].className = s === at ? 'on' : (s < at ? 'done' : '');
+      var n = +steps[s].getAttribute('data-step');
+      steps[s].classList.toggle('on', n === at);
+      steps[s].classList.toggle('done', n < at);
     }
     /* long enough to see him act the step out, not just read the words */
     return Math.max(text.length * 20 + 550 + 2400, 4600);
@@ -627,7 +646,7 @@ def loader_html(title: str = "Thinking", phases=(),
     uri = _pfp_uri()
     # json.dumps does not escape "</", which would close the <script> early.
     script = _JS.replace("__PHASES__", json.dumps(steps).replace("</", "<\\/"))
-    pills = "".join('<i class="on"></i>' if i == 0 else "<i></i>"
+    pills = "".join(f'<i data-step="{i}"' + (' class="on"' if i == 0 else "") + "></i>"
                     for i in range(len(steps)))
     return f"""<!doctype html><html><head><meta charset="utf-8">
 <style>{_CSS}</style></head><body>
@@ -643,6 +662,98 @@ def loader_html(title: str = "Thinking", phases=(),
 <script>{script}</script>
 </body></html>"""
 
+
+_WELCOME_CSS = """
+.wc{max-width:860px;margin:0 auto;padding:8px 16px 18px;text-align:center;
+  animation:fclAppear .6s cubic-bezier(.2,.7,.2,1) both}
+.wc .fcl{padding:0;animation:none}
+.wc-kicker{margin-top:12px;font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-size:10.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase;
+  color:#2F9E63}
+.wc h1{margin:8px 0 0;font-size:26px;line-height:1.2;font-weight:800;
+  letter-spacing:-.6px;color:#15201A}
+.wc-lede{margin:10px auto 0;max-width:520px;font-size:14px;line-height:1.6;color:#6B736F}
+.wc-lede b{color:#3F4744;font-weight:700}
+.wc .fcl-msg{margin-top:12px;color:#2F6B4A}
+.wc-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px;
+  text-align:left}
+.wc-card{position:relative;background:#FFFFFF;border:1px solid #E3E9E5;border-radius:16px;
+  padding:16px 16px 15px;overflow:hidden;
+  transition:border-color .5s ease,box-shadow .5s ease,transform .5s cubic-bezier(.2,.7,.2,1)}
+.wc-card .n{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;font-weight:700;
+  letter-spacing:1px;color:#A3ABA6;transition:color .5s ease}
+.wc-card .t{margin-top:6px;font-size:15px;font-weight:800;color:#15201A;letter-spacing:-.2px}
+.wc-card .d{margin-top:4px;font-size:12.5px;line-height:1.5;color:#7A827E}
+/* the card for what he is doing right now */
+.wc-card.on{border-color:#A9D3BB;transform:translateY(-2px);
+  box-shadow:0 12px 26px -16px rgba(21,80,50,.45)}
+.wc-card.on .n{color:#2F9E63}
+.wc-card::after{content:"";position:absolute;left:0;bottom:0;height:3px;width:0;
+  background:#2F9E63;border-radius:0 3px 3px 0}
+.wc-card.on::after{animation:wcFill 4.2s linear forwards}
+@keyframes wcFill{to{width:100%}}
+.wc-note{display:inline-flex;align-items:center;gap:8px;margin-top:18px;
+  font-size:12px;color:#8B918E}
+.wc-note svg{flex:none}
+@media (max-width:640px){
+  .wc-cards{grid-template-columns:1fr}
+  .wc h1{font-size:22px}
+}
+@media (prefers-reduced-motion:reduce){
+  .wc{animation:none}
+  .wc-card{transition:none}
+  .wc-card.on{transform:none}
+  .wc-card.on::after{animation:none;width:100%}
+}
+"""
+
+_WELCOME_CARDS = (
+    ("01", "Upload the workbook",
+     "A Screener.in-style .xlsx with a <b>HistoricalFS</b> sheet &mdash; a "
+     "<b>Ratio Analysis</b> sheet helps."),
+    ("02", "Pick the sector",
+     "It sets the benchmarks every ratio is scored against."),
+    ("03", "Read the verdict",
+     "Scores, a plain-English analyst note and the sector lens."),
+)
+
+
+def welcome_html() -> str:
+    """The first screen, before any upload: the analyst in his ring acting out
+    the three things he will do, with the matching step card lit as he does it."""
+    steps = _normalise(WELCOME_PHASES)
+    uri = _pfp_uri()
+    script = _JS.replace("__PHASES__", json.dumps(steps).replace("</", "<\\/"))
+    cards = "".join(
+        f'<div class="wc-card{" on" if i == 0 else ""}" data-step="{i}">'
+        f'<div class="n">{n}</div><div class="t">{t}</div><div class="d">{d}</div></div>'
+        for i, (n, t, d) in enumerate(_WELCOME_CARDS))
+    lock = ('<svg width="13" height="13" viewBox="0 0 16 16" aria-hidden="true">'
+            '<rect x="3" y="7" width="10" height="7" rx="1.5" fill="none" '
+            'stroke="#8B918E" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" '
+            'fill="none" stroke="#8B918E" stroke-width="1.5"/></svg>')
+    return f"""<!doctype html><html><head><meta charset="utf-8">
+<style>{_CSS}{_WELCOME_CSS}</style></head><body>
+<div class="wc" id="shell">
+  <div class="fcl" role="status" aria-live="polite" aria-label="Your analyst">
+    <div class="fcl-stage">
+      <img class="fcl-src" alt="" src="{uri}">
+      <canvas class="fcl-scene"></canvas>
+    </div>
+  </div>
+  <div class="wc-kicker">Your analyst is ready</div>
+  <h1>Drop a 3-statement model into the sidebar</h1>
+  <p class="wc-lede">He reads it, scores it against its sector and writes up
+    the verdict &mdash; in plain words.</p>
+  <div class="fcl-msg">{html.escape(steps[0][0])}</div>
+  <div class="wc-cards">{cards}</div>
+  <div class="wc-note">{lock}Your file is read in memory for this session only.</div>
+</div>
+<script>{script}</script>
+</body></html>"""
+
+
+WELCOME_HEIGHT = 560
 
 # The height the iframe needs, in CSS pixels. Fixed, because Streamlit reserves
 # this much room while the loader is on screen.

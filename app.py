@@ -105,7 +105,7 @@ def _thinking(title: str, kind: str = ""):
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-08-26 r19 (bs hover, sidebar spacing, trim padding)"
+BUILD_TAG = "2026-09-26 r20 (analyst acts it out, welcome, sector lens loader)"
 
 # (key, label, material-icon) — outline Material Symbols matching the reference
 # sidebar mockup. Passed to st.button(icon=":material/<name>:") so the glyph reads
@@ -825,7 +825,19 @@ def _screener_live_rows(symbols: tuple[str, ...], is_financial: bool = False) ->
 
 
 def sector_lens_tab(model, result) -> None:
-    """Sector lens - niche NSE-index peer universe + company comparison."""
+    """Sector lens - niche NSE-index peer universe + company comparison.
+
+    Everything slow here — snapshots, live Screener rows, the market-cycle read
+    (an LLM call on a cold cache) and the company news — runs under ONE analyst
+    loader, so the tab never sits blank. The loader only fades in after a beat,
+    so a fully cached visit does not flash it."""
+    with _thinking("Building the sector lens", "sector"):
+        html, height = _sector_lens_page(model, result)
+    _render_shell(html, height)
+
+
+def _sector_lens_page(model, result) -> tuple[str, int]:
+    """Gather the Sector Lens data and build its page. No rendering."""
     fundamentals = SNAP.load_snapshot()      # IndianAPI periodic (PEG/EPS/Piotroski/ROA)
     screener = SNAP.load_screener()          # daily Screener market snapshot
 
@@ -858,10 +870,7 @@ def sector_lens_tab(model, result) -> None:
                          or snap_rows[s].get("pe") is None
                          or snap_rows[s].get("roe") is None
                          or snap_rows[s].get("cmp") is None}))   # ensure live CMP from Screener
-    live = {}
-    if need:
-        with _thinking("Fetching latest data", "fetch"):
-            live = _screener_live_rows(need, is_fin)
+    live = _screener_live_rows(need, is_fin) if need else {}
     rows = []
     for s in members:
         row = snap_rows.get(s) or {"nse_symbol": s}
@@ -890,14 +899,12 @@ def sector_lens_tab(model, result) -> None:
     from core import company_news as CN
     news_entry = None
     try:
-        with _thinking("Fetching company news", "news"):
-            news_entry = _company_news_cached(model.company, sym or "", CN._bucket())
+        news_entry = _company_news_cached(model.company, sym or "", CN._bucket())
     except Exception:                                  # never block the tab
         news_entry = None
 
-    html, height = SH.sector_shell(model, result, sector_snap, sector_key=chosen,
-                                   meta=meta, context=context, news=news_entry)
-    _render_shell(html, height)
+    return SH.sector_shell(model, result, sector_snap, sector_key=chosen,
+                           meta=meta, context=context, news=news_entry)
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
@@ -1590,16 +1597,9 @@ def main() -> None:
             '<div class="sub">UPLOAD A 3-STATEMENT MODEL TO BEGIN</div></div>',
             unsafe_allow_html=True,
         )
-        st.markdown(
-            '<div class="empty-hero"><div class="glyph">◈</div>'
-            "<h3>Drop a 3-statement model into the sidebar</h3>"
-            "<p>Any Screener.in-style workbook works — it needs a <b>HistoricalFS</b> "
-            "sheet and, ideally, a <b>Ratio Analysis</b> sheet. Nothing is uploaded "
-            "anywhere: the file is parsed in memory for this session only.</p>"
-            '<div class="empty-steps"><div>1 · Upload the .xlsx</div>'
-            "<div>2 · Pick the sector</div><div>3 · Read the verdict</div></div></div>",
-            unsafe_allow_html=True,
-        )
+        # The analyst introduces himself by acting out the three steps.
+        from core.loader import WELCOME_HEIGHT, welcome_html
+        _render_shell(welcome_html(), WELCOME_HEIGHT)   # grows to fit (phones stack the cards)
         return
 
     try:

@@ -90,7 +90,8 @@ class TestLoaderHtml(unittest.TestCase):
 
     def test_one_step_pill_per_phase_first_one_active(self):
         steps = self.html.split('class="fcl-steps">')[1].split("</div>")[0]
-        self.assertEqual(steps, '<i class="on"></i><i></i><i></i>')
+        self.assertEqual(steps, '<i data-step="0" class="on"></i>'
+                                '<i data-step="1"></i><i data-step="2"></i>')
 
     def test_a_caption_cannot_close_the_script_early(self):
         html = L.loader_html("x", [("</script><b>", L.THINK)])
@@ -100,6 +101,27 @@ class TestLoaderHtml(unittest.TestCase):
         # Mostly the base64 avatar; keep an eye on it so the loader never
         # becomes the heaviest thing on the page.
         self.assertLess(len(self.html), 400_000)
+
+
+class TestWelcome(unittest.TestCase):
+    def setUp(self):
+        self.html = L.welcome_html()
+
+    def test_one_card_per_thing_he_demonstrates(self):
+        self.assertEqual(self.html.count('class="wc-card '), 1)
+        self.assertEqual(self.html.count('data-step="'), len(L.WELCOME_PHASES))
+        self.assertIn('class="wc-card on" data-step="0"', self.html)
+
+    def test_it_is_the_same_animated_analyst(self):
+        self.assertIn("data:image/png;base64,", self.html)
+        self.assertIn("drawSearch", self.html)
+        self.assertIn("Drop a 3-statement model into the sidebar", self.html)
+
+
+class TestSectorLensJob(unittest.TestCase):
+    def test_sector_lens_has_its_own_steps(self):
+        self.assertEqual([m for _t, m in L.PHASES["sector"]],
+                         [L.SEARCH, L.THINK, L.WRITE])
 
 
 if __name__ == "__main__":
