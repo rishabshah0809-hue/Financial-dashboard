@@ -73,6 +73,36 @@ LOGGER = logging.getLogger("fundacheck")
 APP_DIR = Path(__file__).parent
 SAMPLE = APP_DIR / "sample_data" / "3S_model_sample.xlsx"
 
+
+@contextmanager
+def _thinking(title: str, kind: str = ""):
+    """Show the analyst working while a slow job runs.
+
+    Replaces st.spinner wherever the app waits on the model or a fetch: the
+    reader sees him look the figures up, think them over and write them down,
+    with a caption naming the step. The animation lives in its own iframe, so it
+    keeps moving while Python is blocked.
+
+    Falls back to the plain spinner if the component cannot be built — a loading
+    screen must never be the thing that breaks a page.
+    """
+    from core.loader import LOADER_HEIGHT, PHASES, loader_html
+
+    slot = st.empty()
+    try:
+        with slot.container():
+            components.html(loader_html(title, PHASES.get(kind, ())),
+                            height=LOADER_HEIGHT)
+    except Exception:                              # noqa: BLE001
+        slot = None
+        with st.spinner(f"{title}…"):
+            yield
+        return
+    try:
+        yield
+    finally:
+        slot.empty()
+
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
 BUILD_TAG = "2026-08-26 r19 (bs hover, sidebar spacing, trim padding)"
@@ -686,7 +716,7 @@ def _get_note(model, result, sector_key: str, config: LLMConfig) -> dict:
             return fut.result()
         except Exception:                # noqa: BLE001
             return analyse(result, config)
-    with st.spinner("Writing the analyst note…"):
+    with _thinking("Writing analyst report", "note"):
         try:
             return fut.result()
         except Exception:                # noqa: BLE001
@@ -830,7 +860,7 @@ def sector_lens_tab(model, result) -> None:
                          or snap_rows[s].get("cmp") is None}))   # ensure live CMP from Screener
     live = {}
     if need:
-        with st.spinner("Fetching latest data from Screener…"):
+        with _thinking("Fetching latest data", "fetch"):
             live = _screener_live_rows(need, is_fin)
     rows = []
     for s in members:
@@ -860,7 +890,7 @@ def sector_lens_tab(model, result) -> None:
     from core import company_news as CN
     news_entry = None
     try:
-        with st.spinner("Fetching company news…"):
+        with _thinking("Fetching company news", "news"):
             news_entry = _company_news_cached(model.company, sym or "", CN._bucket())
     except Exception:                                  # never block the tab
         news_entry = None
@@ -1086,7 +1116,7 @@ def _ensure_interpretation(model, sector_key: str, config: LLMConfig,
 
     if all(f.done() for f in futs) or not spinner:
         return _collect()
-    with st.spinner("Interpreting the financial model…"):
+    with _thinking("Interpreting the financial model", "interpretation"):
         return _collect()
 
 
@@ -1484,7 +1514,7 @@ def qa_tab(model, result, config: LLMConfig) -> None:
 
             if question:
                 if question not in answers:
-                    with st.spinner("Analysing…"):
+                    with _thinking("Answering your question", "question"):
                         answers[question] = answer_question(
                             result, question, config,
                             model=model, sector_key=sector_key)
