@@ -105,7 +105,7 @@ def _thinking(title: str, kind: str = ""):
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-09-26 r23 (thinking: chin on his own fist)"
+BUILD_TAG = "2026-09-26 r24 (fix empty band under pages)"
 
 # (key, label, material-icon) — outline Material Symbols matching the reference
 # sidebar mockup. Passed to st.button(icon=":material/<name>:") so the glyph reads
@@ -377,7 +377,25 @@ RESIZER_JS = """
       frames.forEach(function(fr){
         var d; try{ d=fr.contentDocument; }catch(e){ return; }
         if(!d) return;
-        var sh=d.getElementById('shell'); if(!sh) return;
+        var sh=d.getElementById('shell');
+        if(!sh){
+          // Streamlit reuses iframe slots between reruns: a frame this script
+          // sized for a page (e.g. the welcome screen) can come back as a tiny
+          // helper with our !important height still on it — a tall empty band
+          // under the next page. Undo exactly what we set, then leave it be.
+          if(fr.getAttribute('data-fc-fit')){
+            fr.removeAttribute('data-fc-fit');
+            fr.style.removeProperty('height');
+            var p=fr.parentElement;
+            for(var j=0;j<6 && p;j++){
+              var tt=p.getAttribute && p.getAttribute('data-testid');
+              if(tt==='stElementContainer'){
+                p.style.removeProperty('height'); p.style.removeProperty('min-height'); break; }
+              p=p.parentElement; }
+          }
+          return;
+        }
+        fr.setAttribute('data-fc-fit','1');
         // +buffer covers the body's own top+bottom padding so the frame shows the
         // full shell (incl. its rounded bottom corners) with no inner scroll.
         var h=Math.ceil(sh.getBoundingClientRect().height)+28;
