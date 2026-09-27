@@ -197,6 +197,14 @@ svg{display:block}
   .scr,.sc-axis{grid-template-columns:96px minmax(0,1fr) 84px;gap:8px}
   .scr .nm{font-size:13.2px}
 }
+/* phones: the Weak/Strong axis labels sit ~30px apart and collided — put
+   "Strong 66" on a second line; smaller page title */
+@media (max-width:480px){
+  .phead h1{font-size:24px}
+  .phead .sub{font-size:13.8px}
+  .sc-axis .ticks{height:26px}
+  .sc-axis .ticks u:nth-child(3){top:13px}
+}
 </style>
 </head>
 <body>

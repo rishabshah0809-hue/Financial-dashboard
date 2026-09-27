@@ -470,6 +470,73 @@ main [style*="background:#fff"][style*="border-radius:20px"]{
 .mc-l{font-size:11.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#9aa09d}
 .mc-v{font-size:18.4px;font-weight:800;color:#15201a;letter-spacing:-.3px;padding-top:3px;font-family:ui-monospace,Menlo,monospace}
 .uni-note{font-size:13.8px;color:#9aa09d;line-height:1.5;padding-top:16px}
+
+/* ===== phones (portrait, 9:16) =========================================
+   One column, smaller type, tighter padding, nothing wider than the screen.
+   These frames are as wide as the phone, so the query sees the phone. */
+@media (max-width:600px){
+  body{padding:2px 0 8px}
+  #shell{padding:8px;border-radius:18px;gap:12px}
+  main{gap:12px}
+  .card:hover,.strip:hover,.kpi:hover,.verdict:hover,.slk:hover,.con:hover,
+  .verdict2:hover{transform:none}
+  .topbar{padding:10px 12px;gap:10px}
+  .searchpill{max-width:none}
+  .hero{padding:16px;gap:12px;border-radius:18px}
+  .hero h1{font-size:28px;letter-spacing:-.7px}
+  .ticker{font-size:11.5px}
+  .heroright{margin-left:0;justify-content:stretch;width:100%}
+  .herostat{padding:12px 16px;width:100%;gap:12px}
+  .herostat .val{font-size:24px}
+  .vrule{display:none}
+  .exportbtn{width:100%;padding:12px 18px;font-size:15.5px;text-align:center;
+    justify-content:center;display:flex;align-items:center}
+  .kpigrid{gap:10px}
+  .kpi{padding:16px 18px;min-height:0}
+  .kpi .big{font-size:38px;padding:8px 0 8px}
+  .verdict{padding:18px 16px;gap:16px}
+  .verdict h2{font-size:23px;padding:10px 0 8px}
+  .verdict p{font-size:15px}
+  .srgrid{grid-template-columns:1fr;gap:10px}
+  .srpanel{padding:14px}
+  .sritem .it{font-size:15.5px}
+  .sritem .id2{font-size:13.8px}
+  .card{padding:16px 14px;border-radius:16px}
+  .grid-auto,.grid-300,.grid-440{grid-template-columns:1fr;gap:10px}
+  .ct{font-size:17px;white-space:normal}
+  .csub{font-size:13.2px}
+  .ftiles{gap:8px}
+  .ftile{padding:11px 12px}
+  .ftile .fg,.ftile .fbig{font-size:20px}
+  .scoreflex{gap:14px}
+  .scorenar{min-width:0;font-size:14.6px}
+  .pghead .pt{font-size:23px}
+  .pghead .ps{font-size:13.8px}
+  .pill-row{gap:5px;height:150px;padding-top:44px}
+  .pill-col span{font-size:11.5px}
+  .pill-tag{font-size:10.5px;padding:3px 5px;top:-28px}
+  .statgrid{grid-template-columns:1fr 1fr;gap:10px}
+  .why{padding:16px}
+  .why p{font-size:15px}
+  .sl-head{padding-bottom:12px}
+  .sl-src{text-align:left}
+  .slk-row{grid-template-columns:1fr 1fr;gap:10px}
+  .slk{padding:12px 14px}
+  .slk-v{font-size:23px}
+  .sl-para{font-size:15px}
+  .v2-title{font-size:18px}
+  .v2-body{font-size:15px}
+  .verdict2{padding:16px}
+  .con{padding:14px}
+  .con-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .mc{padding:6px}
+  .mc-v{font-size:16px}
+  table.stmt th:first-child{min-width:130px;font-size:14px}
+  table.stmt td:first-child{font-size:14.5px}
+  table.stmt td{padding:9px 10px}
+  .val{font-size:16px}
+  .stmtfoot .note{margin-left:0}
+}
 """
 
 FC_DEFS = """

@@ -105,7 +105,7 @@ def _thinking(title: str, kind: str = ""):
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-09-26 r24 (fix empty band under pages)"
+BUILD_TAG = "2026-09-27 r25 (phone layout: bottom tab bar)"
 
 # (key, label, material-icon) — outline Material Symbols matching the reference
 # sidebar mockup. Passed to st.button(icon=":material/<name>:") so the glyph reads
@@ -143,6 +143,8 @@ def inject_css(mode: str = "dark", minimized: bool = False) -> None:
         css += "\n" + SIDEBAR_DARK
     if minimized:
         css += "\n" + MIN_CSS
+    # phones: bottom tab bar when collapsed, full-screen menu when expanded
+    css += "\n" + (MOBILE_MIN_CSS if minimized else MOBILE_DRAWER_CSS)
     # Force the main chrome to the light page colour with !important so a viewer
     # whose browser/OS is in dark mode cannot leave a dark band around the
     # content cards. The dark sidebar keeps its own (more specific) background.
@@ -299,6 +301,66 @@ section[data-testid="stSidebar"] [class*="st-key-nav-"] button[kind="primary"] [
 """
 
 
+# ---- phones (portrait, <= 768px wide) ------------------------------------
+# The desktop rail sits BESIDE the content and ate half a phone screen. On a
+# phone the collapsed rail becomes a bottom tab bar (menu + the five pages),
+# like a native app, and the content gets the full width. The expanded sidebar
+# (data source, upload, demo) becomes a full-screen menu that "Collapse
+# sidebar" closes again.
+MOBILE_MIN_CSS = """
+@media (max-width:768px){
+  section[data-testid="stSidebar"]{
+    position:fixed!important;left:0!important;right:0!important;bottom:0!important;
+    top:auto!important;width:100%!important;min-width:100%!important;
+    max-width:100%!important;height:66px!important;transform:none!important;
+    z-index:999990!important;padding:0!important;
+    background:rgba(255,255,255,.96)!important;border-top:1px solid #e3e8e4!important;
+    box-shadow:0 -8px 24px -14px rgba(21,32,26,.25)!important;
+    backdrop-filter:blur(10px)!important}
+  section[data-testid="stSidebar"] [data-testid="stSidebarContent"]{
+    height:66px!important;overflow:hidden!important;padding:0!important}
+  section[data-testid="stSidebar"] [data-testid="stSidebarHeader"]{display:none!important}
+  section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]{
+    padding:0 6px!important;height:66px!important}
+  section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"]>div,
+  section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{
+    height:66px!important}
+  section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] [data-testid="stVerticalBlock"]{
+    flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;
+    justify-content:space-around!important;gap:0!important}
+  /* only the menu button and the five page tabs */
+  section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]>[data-testid="stElementContainer"]:not([class*="st-key-side-min"]):not([class*="st-key-nav-"]),
+  section[data-testid="stSidebar"] [data-testid="stVerticalBlock"]>[data-testid="stLayoutWrapper"]{
+    display:none!important}
+  section[data-testid="stSidebar"] [data-testid="stElementContainer"]{
+    width:auto!important;flex:0 0 auto!important;margin:0!important}
+  section[data-testid="stSidebar"] [class*="st-key-side-min"] button,
+  section[data-testid="stSidebar"] [class*="st-key-nav-"] button{
+    width:48px!important;height:46px!important;min-height:46px!important;
+    margin:0!important;border-radius:14px!important}
+  /* content: full width, clear of the bar */
+  [data-testid="stMain"]{margin-left:0!important;width:100%!important}
+  [data-testid="stMainBlockContainer"]{
+    padding-left:.5rem!important;padding-right:.5rem!important;
+    padding-bottom:84px!important;max-width:100%!important}
+}
+"""
+
+MOBILE_DRAWER_CSS = """
+@media (max-width:768px){
+  section[data-testid="stSidebar"]{
+    position:fixed!important;inset:0!important;width:100%!important;
+    min-width:100%!important;max-width:100%!important;height:100%!important;
+    transform:none!important;z-index:999990!important}
+  section[data-testid="stSidebar"] [data-testid="stSidebarContent"]{
+    height:100%!important;overflow-y:auto!important}
+  [data-testid="stMain"]{margin-left:0!important;width:100%!important}
+  [data-testid="stMainBlockContainer"]{
+    padding-left:.5rem!important;padding-right:.5rem!important;max-width:100%!important}
+}
+"""
+
+
 MIN_CSS = """
 /* ---- collapsed: a narrow DARK icon rail (reference mockup) ---- */
 section[data-testid="stSidebar"]{
@@ -335,6 +397,48 @@ NIGHT_TOGGLE_HTML = (
     '<button class="fc-dntoggle" type="button">'
     '<span class="dnic">☾</span><span class="dnlb">Night mode</span></button>'
 )
+
+# Phones only: the expanded sidebar is a full-screen menu there, so once the
+# reader has made a choice in it (a page, the demo, an upload) close it for
+# them — otherwise every tap would leave the menu covering the page. A flag in
+# sessionStorage carries the intent across the rerun the click triggers; the
+# collapse is then one click on our own "Collapse sidebar" button.
+MOBILE_JS = """
+<script>
+(function(){
+  var win=window.parent, doc; try{ doc=win.document; }catch(e){ return; }
+  function phone(){ return (win.innerWidth||1000) <= 768; }
+  function sidebar(){ return doc.querySelector('section[data-testid="stSidebar"]'); }
+  function expanded(){ var sb=sidebar(); return !!(sb && sb.querySelector('[class*="st-key-ds-card"]')
+                        && getComputedStyle(sb).height !== '66px'); }
+  function flag(v){ try{ if(v===undefined) return win.sessionStorage.getItem('fc-close');
+    if(v) win.sessionStorage.setItem('fc-close','1'); else win.sessionStorage.removeItem('fc-close'); }catch(e){} }
+  function arm(){
+    var sb=sidebar(); if(!sb || sb.getAttribute('data-fc-armed')) return;
+    sb.setAttribute('data-fc-armed','1');
+    sb.addEventListener('click', function(ev){
+      if(!phone() || !expanded()) return;
+      var b=ev.target.closest && ev.target.closest('[class*="st-key-nav-"] button,[class*="st-key-src-action"] button');
+      if(b) flag(true);
+    }, true);
+    sb.addEventListener('change', function(ev){
+      if(phone() && ev.target && ev.target.type==='file') flag(true);
+    }, true);
+  }
+  function tick(){
+    arm();
+    if(flag() && phone() && expanded()){
+      // wait for the rerun to finish (the running indicator disappears)
+      var busy=doc.querySelector('[data-testid="stStatusWidget"]');
+      if(busy && busy.offsetParent) return;
+      var c=doc.querySelector('section[data-testid="stSidebar"] [class*="st-key-side-min"] button');
+      if(c){ flag(false); c.click(); }
+    } else if(flag() && !expanded()){ flag(false); }
+  }
+  tick(); setInterval(tick, 400);
+})();
+</script>
+"""
 
 NIGHT_JS = """
 <script>
@@ -1606,6 +1710,7 @@ def main() -> None:
     # reaches the sidebar button through the parent document and toggles the
     # invert. Kept out of the sidebar so it adds no gap/overlap there.
     components.html(NIGHT_JS, height=0)
+    components.html(MOBILE_JS, height=0)
     # Keys live in the deployment's secret store, never in the UI or the repo.
     config = analyst_config()
 

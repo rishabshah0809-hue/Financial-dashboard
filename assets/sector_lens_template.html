@@ -338,7 +338,9 @@ table.ct td.wt{color:var(--mute-2)}
 @media (max-width:1080px){
   .verdict{grid-template-columns:1fr}
   .v-right{border-left:0;border-top:1px solid var(--line)}
-  .cols,.tsplit,.tilts{grid-template-columns:1fr}
+  /* minmax(0,1fr), not 1fr: a plain 1fr column grows to its widest child
+     (807px on a phone) and pushes the panel off-screen */
+  .cols,.tsplit,.tilts{grid-template-columns:minmax(0,1fr)}
   .tcol+.tcol,.tilt+.tilt{border-left:0;border-top:1px solid var(--line)}
   .v-head{font-size:30px;max-width:none}
 }
