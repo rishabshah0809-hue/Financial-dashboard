@@ -20,6 +20,7 @@ event. If it is unavailable the summary falls back to the headline + RSS blurb.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import csv
 import json
 import re
@@ -702,8 +703,13 @@ def get_company_news(company_name: str, nse_symbol: str | None = None,
 
     raw: list[dict] = []
     try:
-        for query, when in generate_queries(identity):
-            raw.extend(_fetch(query, when))
+        # The searches are independent network calls: run them side by side, so
+        # a cold fetch costs about one search (~1-3s), not all nine in a row
+        # (~13s). Results are joined in query order, so the output is unchanged.
+        queries = generate_queries(identity)
+        with ThreadPoolExecutor(max_workers=len(queries) or 1) as pool:
+            for got in pool.map(lambda qw: _fetch(qw[0], qw[1]), queries):
+                raw.extend(got)
     except Exception:                               # noqa: BLE001 — never crash the app
         raw = []
 

@@ -106,7 +106,7 @@ def _thinking(title: str, kind: str = ""):
 
 # Bump this on every deploy-worth change so the sidebar can show which build is
 # live — the quickest way to tell a fresh deploy from a stale cached view.
-BUILD_TAG = "2026-09-27 r25 (phone layout: bottom tab bar)"
+BUILD_TAG = "2026-09-30 r26 (faster sector lens: parallel fetch + background prefetch)"
 
 # (key, label, material-icon) — outline Material Symbols matching the reference
 # sidebar mockup. Passed to st.button(icon=":material/<name>:") so the glyph reads
@@ -785,6 +785,12 @@ def _kickoff_llm(model, result, sector_key: str, config: LLMConfig) -> str:
                                      _rotate_keys(config, i + 1), only=group)
                     for i, group in enumerate(_INTERP_GROUPS)
                 ],
+                # Sector Lens data (live prices, market-cycle read, company
+                # news) is prepared in the background too, so opening that page
+                # is usually instant. Queued AFTER the four write-up jobs on the
+                # same pool: its two AI calls then never compete with them for
+                # the API keys, and it starts as soon as the first one finishes.
+                "lens": _LLM_POOL.submit(_sector_lens_data, model),
             }
     st.session_state["__llm_started"] = fp
     st.session_state["__llm_fp__"] = fp
@@ -959,8 +965,9 @@ def sector_lens_tab(model, result) -> None:
     _render_shell(html, height)
 
 
-def _sector_lens_page(model, result) -> tuple[str, int]:
-    """Gather the Sector Lens data and build its page. No rendering."""
+def _sector_lens_data(model) -> dict:
+    """Gather everything the Sector Lens needs. No Streamlit calls, so it can
+    run in the background job started when the file loads."""
     fundamentals = SNAP.load_snapshot()      # IndianAPI periodic (PEG/EPS/Piotroski/ROA)
     screener = SNAP.load_screener()          # daily Screener market snapshot
 
@@ -1026,8 +1033,24 @@ def _sector_lens_page(model, result) -> tuple[str, int]:
     except Exception:                                  # never block the tab
         news_entry = None
 
-    return SH.sector_shell(model, result, sector_snap, sector_key=chosen,
-                           meta=meta, context=context, news=news_entry)
+    return {"company": model.company, "sector_snap": sector_snap, "chosen": chosen,
+            "meta": meta, "context": context, "news": news_entry}
+
+
+def _sector_lens_page(model, result) -> tuple[str, int]:
+    """Build the Sector Lens page, reusing the data the background job prepared
+    at load (waiting for it if it is still running) instead of fetching twice."""
+    d = None
+    fut = _llm_future(st.session_state.get("__llm_fp__"), "lens")
+    if fut is not None:
+        try:
+            d = fut.result()
+        except Exception:                               # noqa: BLE001
+            d = None
+    if not d or d.get("company") != model.company:
+        d = _sector_lens_data(model)
+    return SH.sector_shell(model, result, d["sector_snap"], sector_key=d["chosen"],
+                           meta=d["meta"], context=d["context"], news=d["news"])
 
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)

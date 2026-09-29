@@ -27,6 +27,7 @@ were retrievable), clearly dated, never blank and never invented.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import json
 import re
 import time
@@ -504,9 +505,11 @@ def get_context(sector_key: str, sector_name: str, config: LLMConfig | None = No
     # its actual event geography (a query is only a seed, not the label).
     global_q = _GLOBAL_QUERY.get(sector_key, _GLOBAL_MACRO_QUERY)
     india_q = _SECTOR_QUERY.get(sector_key, f"India {sector_name} sector")
-    pool = (_fetch_rss(global_q, limit=_WANT_EACH)
-            + _fetch_rss(india_q, limit=_WANT_EACH)
-            + _fetch_rss(_MACRO_QUERY, limit=_WANT_EACH))
+    # three independent searches, fetched side by side (same order as before)
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        got = list(ex.map(lambda q: _fetch_rss(q, limit=_WANT_EACH),
+                          (global_q, india_q, _MACRO_QUERY)))
+    pool = got[0] + got[1] + got[2]
     global_heads, india_heads = _route(pool, sector_key)
     headlines = global_heads + india_heads          # for the Sources strip
 
