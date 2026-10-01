@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FundaCheck — how it works</title>
+<style>
+:root{
+  --ink:#15201A;--ink2:#3F4744;--mute:#6B736F;--mute2:#8B918E;
+  --page:#E7EBE7;--panel:#FFFFFF;--tray:#F3F6F3;--line:#DFE6E1;--line2:#EDF1EE;
+  --green:#177245;--green2:#2F9E63;--gtint:#EAF4EE;
+  --amber:#B5761F;--atint:#FBF1DF;--red:#B4483C;--rtint:#FBEEEC;
+  --blue:#2F5F9E;--btint:#EAF0F8;--violet:#6A55B0;--vtint:#F0ECF8;
+  --mono:ui-monospace,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--page);color:var(--ink);
+  font-family:'Plus Jakarta Sans','Segoe UI',system-ui,-apple-system,sans-serif;
+  line-height:1.55;font-size:15px}
+a{color:var(--green)}
+.wrap{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
+header.top{background:radial-gradient(130% 150% at 90% 0%,#2A9C62 0%,#177245 45%,#0D4A2C 100%);
+  color:#fff;border-radius:26px;padding:34px 34px 30px;box-shadow:0 18px 40px -22px rgba(13,74,44,.7)}
+header.top .k{font-family:var(--mono);font-size:11px;letter-spacing:1.8px;text-transform:uppercase;opacity:.75}
+header.top h1{margin:8px 0 8px;font-size:38px;line-height:1.1;letter-spacing:-1px}
+header.top p{margin:0;max-width:70ch;opacity:.92;font-size:16px}
+.stats{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.stat{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:14px;padding:10px 14px}
+.stat b{display:block;font-size:22px;letter-spacing:-.5px}
+.stat span{font-size:11.5px;opacity:.85}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 6px}
+nav.toc a{text-decoration:none;font-size:13px;font-weight:700;color:var(--ink2);background:var(--panel);
+  border:1px solid var(--line);border-radius:20px;padding:7px 13px}
+nav.toc a:hover{border-color:var(--green2);color:var(--green)}
+section{margin-top:26px}
+h2{font-size:24px;letter-spacing:-.5px;margin:0 0 4px}
+.sub{color:var(--mute);margin:0 0 14px;max-width:80ch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px 22px;
+  box-shadow:0 1px 2px rgba(21,32,26,.04),0 8px 22px -14px rgba(21,32,26,.18)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+h3{margin:0 0 6px;font-size:16.5px;letter-spacing:-.2px}
+.tag{display:inline-block;font-family:var(--mono);font-size:10.5px;font-weight:700;letter-spacing:1px;
+  text-transform:uppercase;border-radius:20px;padding:3px 10px;margin-bottom:8px}
+.t-src{background:var(--btint);color:var(--blue)} .t-bot{background:var(--atint);color:var(--amber)}
+.t-file{background:var(--vtint);color:var(--violet)} .t-calc{background:var(--gtint);color:var(--green)}
+.t-page{background:#EEF1EE;color:var(--ink2)} .t-ai{background:var(--rtint);color:var(--red)}
+code,.mono{font-family:var(--mono);font-size:12.5px}
+code{background:var(--tray);border:1px solid var(--line2);border-radius:6px;padding:1px 5px}
+ul{margin:6px 0 0;padding-left:18px} li{margin:3px 0}
+.small{font-size:13px;color:var(--mute)}
+
+/* ---- big picture ---- */
+.zones{display:grid;grid-template-columns:minmax(0,1fr) 34px minmax(0,1.05fr) 34px minmax(0,1.25fr);align-items:stretch;gap:0}
+.zone{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:16px 16px 14px}
+.zone h3{font-size:15px}
+.zone .zs{font-size:12.5px;color:var(--mute);margin:-2px 0 10px}
+.arrow{display:flex;align-items:center;justify-content:center;color:var(--green2);font-size:26px;font-weight:800}
+.pill{display:block;border-radius:12px;padding:8px 11px;margin-top:7px;font-size:13.2px;font-weight:600;border:1px solid transparent}
+.pill small{display:block;font-weight:500;color:var(--mute);font-size:11.8px;margin-top:1px}
+.p-src{background:var(--btint);border-color:#D5E1F1} .p-bot{background:var(--atint);border-color:#F1E0BF}
+.p-file{background:var(--vtint);border-color:#DDD5F0} .p-calc{background:var(--gtint);border-color:#CFE5D8}
+.p-page{background:#F3F5F3;border-color:var(--line)} .p-ai{background:var(--rtint);border-color:#F2D8D3}
+
+/* ---- lanes ---- */
+.lane{display:grid;grid-template-columns:150px repeat(5,minmax(0,1fr));gap:0;align-items:stretch;
+  border:1px solid var(--line);border-radius:16px;background:var(--panel);margin-top:10px;overflow:hidden}
+.lane .name{background:var(--tray);padding:12px 14px;font-weight:800;font-size:14px;border-right:1px solid var(--line);
+  display:flex;flex-direction:column;justify-content:center}
+.lane .name span{font-weight:600;color:var(--mute);font-size:11.5px;margin-top:2px}
+.step{padding:11px 12px 11px 22px;position:relative;font-size:12.8px;border-right:1px solid var(--line2)}
+.step:last-child{border-right:0}
+.step b{display:block;font-size:13px}
+.step::before{content:"";position:absolute;left:-1px;top:50%;transform:translateY(-50%);
+  border:7px solid transparent;border-left-color:var(--green2)}
+.lane .step:nth-child(2)::before{display:none}
+.lanehead{display:grid;grid-template-columns:150px repeat(5,minmax(0,1fr));font-family:var(--mono);font-size:10.5px;
+  letter-spacing:1px;text-transform:uppercase;color:var(--mute2);padding:0 0 2px}
+.lanehead div{padding:0 12px 0 22px}.lanehead div:first-child{padding-left:14px}
+
+/* ---- score ---- */
+.flow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;counter-reset:s}
+.fstep{background:var(--tray);border:1px solid var(--line);border-radius:16px;padding:14px;position:relative}
+.fstep::before{counter-increment:s;content:counter(s);display:flex;align-items:center;justify-content:center;
+  width:26px;height:26px;border-radius:50%;background:var(--green);color:#fff;font-weight:800;font-size:13px;margin-bottom:8px}
+.fstep b{display:block;font-size:14px;margin-bottom:3px}
+.fstep span{font-size:12.6px;color:var(--ink2)}
+.scale{position:relative;height:54px;margin:18px 8px 30px}
+.scale .bar{position:absolute;left:0;right:0;top:18px;height:14px;border-radius:8px;
+  background:linear-gradient(90deg,#B4483C 0%,#B4483C 39%,#D9A441 39%,#D9A441 65%,#2F9E63 65%,#2F9E63 100%)}
+.scale .mk{position:absolute;top:8px;width:2px;height:34px;background:var(--ink)}
+.scale .lb{position:absolute;top:46px;transform:translateX(-50%);font-size:11.5px;font-family:var(--mono);white-space:nowrap;color:var(--ink2)}
+.scale .zn{position:absolute;top:-4px;transform:translateX(-50%);font-size:11px;font-weight:800;letter-spacing:.6px}
+table{width:100%;border-collapse:collapse;font-size:13.2px}
+th{text-align:left;font-family:var(--mono);font-size:10.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mute2);
+  padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:9px 10px;border-bottom:1px solid var(--line2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+.tw{overflow-x:auto}
+.formula{font-family:var(--mono);font-size:12.5px;background:var(--tray);border:1px solid var(--line2);
+  border-radius:10px;padding:10px 12px;margin-top:8px;white-space:pre-wrap}
+.callout{border-left:4px solid var(--green2);background:var(--gtint);border-radius:0 14px 14px 0;padding:12px 16px;margin-top:12px;font-size:14px}
+.callout.warn{border-left-color:var(--amber);background:var(--atint)}
+.timeline{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
+.tl{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:13px}
+.tl .t{font-family:var(--mono);font-size:10.5px;letter-spacing:1px;color:var(--green);font-weight:700}
+.tl b{display:block;margin:3px 0 3px;font-size:14px}
+.tl span{font-size:12.6px;color:var(--ink2)}
+footer{margin-top:30px;color:var(--mute2);font-size:12.5px}
+@media (max-width:980px){
+  .zones{grid-template-columns:1fr}.arrow{transform:rotate(90deg);padding:4px 0}
+  .grid2,.grid3,.flow,.timeline{grid-template-columns:1fr}
+  .lanehead{display:none}
+  .lane{grid-template-columns:1fr}
+  .lane .name{border-right:0;border-bottom:1px solid var(--line)}
+  .step{border-right:0;border-bottom:1px solid var(--line2);padding-left:14px}
+  .step::before{display:none}
+  header.top{padding:24px 20px}header.top h1{font-size:29px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="k">FundaCheck · architecture · build r26</div>
+  <h1>How FundaCheck works</h1>
+  <p>Where every number comes from, who fetches it and when, how the score is worked out, and what the AI is (and is not) allowed to do. Written from the code itself.</p>
+  <div class="stats">
+    <div class="stat"><b>6</b><span>outside data sources</span></div>
+    <div class="stat"><b>2</b><span>scheduled robots (GitHub)</span></div>
+    <div class="stat"><b>410</b><span>peer companies tracked</span></div>
+    <div class="stat"><b>27</b><span>sector peer groups</span></div>
+    <div class="stat"><b>12</b><span>ratios scored → 5 pillars</span></div>
+    <div class="stat"><b>0</b><span>numbers calculated by AI</span></div>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#big">Big picture</a><a href="#lanes">Where data comes from</a><a href="#score">The score</a>
+  <a href="#lens">Sector Lens maths</a><a href="#ai">The AI layer</a><a href="#bots">Automations</a>
+  <a href="#run">When you upload a file</a><a href="#cache">What is saved, how long</a>
+  <a href="#host">Hosting</a><a href="#files">Code map</a>
+</nav>
+
+<!-- ============================================================ BIG PICTURE -->
+<section id="big">
+  <h2>The big picture</h2>
+  <p class="sub">Three zones. Data starts outside, robots save copies into the project, and the app only <b>reads</b> those copies plus the file you upload. The app never has to wait on a slow scrape of hundreds of pages.</p>
+  <div class="zones">
+    <div class="zone">
+      <span class="tag t-src">1 · Outside world</span>
+      <h3>Where data starts</h3>
+      <div class="zs">Sources FundaCheck reads</div>
+      <span class="pill p-src">Your Excel workbook<small>3-statement model you upload</small></span>
+      <span class="pill p-src">Screener.in<small>public company pages (no login)</small></span>
+      <span class="pill p-src">IndianAPI<small>paid, 500 credits a month</small></span>
+      <span class="pill p-src">NSE index lists<small>niftyindices.com constituent files</small></span>
+      <span class="pill p-src">Google News<small>headlines from trusted publishers</small></span>
+      <span class="pill p-src">Yahoo Finance<small>weekly prices, seasonality back-fill only</small></span>
+      <span class="pill p-ai">AI providers<small>Groq first, Gemini as backup</small></span>
+    </div>
+    <div class="arrow">→</div>
+    <div class="zone">
+      <span class="tag t-bot">2 · Robots and saved files</span>
+      <h3>Fetched on a schedule, saved in the project</h3>
+      <div class="zs">GitHub runs these; results are committed as files</div>
+      <span class="pill p-bot">Live Screener snapshot<small>about every 5 min, market hours, Mon–Fri</small></span>
+      <span class="pill p-bot">Monthly sector snapshot<small>1st of each month, 08:30 IST</small></span>
+      <span class="pill p-bot">Seasonality scripts<small>run by hand when needed</small></span>
+      <span class="pill p-file">data/screener_snapshot.json<small>+ a dated copy every day</small></span>
+      <span class="pill p-file">data/sector_snapshot.json</span>
+      <span class="pill p-file">data/nse_constituents/*.csv</span>
+      <span class="pill p-file">data/seasonality_history.json</span>
+      <span class="pill p-file">data/company_master.csv<small>2,565 names → NSE symbol</small></span>
+    </div>
+    <div class="arrow">→</div>
+    <div class="zone">
+      <span class="tag t-calc">3 · The app</span>
+      <h3>Reads, calculates, shows</h3>
+      <div class="zs">Python does all the maths; AI only writes words</div>
+      <span class="pill p-calc">Read the workbook<small>parser + synonyms, fills gaps from statements</small></span>
+      <span class="pill p-calc">Score it against its sector<small>12 ratios → 5 pillars → Funda Score</small></span>
+      <span class="pill p-calc">Compare with real peers<small>sector totals from the saved snapshots</small></span>
+      <span class="pill p-ai">Ask the AI to explain<small>note, interpretation, news, your questions</small></span>
+      <span class="pill p-page">Dashboard · Ratio deep dive · Sector lens · Statements · Ask the analyst · PDF report</span>
+    </div>
+  </div>
+</section>
+
+<!-- ================================================================== LANES -->
+<section id="lanes">
+  <h2>Where every piece of data comes from</h2>
+  <p class="sub">Each row is one path, read left to right: where it starts, who fetches it and when, where it is kept, what is calculated, and where you see it.</p>
+  <div class="lanehead"><div>Data</div><div>Source</div><div>Fetched by · when</div><div>Kept in</div><div>Calculated</div><div>Shown on</div></div>
+
+  <div class="lane"><div class="name">Your company's financials<span>the heart of the app</span></div>
+    <div class="step"><b>Your Excel workbook</b>Screener-style 3-statement model (.xlsx)</div>
+    <div class="step"><b>The app, when you upload</b>or "Load demo model"</div>
+    <div class="step"><b>Memory only</b>for your session; the file is not saved</div>
+    <div class="step"><b>Read → fill gaps → score</b>names matched by a synonym list; missing ratios derived from the statements</div>
+    <div class="step"><b>Dashboard, Ratio deep dive, Statements, PDF</b></div></div>
+
+  <div class="lane"><div class="name">Share price &amp; market cap<span>header numbers</span></div>
+    <div class="step"><b>Screener.in</b>the company's public page</div>
+    <div class="step"><b>The app</b>at most once a day per company</div>
+    <div class="step"><b>Memory, 24 hours</b></div>
+    <div class="step"><b>None</b>shown as read; falls back to the workbook's figure if Screener is unreachable</div>
+    <div class="step"><b>Dashboard header</b></div></div>
+
+  <div class="lane"><div class="name">Peer companies' market data<span>410 companies</span></div>
+    <div class="step"><b>Screener.in</b>P/E, book value, ROE, ROCE, profit, equity, borrowings, price</div>
+    <div class="step"><b>Robot</b>about every 5 min, 09:15–15:30 IST, Mon–Fri</div>
+    <div class="step"><b>screener_snapshot.json</b>+ <code>screener_history/&lt;date&gt;.json</code></div>
+    <div class="step"><b>Sector totals</b>added up company by company (see Sector Lens maths)</div>
+    <div class="step"><b>Sector lens</b>peer table, sector P/E, P/B, ROE, ROCE</div></div>
+
+  <div class="lane"><div class="name">Sector fundamentals<span>deeper, slower data</span></div>
+    <div class="step"><b>IndianAPI</b><code>/stock</code> per company</div>
+    <div class="step"><b>Robot</b>1st of each month; stops before spending if it would exceed 400 requests</div>
+    <div class="step"><b>sector_snapshot.json</b></div>
+    <div class="step"><b>Pooled metrics, month-on-month change, cycle tilt</b></div>
+    <div class="step"><b>Sector lens</b>PEG, EPS growth, Piotroski, ROA, tilt</div></div>
+
+  <div class="lane"><div class="name">Which sector a company is in<span>peer group</span></div>
+    <div class="step"><b>NSE index lists</b>official constituent files</div>
+    <div class="step"><b>Robot</b>monthly, just before the sector refresh</div>
+    <div class="step"><b>nse_constituents/*.csv</b></div>
+    <div class="step"><b>Classify by index membership</b>a specific index beats a broad one (Bank beats Financial Services)</div>
+    <div class="step"><b>Sector lens</b>picks 1 of 27 peer groups</div></div>
+
+  <div class="lane"><div class="name">Seasonality<span>month-by-month habit</span></div>
+    <div class="step"><b>IndianAPI index history</b>or Yahoo weekly prices when the index is not available</div>
+    <div class="step"><b>Scripts run by hand</b></div>
+    <div class="step"><b>seasonality_history.json</b>rebuilt series are flagged "reconstructed"</div>
+    <div class="step"><b>Average return for each calendar month</b></div>
+    <div class="step"><b>Sector lens</b>heatmap, labelled if reconstructed</div></div>
+
+  <div class="lane"><div class="name">Sector's current cycle<span>what is happening now</span></div>
+    <div class="step"><b>Google News</b>3 searches, trusted publishers, titles only</div>
+    <div class="step"><b>The app</b>in the background when a file loads</div>
+    <div class="step"><b>market_context_cache.json</b>6-hour window</div>
+    <div class="step"><b>AI writes a short read</b>rule-based text if the AI is unavailable</div>
+    <div class="step"><b>Sector lens</b>"current cycle" card</div></div>
+
+  <div class="lane"><div class="name">Company news<span>about this company</span></div>
+    <div class="step"><b>Google News</b>9 searches, run at the same time</div>
+    <div class="step"><b>The app</b>in the background when a file loads</div>
+    <div class="step"><b>company_news_cache.json</b>6-hour window</div>
+    <div class="step"><b>Check source → relevance → remove repeats → rank top 10–12</b>AI may only summarise a real article</div>
+    <div class="step"><b>Sector lens</b>News &amp; Outlook cards</div></div>
+
+  <div class="lane"><div class="name">Written explanations<span>the words</span></div>
+    <div class="step"><b>Groq, then Gemini</b>your keys, kept in the host's secret store</div>
+    <div class="step"><b>The app</b>4 background jobs the moment a file loads</div>
+    <div class="step"><b>Memory</b>per workbook, per session</div>
+    <div class="step"><b>None</b>the AI is given the finished numbers and writes about them</div>
+    <div class="step"><b>Dashboard note, Ask the analyst</b></div></div>
+</section>
+
+<!-- ================================================================== SCORE -->
+<section id="score">
+  <h2>How the Funda Score is calculated</h2>
+  <p class="sub">Pure arithmetic in <code>core/scoring.py</code>, using sector rules from <code>core/sectors.py</code>. The same file and sector always give the same score.</p>
+  <div class="card">
+    <div class="flow">
+      <div class="fstep"><b>Take 12 ratios</b><span>For each, use the latest year and the average of the last 3 years.</span></div>
+      <div class="fstep"><b>Compare with the sector's lines</b><span>Each sector has its own "weak" and "strong" line per ratio. Debt of 2× is fine for a bank, alarming for software.</span></div>
+      <div class="fstep"><b>Turn into 1–100</b><span>At the weak line = 40. At the strong line = 66. In between, a straight line. Beyond them it keeps going to 1 or 100.</span></div>
+      <div class="fstep"><b>Blend and nudge</b><span>60% latest year + 40% three-year average, plus a small nudge for whether the ratio is improving or slipping.</span></div>
+      <div class="fstep"><b>Roll up</b><span>Ratios → 5 pillars (average) → one score, weighted by what matters in that sector.</span></div>
+    </div>
+
+    <div class="scale" aria-hidden="true">
+      <div class="bar"></div>
+      <div class="zn" style="left:19.5%;color:#B4483C">WEAK</div>
+      <div class="zn" style="left:52%;color:#B5761F">NEUTRAL</div>
+      <div class="zn" style="left:83%;color:#177245">STRONG</div>
+      <div class="mk" style="left:39%"></div><div class="lb" style="left:39%">40 = sector's weak line</div>
+      <div class="mk" style="left:65%"></div><div class="lb" style="left:65%">66 = sector's strong line</div>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <h3>The 12 ratios and their pillars</h3>
+        <div class="tw"><table>
+          <tr><th>Pillar</th><th>Ratios</th></tr>
+          <tr><td><b>Growth</b></td><td>Sales growth · Net profit growth</td></tr>
+          <tr><td><b>Profitability</b></td><td>EBITDA margin · Net profit margin</td></tr>
+          <tr><td><b>Returns</b></td><td>ROE · ROCE · ROA</td></tr>
+          <tr><td><b>Leverage</b></td><td>Debt to equity <span class="small">(lower is better)</span> · Interest coverage</td></tr>
+          <tr><td><b>Efficiency</b></td><td>Cash conversion cycle <span class="small">(lower is better)</span> · CFO / PAT · Fixed asset turnover</td></tr>
+        </table></div>
+      </div>
+      <div>
+        <h3>The formula</h3>
+        <div class="formula">ratio score  = 0.6 × score(latest year)
+             + 0.4 × score(3-year average)
+             + trend nudge            (kept within 1–100)
+
+pillar score = average of its ratio scores
+
+total        = Σ (pillar score × sector weight)
+               ÷ Σ sector weights
+
+cash check   : 3-yr CFO/PAT below 0.5  →  −5
+               3-yr CFO/PAT above 1.0  →  +2.5
+
+verdict      : 66 or more → STRONG
+               below 40   → WEAK
+               otherwise  → NEUTRAL</div>
+      </div>
+    </div>
+    <div class="callout">A ratio that is missing from the workbook is first <b>derived from the statements</b> (<code>core/derive.py</code>). If it still cannot be worked out it is listed as a data gap and left out — it is never guessed or set to zero. There are <b>9 sector rule sets</b>; the app picks one automatically from the company name and its numbers, and you can change it.</div>
+  </div>
+</section>
+
+<!-- ============================================================ LENS MATHS -->
+<section id="lens">
+  <h2>Sector Lens maths</h2>
+  <p class="sub">The sector figure is not an average of ratios. Totals are added up across all peers first, then the ratio is taken, so a large company carries its real weight.</p>
+  <div class="grid2">
+    <div class="card">
+      <span class="tag t-calc">From the Screener snapshot</span>
+      <h3>Bottom-up sector totals <span class="small">(core/screener.py)</span></h3>
+      <div class="formula">Equity           = Equity capital + Reserves
+EBIT             = Operating profit − Depreciation
+Capital employed = Equity + Borrowings
+
+Sector P/E  = Σ market cap ÷ Σ net profit   (loss-makers left out)
+Sector P/B  = Σ market cap ÷ Σ equity
+Sector ROE  = Σ net profit ÷ Σ equity
+Sector ROCE = Σ EBIT ÷ Σ capital employed</div>
+      <p class="small">Banks and finance companies: ROCE is shown as "—" because it does not apply.</p>
+    </div>
+    <div class="card">
+      <span class="tag t-calc">From the monthly IndianAPI snapshot</span>
+      <h3>Pooled fundamentals and the cycle tilt <span class="small">(core/indianapi.py, core/tilt.py)</span></h3>
+      <ul>
+        <li>Sector ROA = Σ net income ÷ Σ total assets</li>
+        <li>PEG, EPS growth, Piotroski score, top 10 by market cap (no extra API calls)</li>
+        <li>Month-on-month change in earnings growth, revenue growth, ROE, ROA and valuation</li>
+        <li>From those changes, one tilt word: <b>Expansion, Recovery, Stable, Mid-cycle, Slowdown</b> or <b>Mixed</b></li>
+      </ul>
+      <p class="small">Your company is then placed against these: the gap bars, the positioning chart and the "priced above / earning below" headline.</p>
+    </div>
+  </div>
+  <div class="callout">If a peer is missing from the day's snapshot, the app fetches just that one company live from Screener and keeps it for 6 hours. Anything a source does not provide stays blank and is shown as "—".</div>
+</section>
+
+<!-- ===================================================================== AI -->
+<section id="ai">
+  <h2>The AI layer</h2>
+  <p class="sub">The numbers are decided before the AI is called. It receives the finished figures and writes about them in plain words.</p>
+  <div class="grid3">
+    <div class="card"><span class="tag t-ai">What it writes</span>
+      <ul>
+        <li>The analyst note on the Dashboard <span class="small">(1 call)</span></li>
+        <li>The model interpretation, in 3 parts at once <span class="small">(3 calls)</span></li>
+        <li>The sector's current-cycle read <span class="small">(1 call)</span></li>
+        <li>Company news summaries <span class="small">(1 call)</span></li>
+        <li>Each question you ask <span class="small">(1 call each)</span></li>
+      </ul></div>
+    <div class="card"><span class="tag t-ai">How it is called</span>
+      <ul>
+        <li><b>Groq</b> is tried first (default model <code>openai/gpt-oss-120b</code>)</li>
+        <li><b>Gemini</b> takes over if Groq fails or is rate-limited (<code>gemini-flash-latest</code>)</li>
+        <li>Several keys are rotated so parallel jobs use different keys</li>
+        <li>Failed calls are retried a few times, then give up cleanly</li>
+      </ul></div>
+    <div class="card"><span class="tag t-calc">The guard rails</span>
+      <ul>
+        <li>AI does <b>no arithmetic</b> and cannot change a ratio or the score</li>
+        <li>It may only summarise real, retrieved news — never invent an event</li>
+        <li>No AI key? Every page still works, using text written from the scoring rules</li>
+        <li>One writing rule book for all text: plain words, what the number means</li>
+      </ul></div>
+  </div>
+</section>
+
+<!-- =================================================================== BOTS -->
+<section id="bots">
+  <h2>Automations</h2>
+  <p class="sub">Two robots run on GitHub's servers and save their results back into the project as files. The app picks the new files up on its next update.</p>
+  <div class="grid2">
+    <div class="card">
+      <span class="tag t-bot">Robot 1 · live Screener snapshot</span>
+      <h3>About every 5 minutes while the market is open</h3>
+      <ul>
+        <li><b>When:</b> Monday–Friday, 09:15 to 15:30 IST (GitHub may delay or skip some runs)</li>
+        <li><b>Does:</b> reads each of the 410 peer companies once from Screener, works out the sector totals</li>
+        <li><b>Writes:</b> <code>data/screener_snapshot.json</code> and <code>data/screener_history/&lt;date&gt;.json</code></li>
+        <li><b>If it fails:</b> the previous snapshot is kept; a company that failed reuses its last value, marked stale</li>
+      </ul>
+      <p class="small">File: <code>.github/workflows/daily-screener-refresh.yml</code> → <code>scripts/refresh_screener.py</code></p>
+    </div>
+    <div class="card">
+      <span class="tag t-bot">Robot 2 · monthly sector snapshot</span>
+      <h3>1st of every month, 08:30 IST</h3>
+      <ul>
+        <li><b>Does first:</b> downloads the latest official NSE index member lists</li>
+        <li><b>Then:</b> fetches fundamentals from IndianAPI and computes pooled metrics, top 10, month-on-month change and tilt</li>
+        <li><b>Credit guard:</b> counts the requests first and aborts before any call if it would exceed 400; stops at once on a login or rate-limit error</li>
+        <li><b>Writes:</b> <code>data/sector_snapshot.json</code>, only after it passes validation</li>
+      </ul>
+      <p class="small">File: <code>.github/workflows/sector-snapshot.yml</code> → <code>scripts/fetch_nse_constituents.py</code>, <code>scripts/refresh_sectors.py</code></p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <span class="tag t-bot">Run by hand</span>
+    <div class="tw"><table>
+      <tr><th>Script</th><th>What it does</th></tr>
+      <tr><td><code>scripts/refresh_seasonality.py</code></td><td>Fills <code>seasonality_history.json</code> with real index price history from IndianAPI</td></tr>
+      <tr><td><code>scripts/reconstruct_seasonality.py</code></td><td>When an index has no history, rebuilds it as an equal-weight basket of its members from Yahoo weekly prices, and flags it "reconstructed"</td></tr>
+      <tr><td><code>scripts/export_reference.py</code></td><td>Writes the rule book (every synonym and formula) to an Excel file, generated from the code so it cannot drift</td></tr>
+      <tr><td><code>scripts/export_html.py</code></td><td>Saves standalone previews of the Sector lens and Ask the analyst pages</td></tr>
+    </table></div>
+  </div>
+</section>
+
+<!-- ==================================================================== RUN -->
+<section id="run">
+  <h2>What happens when you upload a file</h2>
+  <p class="sub">In order. Steps 1–4 take about a second; the AI and news work in step 5 runs in the background while you already see the pages.</p>
+  <div class="timeline">
+    <div class="tl"><div class="t">STEP 1</div><b>Read</b><span>Find the sheets, match line names through the synonym list, build clean yearly tables.</span></div>
+    <div class="tl"><div class="t">STEP 2</div><b>Fill gaps</b><span>Any ratio the workbook lacks is derived from the income statement and balance sheet.</span></div>
+    <div class="tl"><div class="t">STEP 3</div><b>Pick sector</b><span>Detected from the company name and its numbers (you can change it). Sets the weak/strong lines and weights.</span></div>
+    <div class="tl"><div class="t">STEP 4</div><b>Score</b><span>12 ratios → 5 pillars → Funda Score and verdict. Live price overlaid on the header.</span></div>
+    <div class="tl"><div class="t">STEP 5</div><b>Background jobs</b><span>4 AI write-ups start at once; then the Sector Lens data (prices, cycle read, news) is prepared.</span></div>
+    <div class="tl"><div class="t">STEP 6</div><b>Show pages</b><span>Pages that need no AI open immediately. A page that needs a job waits only for that job.</span></div>
+  </div>
+</section>
+
+<!-- ================================================================== CACHE -->
+<section id="cache">
+  <h2>What is saved, and for how long</h2>
+  <p class="sub">Saved results are why most visits are fast. They are wiped when the app restarts (every code update restarts it), so the first visit after an update is the slow one.</p>
+  <div class="card"><div class="tw"><table>
+    <tr><th>What</th><th>Kept for</th><th>Where</th></tr>
+    <tr><td>Your uploaded workbook and its score</td><td>Your session only</td><td>Memory — never written to disk</td></tr>
+    <tr><td>Live price and market cap</td><td>24 hours</td><td>Memory</td></tr>
+    <tr><td>A peer fetched live because it was missing from the snapshot</td><td>6 hours</td><td>Memory</td></tr>
+    <tr><td>Sector current-cycle read</td><td>6-hour window</td><td>Memory + <code>data/market_context_cache.json</code></td></tr>
+    <tr><td>Company news</td><td>6-hour window</td><td>Memory + <code>data/company_news_cache.json</code></td></tr>
+    <tr><td>AI note and interpretation</td><td>Per workbook, per session (a page refresh rewrites them)</td><td>Memory</td></tr>
+    <tr><td>Screener peer snapshot</td><td>Until the robot's next run</td><td>Project file (committed)</td></tr>
+    <tr><td>Sector fundamentals snapshot</td><td>Until next month's run</td><td>Project file (committed)</td></tr>
+  </table></div></div>
+</section>
+
+<!-- =================================================================== HOST -->
+<section id="host">
+  <h2>Hosting and branches</h2>
+  <div class="grid3">
+    <div class="card"><span class="tag t-page">Where it runs</span>
+      <ul>
+        <li><b>Streamlit Cloud</b> — fundacheck.streamlit.app, started from <code>streamlit_app.py</code></li>
+        <li><b>Render</b> — set up in <code>render.yaml</code> (free plan, Python 3.12)</li>
+        <li>Phones get a bottom tab bar; desktop gets the side rail</li>
+      </ul></div>
+    <div class="card"><span class="tag t-page">Branches</span>
+      <ul>
+        <li><code>experiment</code> — where new work lands first</li>
+        <li><code>main</code> — the live version; the robots commit snapshots here</li>
+        <li><code>quaterly-data</code> — quarterly-results PDF reader, kept separate with its own site</li>
+      </ul></div>
+    <div class="card"><span class="tag t-page">Secrets</span>
+      <ul>
+        <li>AI keys live in the host's secret store, never in the code</li>
+        <li><code>INDIANAPI_KEY</code> lives in GitHub's secret store, used only by the monthly robot</li>
+        <li>Screener, NSE lists, Google News and Yahoo need no key</li>
+      </ul></div>
+  </div>
+  <div class="callout warn">The sidebar shows a <b>build label</b> (currently r26). If the live site shows an older label than expected, it is still running old code and needs a refresh or reboot.</div>
+</section>
+
+<!-- ================================================================== FILES -->
+<section id="files">
+  <h2>Code map</h2>
+  <p class="sub">Which file does what, grouped by job.</p>
+  <div class="card"><div class="tw"><table>
+    <tr><th>Job</th><th>Files</th><th>Role</th></tr>
+    <tr><td><b>App shell</b></td><td><code>app.py</code>, <code>streamlit_app.py</code></td><td>Sidebar, navigation, background jobs, page routing, phone layout</td></tr>
+    <tr><td><b>Read the workbook</b></td><td><code>core/parser.py</code>, <code>core/synonyms.py</code>, <code>core/derive.py</code></td><td>Find sheets, normalise line names, derive missing ratios</td></tr>
+    <tr><td><b>Score</b></td><td><code>core/scoring.py</code>, <code>core/sectors.py</code></td><td>The Funda Score and the 9 sector rule sets</td></tr>
+    <tr><td><b>Peers and sectors</b></td><td><code>core/screener.py</code>, <code>core/indianapi.py</code>, <code>core/sector_universe.py</code>, <code>core/sector_snapshot.py</code>, <code>core/tilt.py</code>, <code>core/seasonality.py</code></td><td>Fetch and total peer data, classify the company, cycle and seasonality</td></tr>
+    <tr><td><b>News</b></td><td><code>core/market_context.py</code>, <code>core/company_news.py</code></td><td>Sector cycle read and company news, both from Google News</td></tr>
+    <tr><td><b>AI</b></td><td><code>core/llm.py</code>, <code>core/interpret.py</code>, <code>core/writing_rules.py</code></td><td>Provider calls, key rotation, fallbacks, the writing style guide</td></tr>
+    <tr><td><b>Pages</b></td><td><code>core/shell.py</code>, <code>core/ratio_deepdive.py</code>, <code>core/sector_lens_view.py</code>, <code>core/statements_view.py</code>, <code>core/sections.py</code>, <code>core/viz.py</code>, <code>core/charts.py</code>, <code>core/design_blocks.py</code>, <code>assets/*.html</code></td><td>Build each page's HTML and charts from the calculated numbers</td></tr>
+    <tr><td><b>Loading and welcome</b></td><td><code>core/loader.py</code></td><td>The animated analyst</td></tr>
+    <tr><td><b>PDF report</b></td><td><code>core/report.py</code></td><td>The multi-page Export Report</td></tr>
+    <tr><td><b>Robots</b></td><td><code>.github/workflows/*.yml</code>, <code>scripts/*.py</code></td><td>Scheduled fetches that write the files in <code>data/</code></td></tr>
+    <tr><td><b>Tests</b></td><td><code>tests/</code></td><td>170 automated checks of the parser, scoring, news and loader</td></tr>
+  </table></div></div>
+</section>
+
+<footer>Generated from the FundaCheck code on 2 October 2026 (build r26). If the code changes, this page needs regenerating.</footer>
+</div>
+</body>
+</html>
